@@ -22,17 +22,18 @@ from shared import (
 from shared.validators import escape_like_wildcards
 
 # Import UI enhancement components
-from components import (
-    # Theme
+from shared.ui.theme import (
     init_theme,
     render_theme_toggle,
     apply_custom_css,
     get_colors,
+)
+from shared.ui.responsive import apply_responsive_css
+
+from components import (
     # Loading
     show_loading_status,
     render_last_update,
-    # Responsive
-    apply_responsive_css,
     # Charts
     create_top10_bar_chart,
     create_distribution_pie,
@@ -229,25 +230,20 @@ def load_monthly_summary(date_from, date_to, db_ver):
     targets = DBRouter.pick_targets(date_from_str, date_to_str)
 
     where_clause = " AND ".join(where) if where else "1=1"
-    select_cols = "substr(production_date, 1, 7) AS year_month, good_quantity"
-
-    inner_sql, _ = DBRouter.build_union_sql(
-        select_columns=select_cols,
-        where_clause=where_clause,
+    
+    # v8 Optimization: Use build_aggregation_sql for pre-aggregation in each DB
+    final_sql, _ = DBRouter.build_aggregation_sql(
+        inner_select="substr(production_date, 1, 7) AS year_month, SUM(good_quantity) AS total_prod, COUNT(*) AS cnt",
+        inner_where=where_clause,
+        outer_select="year_month, SUM(total_prod) AS total_production, SUM(cnt) AS batch_count, AVG(total_prod/cnt) AS avg_batch_size",
+        outer_group_by="year_month",
         targets=targets,
-        order_by="",
-        include_source=False,
+        outer_order_by="year_month"
     )
     query_params = DBRouter.build_query_params(params, targets)
 
-    wrapper_sql = f"""
-    SELECT year_month, SUM(good_quantity) AS total_production, COUNT(*) AS batch_count, AVG(good_quantity) AS avg_batch_size
-    FROM ({inner_sql})
-    GROUP BY year_month ORDER BY year_month
-    """
-
     with DBRouter.get_connection(use_archive=targets.use_archive) as conn:
-        df = pd.read_sql(wrapper_sql, conn, params=query_params)
+        df = pd.read_sql(final_sql, conn, params=query_params)
     return df
 
 
@@ -268,25 +264,20 @@ def load_daily_summary(date_from, date_to, db_ver):
     targets = DBRouter.pick_targets(date_from_str, date_to_str)
 
     where_clause = " AND ".join(where) if where else "1=1"
-    select_cols = "substr(production_date, 1, 10) AS production_day, good_quantity"
-
-    inner_sql, _ = DBRouter.build_union_sql(
-        select_columns=select_cols,
-        where_clause=where_clause,
+    
+    # v8 Optimization: Use build_aggregation_sql
+    final_sql, _ = DBRouter.build_aggregation_sql(
+        inner_select="substr(production_date, 1, 10) AS production_day, SUM(good_quantity) AS total_prod, COUNT(*) AS cnt",
+        inner_where=where_clause,
+        outer_select="production_day, SUM(total_prod) AS total_production, SUM(cnt) AS batch_count",
+        outer_group_by="production_day",
         targets=targets,
-        order_by="",
-        include_source=False,
+        outer_order_by="production_day"
     )
     query_params = DBRouter.build_query_params(params, targets)
 
-    wrapper_sql = f"""
-    SELECT production_day, SUM(good_quantity) AS total_production, COUNT(*) AS batch_count
-    FROM ({inner_sql})
-    GROUP BY production_day ORDER BY production_day
-    """
-
     with DBRouter.get_connection(use_archive=targets.use_archive) as conn:
-        df = pd.read_sql(wrapper_sql, conn, params=query_params)
+        df = pd.read_sql(final_sql, conn, params=query_params)
     return df
 
 
@@ -307,26 +298,23 @@ def load_weekly_summary(date_from, date_to, db_ver):
     targets = DBRouter.pick_targets(date_from_str, date_to_str)
 
     where_clause = " AND ".join(where) if where else "1=1"
+    
+    # v8 Optimization: Use build_aggregation_sql
     # Use strftime for week-based grouping
-    select_cols = "substr(production_date, 1, 4) || '-W' || printf('%02d', (strftime('%j', production_date) - 1) / 7 + 1) AS year_week, good_quantity"
-
-    inner_sql, _ = DBRouter.build_union_sql(
-        select_columns=select_cols,
-        where_clause=where_clause,
+    week_expr = "substr(production_date, 1, 4) || '-W' || printf('%02d', (strftime('%j', production_date) - 1) / 7 + 1)"
+    
+    final_sql, _ = DBRouter.build_aggregation_sql(
+        inner_select=f"{week_expr} AS year_week, SUM(good_quantity) AS total_prod, COUNT(*) AS cnt",
+        inner_where=where_clause,
+        outer_select="year_week, SUM(total_prod) AS total_production, SUM(cnt) AS batch_count",
+        outer_group_by="year_week",
         targets=targets,
-        order_by="",
-        include_source=False,
+        outer_order_by="year_week"
     )
     query_params = DBRouter.build_query_params(params, targets)
 
-    wrapper_sql = f"""
-    SELECT year_week, SUM(good_quantity) AS total_production, COUNT(*) AS batch_count
-    FROM ({inner_sql})
-    GROUP BY year_week ORDER BY year_week
-    """
-
     with DBRouter.get_connection(use_archive=targets.use_archive) as conn:
-        df = pd.read_sql(wrapper_sql, conn, params=query_params)
+        df = pd.read_sql(final_sql, conn, params=query_params)
     return df
 
 
@@ -335,6 +323,12 @@ def to_excel_bytes(df: pd.DataFrame, sheet_name: str = "Sheet1") -> bytes:
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name=sheet_name)
     return output.getvalue()
+
+
+@st.cache_data(show_spinner=False)
+def _cached_excel_bytes(df: pd.DataFrame) -> bytes:
+    """Generate Excel bytes once per unique DataFrame (lazy, cached)."""
+    return to_excel_bytes(df)
 
 
 # ==========================================================
@@ -389,14 +383,8 @@ if st.sidebar.button(":arrows_counterclockwise: 새로고침"):
     st.cache_data.clear()
     st.rerun()
 
-# Load data for tabs
-df, bad_dt = load_records(item_codes, keyword, date_from, date_to, limit, db_ver=current_db_ver)
-
 # Display last update time
 render_last_update()
-
-if bad_dt > 0:
-    st.warning(f":warning: {bad_dt:,}개 레코드의 날짜 파싱에 문제가 있습니다.")
 
 # Tabs - AI Analysis first
 tab1, tab2, tab3, tab4 = st.tabs([":robot: AI 분석", ":chart_with_upwards_trend: 추세", ":memo: 상세내역", ":bar_chart: 제품비교"])
@@ -465,15 +453,38 @@ with tab2:
         fig.update_yaxes(title_text="배치 수", secondary_y=True)
 
         st.plotly_chart(fig, width="stretch", config=get_chart_config(f"production_trends_{agg_unit.lower()}"))
-        st.dataframe(summary_df, width="stretch", hide_index=True)
+        col_rename = {
+            "year_month": "연월", "production_day": "생산일", "year_week": "주차",
+            "total_production": "총 생산량", "batch_count": "배치 수", "avg_batch_size": "평균 배치 크기"
+        }
+        display_summary = summary_df.rename(columns=col_rename)
+        if "평균 배치 크기" in display_summary.columns:
+            display_summary["평균 배치 크기"] = display_summary["평균 배치 크기"].round(1)
+        st.dataframe(display_summary, width="stretch", hide_index=True)
 
 with tab3:
+    # P1-2: Lazy-load records only when this tab is active
+    df, bad_dt = load_records(item_codes, keyword, date_from, date_to, limit, db_ver=current_db_ver)
+    if bad_dt > 0:
+        st.warning(f":warning: {bad_dt:,}개 레코드의 날짜 파싱에 문제가 있습니다.")
     st.subheader(f"총 {len(df):,}개 레코드")
-    st.dataframe(df[["production_date", "item_code", "item_name", "good_quantity", "lot_number"]], width="stretch", hide_index=True)
-    st.download_button(":inbox_tray: Excel 다운로드", to_excel_bytes(df), "production_records.xlsx")
+    display_detail = df[["production_date", "item_code", "item_name", "good_quantity", "lot_number"]].copy()
+    display_detail["production_date"] = df["production_dt"].dt.strftime("%Y-%m-%d")
+    display_detail = display_detail.rename(columns={
+        "production_date": "생산일",
+        "item_code": "제품코드",
+        "item_name": "제품명",
+        "good_quantity": "양품수량",
+        "lot_number": "LOT 번호"
+    })
+    st.dataframe(display_detail, width="stretch", hide_index=True)
+    st.download_button(":inbox_tray: Excel 다운로드", _cached_excel_bytes(df), "production_records.xlsx")
 
 with tab4:
     st.subheader(":bar_chart: 제품 비교")
+
+    # P1-2: Lazy-load records (cache hit if tab3 already loaded, free second call)
+    df, _ = load_records(item_codes, keyword, date_from, date_to, limit, db_ver=current_db_ver)
 
     # Get theme colors for chart template
     colors = get_colors()

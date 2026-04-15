@@ -219,8 +219,8 @@ def render_kpi_cards(
     with st.container(horizontal=True):
         # KPI 1: Total Production with trend
         st.metric(
-            label="Total Production",
-            value=f"{kpis['total_qty']:,} ea",
+            label="총 생산량",
+            value=f"{kpis['total_qty']:,} 개",
             border=True,
             chart_data=sparkline_data,
             chart_type="line"
@@ -228,8 +228,8 @@ def render_kpi_cards(
 
         # KPI 2: Batch Count with trend
         st.metric(
-            label="Batch Count",
-            value=f"{kpis['batch_count']:,} batches",
+            label="배치 수",
+            value=f"{kpis['batch_count']:,} 건",
             border=True,
             chart_data=batch_sparkline,
             chart_type="bar"
@@ -237,8 +237,8 @@ def render_kpi_cards(
 
         # KPI 3: Daily Average (with empty sparkline for height consistency)
         st.metric(
-            label="Daily Average",
-            value=f"{kpis['daily_avg']:,.0f} ea",
+            label="일 평균 생산",
+            value=f"{kpis['daily_avg']:,.0f} 개",
             border=True,
             chart_data=[0] * 7,  # Empty sparkline for consistent height
             chart_type="line"
@@ -250,7 +250,7 @@ def render_kpi_cards(
             top_name = top_name[:20] + "..."
 
         st.metric(
-            label=f"Top Product ({kpis['top_item']})",
+            label=f"최다 제품 ({kpis['top_item']})",
             value=top_name if top_name != "-" else "-",
             border=True,
             chart_data=top_product_sparkline,

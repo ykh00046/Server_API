@@ -149,6 +149,13 @@ class TestInputConstraintsIntegration:
         with pytest.raises(Exception):  # ValidationError
             ChatRequest(query="a" * 2001)
 
+    def test_chat_query_empty_blocked(self):
+        """ChatRequest query 빈 문자열 거부 (min_length=1)"""
+        from api.chat import ChatRequest
+
+        with pytest.raises(Exception):  # ValidationError
+            ChatRequest(query="")
+
 
 class TestDateRangeEdgeCases:
     """날짜 범위 엣지 케이스 테스트"""

@@ -53,15 +53,15 @@ def create_top10_bar_chart(df: pd.DataFrame, template: str) -> go.Figure:
         marker_color='#1f77b4',
         hovertemplate=(
             "<b>%{y}</b><br>"
-            "Quantity: %{x:,} ea<br>"
+            "생산량: %{x:,} 개<br>"
             "<extra></extra>"
         )
     ))
 
     fig.update_layout(
-        title="Top 10 Products by Production Volume",
-        xaxis_title="Production Quantity (ea)",
-        yaxis_title="Product Code",
+        title="Top 10 제품별 생산량",
+        xaxis_title="생산량 (개)",
+        yaxis_title="제품코드",
         template=template,
         height=400,
         yaxis=dict(autorange="reversed"),  # Top product at top
@@ -117,13 +117,13 @@ def create_distribution_pie(df: pd.DataFrame, template: str) -> go.Figure:
         textposition='outside',
         hovertemplate=(
             "<b>%{label}</b><br>"
-            "Quantity: %{value:,} ea<br>"
-            "Share: %{percent}<extra></extra>"
+            "생산량: %{value:,} 개<br>"
+            "점유율: %{percent}<extra></extra>"
         )
     ))
 
     fig.update_layout(
-        title="Production Distribution by Product",
+        title="제품별 생산 분포",
         template=template,
         height=400,
         showlegend=True,
@@ -185,12 +185,12 @@ def create_trend_lines(
         return fig
 
     # Determine period column based on aggregation unit
-    if agg_unit == "Daily":
+    if agg_unit == "일별":
         filtered["period"] = filtered["production_date"].str[:10]  # YYYY-MM-DD
-    elif agg_unit == "Weekly":
+    elif agg_unit == "주별":
         # Create year-week string
         filtered["period"] = filtered["production_dt"].dt.strftime("%Y-W%U")
-    else:  # Monthly (default)
+    else:  # 월별 (default)
         filtered["period"] = filtered["year_month"]
 
     # Aggregate by period and item
@@ -215,15 +215,15 @@ def create_trend_lines(
             marker=dict(color=color, size=6),
             hovertemplate=(
                 f"<b>{item_code}</b><br>"
-                "Period: %{x}<br>"
-                "Quantity: %{y:,} ea<extra></extra>"
+                "기간: %{x}<br>"
+                "생산량: %{y:,} 개<extra></extra>"
             )
         ))
 
     fig.update_layout(
-        title="Product Production Trends",
-        xaxis_title="Period",
-        yaxis_title="Production Quantity (ea)",
+        title="제품별 생산 추세",
+        xaxis_title="기간",
+        yaxis_title="생산량 (개)",
         template=template,
         height=400,
         hovermode="x unified",

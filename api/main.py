@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import itertools
 import os
 import sys
 import threading
@@ -34,9 +35,11 @@ from shared.validators import (
     escape_like_wildcards,
 )
 from shared.logging_config import QueryLogger, set_request_id
+from shared.metrics import performance_monitor
 from shared.rate_limiter import RateLimiter
 
 from . import chat  # Import chat module
+from . import _session_store as _sstore
 
 
 # ==========================================================
@@ -70,9 +73,8 @@ app.include_router(chat.router)
 # ==========================================================
 # Middleware for Request ID and Rate Limiting
 # ==========================================================
-# 요청 카운터 for 주기적 cleanup (thread-safe)
-_request_counter = 0
-_request_counter_lock = threading.Lock()
+# 요청 카운터 for 주기적 cleanup (GIL-safe itertools.count — no lock needed)
+_request_counter = itertools.count()
 _CLEANUP_INTERVAL = 100
 
 
@@ -119,13 +121,8 @@ async def add_request_id_and_rate_limit(request, call_next):
     response.headers["X-RateLimit-Limit"] = "60"
     response.headers["X-RateLimit-Remaining"] = str(api_rate_limiter.remaining(client_ip))
 
-    # Periodic cleanup (thread-safe counter)
-    should_cleanup = False
-    with _request_counter_lock:
-        _request_counter += 1
-        if _request_counter >= _CLEANUP_INTERVAL:
-            _request_counter = 0
-            should_cleanup = True
+    # Periodic cleanup (every 100 requests — no lock needed with itertools.count)
+    should_cleanup = next(_request_counter) % _CLEANUP_INTERVAL == 0
 
     if should_cleanup:
         removed = api_rate_limiter.cleanup()
@@ -208,6 +205,21 @@ def read_root():
     return {"status": "active", "system": "Production Data Hub API"}
 
 
+@app.get("/metrics/performance")
+def metrics_performance():
+    """Rolling-window query performance metrics (count / avg / p50 / p95 / p99 / cache_hit_rate)."""
+    return performance_monitor.get_all_stats()
+
+
+@app.get("/metrics/cache")
+def metrics_cache():
+    """Combined cache + performance snapshot for monitoring."""
+    return {
+        "api_cache": get_cache_stats(),
+        "performance": performance_monitor.get_all_stats(),
+    }
+
+
 @app.get("/healthz")
 def health_check():
     """
@@ -283,7 +295,8 @@ async def ai_health_check():
                 "message": _ai_health_cache["message"],
                 "cached": True,
                 "cache_age_sec": int(cache_age),
-                "cache_ttl_sec": AI_HEALTH_CACHE_TTL
+                "cache_ttl_sec": AI_HEALTH_CACHE_TTL,
+                "sessions": _sstore.stats(),
             }
 
     # Perform actual check
@@ -298,7 +311,8 @@ async def ai_health_check():
         return {
             "status": "error",
             "message": "GEMINI_API_KEY not configured",
-            "cached": False
+            "cached": False,
+            "sessions": _sstore.stats(),
         }
 
     try:
@@ -321,7 +335,8 @@ async def ai_health_check():
         return {
             "status": "ok",
             "message": _ai_health_cache["message"],
-            "cached": False
+            "cached": False,
+            "sessions": _sstore.stats(),
         }
 
     except ClientError as e:
@@ -341,7 +356,8 @@ async def ai_health_check():
         return {
             "status": status,
             "message": error_msg,
-            "cached": False
+            "cached": False,
+            "sessions": _sstore.stats(),
         }
 
     except ServerError as e:
@@ -354,7 +370,8 @@ async def ai_health_check():
         return {
             "status": "degraded",
             "message": str(e),
-            "cached": False
+            "cached": False,
+            "sessions": _sstore.stats(),
         }
 
     except Exception as e:
@@ -367,7 +384,8 @@ async def ai_health_check():
         return {
             "status": "error",
             "message": str(e),
-            "cached": False
+            "cached": False,
+            "sessions": _sstore.stats(),
         }
 
 
@@ -375,7 +393,7 @@ async def ai_health_check():
 def get_records(
     item_code: str | None = Query(default=None, max_length=50, description="Item code filter"),
     q: str | None = Query(default=None, max_length=100, description="Search query"),
-    lot_number: str | None = Query(default=None, description="Lot number prefix filter (e.g., LT2026)"),
+    lot_number: str | None = Query(default=None, max_length=50, description="Lot number prefix filter (e.g., LT2026)"),
     date_from: str | None = Query(default=None, description="YYYY-MM-DD (inclusive)"),
     date_to: str | None = Query(default=None, description="YYYY-MM-DD (inclusive)"),
     min_quantity: int | None = Query(default=None, ge=0, description="Minimum good_quantity"),
@@ -480,19 +498,22 @@ def get_records(
             results = all_results[:limit]
         else:
             # Legacy offset mode (backward compatibility)
+            # P0-3: Push OFFSET into SQL instead of Python-side slicing
             sql, params_doubled = DBRouter.build_union_sql(
                 select_columns=select_columns,
                 where_clause=where_clause,
                 targets=targets,
                 order_by=sort_order,
-                limit=limit + offset + 1,  # Fetch enough for offset + check more
+                limit=limit + 1,  # Fetch one extra to check if there's more
                 include_source=True
             )
+            if offset > 0:
+                sql += f" OFFSET {int(offset)}"
             query_params = DBRouter.build_query_params(params, targets)
             all_results = DBRouter.query(sql, query_params, use_archive=targets.use_archive)
 
-            has_more = len(all_results) > offset + limit
-            results = all_results[offset:offset + limit]
+            has_more = len(all_results) > limit
+            results = all_results[:limit]
 
         ql.set_row_count(len(results))
 
@@ -510,10 +531,9 @@ def get_records(
     }
 
 
-@app.get("/records/{item_code}")
-def get_item_records(item_code: str, limit: int = 5000):
-    """Get production records for a specific item code (all time periods)."""
-    # Full period query -> need both DBs
+@api_cache("records_item")
+def _get_item_records_cached(item_code: str, limit: int) -> list[dict]:
+    """Cached internal function for get_item_records."""
     targets = DBTargets(use_archive=ARCHIVE_DB_FILE.exists(), use_live=True)
 
     select_columns = "id, production_date, lot_number, item_code, item_name, good_quantity"
@@ -537,6 +557,12 @@ def get_item_records(item_code: str, limit: int = 5000):
         ql.set_row_count(len(results))
 
     return results
+
+
+@app.get("/records/{item_code}")
+def get_item_records(item_code: str, limit: int = 5000):
+    """Get production records for a specific item code (all time periods)."""
+    return _get_item_records_cached(item_code, limit)
 
 
 @api_cache("items")
@@ -747,7 +773,7 @@ def _monthly_by_item_cached(
 
 @app.get("/summary/monthly_by_item")
 def monthly_by_item(
-    year_month: str | None = Query(default=None, description="e.g., 2026-01"),
+    year_month: str | None = Query(default=None, max_length=7, pattern=r"^\d{4}-\d{2}$", description="e.g., 2026-01"),
     item_code: str | None = Query(default=None, max_length=50, description="Filter by item code"),
     limit: int = Query(default=5000, ge=1, le=50000),
 ):

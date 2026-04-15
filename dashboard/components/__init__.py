@@ -2,30 +2,17 @@
 Dashboard UI Enhancement Components.
 
 This package contains modular components for the Production Data Hub dashboard:
-- theme: Dark mode manager (U1)
 - kpi_cards: KPI dashboard cards (U2)
 - charts: Chart components (U3-U5)
 - presets: Filter preset manager (U7)
 - loading: Loading state display (U6)
-- responsive: Responsive layout utilities (U8)
 - ai_section: AI analysis section with animations (U9)
 """
 
-from .theme import (
-    init_theme,
-    get_theme,
-    get_colors,
-    render_theme_toggle,
-    apply_custom_css,
-)
 from .loading import (
     show_loading_status,
     render_last_update,
     render_cache_status,
-)
-from .responsive import (
-    get_responsive_columns,
-    apply_responsive_css,
 )
 from .kpi_cards import (
     calculate_kpis,
@@ -56,19 +43,10 @@ from .ai_section import (
 )
 
 __all__ = [
-    # theme
-    "init_theme",
-    "get_theme",
-    "get_colors",
-    "render_theme_toggle",
-    "apply_custom_css",
     # loading
     "show_loading_status",
     "render_last_update",
     "render_cache_status",
-    # responsive
-    "get_responsive_columns",
-    "apply_responsive_css",
     # kpi_cards
     "calculate_kpis",
     "render_kpi_cards",

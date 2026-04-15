@@ -570,11 +570,11 @@ class ServerManager(ctk.CTk):
         if self.portal_panel.process and self.portal_panel.process.poll() is None:
             return
 
-        self.portal_panel.set_running("Running")
-        self.portal_panel.append_log(">>> Starting Portal Automation...", "INFO")
+        self.portal_panel.set_running("Scheduled")
+        self.portal_panel.append_log(">>> Starting Portal Scheduler...", "INFO")
 
         portal_dir = str(BASE_DIR / "webcloring-pdf")
-        cmd = [PY, "main.py", "--auto"]
+        cmd = [PY, "main.py", "--schedule"]
         self.portal_panel.process = self._start_process(cmd, self.portal_panel, cwd=portal_dir)
 
     def stop_portal(self):

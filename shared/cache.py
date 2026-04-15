@@ -13,7 +13,7 @@ v8 Thread Safety:
 from __future__ import annotations
 
 import os
-import hashlib
+import time
 import threading
 from functools import wraps
 from typing import Any, Callable
@@ -21,6 +21,7 @@ from typing import Any, Callable
 from cachetools import TTLCache
 
 from .config import DB_FILE, ARCHIVE_DB_FILE
+from .metrics import performance_monitor
 
 
 # ==========================================================
@@ -29,6 +30,7 @@ from .config import DB_FILE, ARCHIVE_DB_FILE
 _db_version_cache: str | None = None
 _db_version_lock = threading.Lock()
 _db_version_timestamp: float = 0
+_db_version_cache_sources: tuple[int, int] | None = None
 _DB_VERSION_CACHE_TTL = 1.0  # Cache mtime for 1 second
 
 
@@ -39,13 +41,18 @@ def get_db_version() -> str:
 
     v8: Caches mtime for 1 second to reduce filesystem calls.
     """
-    global _db_version_cache, _db_version_timestamp
+    global _db_version_cache, _db_version_timestamp, _db_version_cache_sources
 
-    current_time = time.time() if (time := __import__('time')).time() else 0
+    current_time = time.time()
+    current_sources = (id(DB_FILE), id(ARCHIVE_DB_FILE))
 
     # Return cached version if still valid
     with _db_version_lock:
-        if _db_version_cache is not None and (current_time - _db_version_timestamp) < _DB_VERSION_CACHE_TTL:
+        if (
+            _db_version_cache is not None
+            and _db_version_cache_sources == current_sources
+            and (current_time - _db_version_timestamp) < _DB_VERSION_CACHE_TTL
+        ):
             return _db_version_cache
 
         try:
@@ -55,8 +62,12 @@ def get_db_version() -> str:
             combined = f"{live_mtime:.0f}_{archive_mtime:.0f}"
             _db_version_cache = combined
             _db_version_timestamp = current_time
+            _db_version_cache_sources = current_sources
             return combined
         except Exception:
+            _db_version_cache = "0_0"
+            _db_version_timestamp = current_time
+            _db_version_cache_sources = current_sources
             return "0_0"
 
 
@@ -72,8 +83,8 @@ _cache_lock = threading.Lock()
 def _make_cache_key(prefix: str, *args, **kwargs) -> str:
     """Generate cache key including db_version."""
     db_ver = get_db_version()
-    key_data = f"{prefix}:{db_ver}:{args}:{sorted(kwargs.items())}"
-    return hashlib.md5(key_data.encode()).hexdigest()
+    # Use plain string key — no MD5 overhead, no collision risk
+    return f"{prefix}:{db_ver}:{args}:{sorted(kwargs.items())}"
 
 
 # ==========================================================
@@ -101,19 +112,36 @@ def api_cache(prefix: str, ttl: int | None = None):
         @wraps(func)
         def wrapper(*args, **kwargs):
             cache_key = _make_cache_key(prefix, *args, **kwargs)
+            t0 = time.perf_counter()
 
             # Thread-safe cache check
             with _cache_lock:
                 if cache_key in _api_cache:
-                    return _api_cache[cache_key]
+                    cached = _api_cache[cache_key]
+                    performance_monitor.record(
+                        prefix,
+                        duration_ms=(time.perf_counter() - t0) * 1000,
+                        row_count=len(cached) if hasattr(cached, "__len__") else 0,
+                        cache_hit=True,
+                    )
+                    return cached
 
             # Execute outside lock (may be slow)
             result = func(*args, **kwargs)
 
-            # Thread-safe cache store
+            # Thread-safe cache store with double-check (TOCTOU guard)
             with _cache_lock:
-                _api_cache[cache_key] = result
+                if cache_key not in _api_cache:
+                    _api_cache[cache_key] = result
+                else:
+                    result = _api_cache[cache_key]
 
+            performance_monitor.record(
+                prefix,
+                duration_ms=(time.perf_counter() - t0) * 1000,
+                row_count=len(result) if hasattr(result, "__len__") else 0,
+                cache_hit=False,
+            )
             return result
 
         return wrapper

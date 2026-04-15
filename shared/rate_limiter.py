@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import threading
 import time
-from collections import defaultdict
-from typing import Dict, List, Tuple
+from collections import defaultdict, deque
+from typing import Dict, Tuple
 
 from .config import RATE_LIMIT_WINDOW
 
@@ -50,8 +50,8 @@ class RateLimiter:
         """
         self.max_requests = max_requests
         self.window_seconds = window_seconds
-        # IP -> List of timestamps
-        self._requests: Dict[str, List[float]] = defaultdict(list)
+        # IP -> deque of timestamps (O(1) popleft for sliding window cleanup)
+        self._requests: Dict[str, deque] = defaultdict(deque)
         self._lock = threading.RLock()
 
     def is_allowed(self, ip: str) -> bool:
@@ -70,16 +70,14 @@ class RateLimiter:
             current_time = time.time()
             cutoff_time = current_time - self.window_seconds
 
-            # Remove expired timestamps (sliding window cleanup)
-            self._requests[ip] = [
-                ts for ts in self._requests[ip]
-                if ts > cutoff_time
-            ]
+            # Remove expired timestamps via O(1) popleft (deque is sorted ascending)
+            timestamps = self._requests[ip]
+            while timestamps and timestamps[0] <= cutoff_time:
+                timestamps.popleft()
 
             # Check if under limit
-            if len(self._requests[ip]) < self.max_requests:
-                # Record this request
-                self._requests[ip].append(current_time)
+            if len(timestamps) < self.max_requests:
+                timestamps.append(current_time)
                 return True
 
             return False
@@ -100,12 +98,9 @@ class RateLimiter:
             current_time = time.time()
             cutoff_time = current_time - self.window_seconds
 
-            # Count valid requests in window
-            valid_count = sum(
-                1 for ts in self._requests[ip]
-                if ts > cutoff_time
-            )
-
+            # Deque is sorted ascending; count from right while > cutoff
+            timestamps = self._requests[ip]
+            valid_count = sum(1 for ts in timestamps if ts > cutoff_time)
             return max(0, self.max_requests - valid_count)
 
     def retry_after(self, ip: str) -> int:
@@ -124,17 +119,15 @@ class RateLimiter:
             current_time = time.time()
             cutoff_time = current_time - self.window_seconds
 
-            # Get valid timestamps
-            valid_timestamps = [
-                ts for ts in self._requests[ip]
-                if ts > cutoff_time
-            ]
+            # Deque is sorted: oldest is at front
+            timestamps = self._requests[ip]
+            while timestamps and timestamps[0] <= cutoff_time:
+                timestamps.popleft()
 
-            if not valid_timestamps:
+            if not timestamps:
                 return 0
 
-            # Oldest timestamp determines when a slot frees up
-            oldest = min(valid_timestamps)
+            oldest = timestamps[0]
             retry_at = oldest + self.window_seconds
             wait_seconds = max(1, int(retry_at - current_time) + 1)
 
@@ -160,12 +153,12 @@ class RateLimiter:
             ips_to_remove = []
 
             for ip, timestamps in self._requests.items():
-                if len(timestamps) > max_ips:
-                    # Safety: stop if too many IPs
+                if removed > max_ips:
+                    # Safety: stop if too many IPs processed
                     break
 
-                # Check if all timestamps expired
-                if all(ts <= cutoff_time for ts in timestamps):
+                # Deque is sorted ascending; if newest (rightmost) is expired, all are expired
+                if not timestamps or timestamps[-1] <= cutoff_time:
                     ips_to_remove.append(ip)
 
             for ip in ips_to_remove:
@@ -189,10 +182,10 @@ class RateLimiter:
             active_ips = 0
 
             for ip, timestamps in self._requests.items():
-                valid = [ts for ts in timestamps if ts > cutoff_time]
-                if valid:
+                valid_count = sum(1 for ts in timestamps if ts > cutoff_time)
+                if valid_count:
                     active_ips += 1
-                    total_requests += len(valid)
+                    total_requests += valid_count
 
             return {
                 "active_ips": active_ips,

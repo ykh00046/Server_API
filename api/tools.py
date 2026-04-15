@@ -11,6 +11,7 @@ Gemini SDK requires actual type hints, not stringified ones.
 
 import re
 import sys
+import concurrent.futures
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
@@ -25,8 +26,14 @@ from shared import (
     DBTargets,
     get_logger,
 )
+from shared.cache import api_cache
 from shared.logging_config import QueryLogger
-from shared.validators import validate_date_range_exclusive, validate_db_path, escape_like_wildcards
+from shared.validators import (
+    validate_date_range_exclusive,
+    validate_db_path,
+    resolve_archive_db,
+    escape_like_wildcards,
+)
 
 logger = get_logger(__name__)
 
@@ -43,6 +50,7 @@ def _validate_date_range(date_from: str, date_to: str) -> tuple[str, str]:
 # AI Tools
 # ==========================================================
 
+@api_cache("search_items")
 def search_production_items(
     keyword: str,
     include_archive: bool = True  # Section 6.5: Default True for accurate answers
@@ -128,6 +136,7 @@ def search_production_items(
         return {"status": "error", "message": str(e)}
 
 
+@api_cache("summary")
 def get_production_summary(
     date_from: str,
     date_to: str,
@@ -208,6 +217,7 @@ def get_production_summary(
         return {"status": "error", "message": str(e)}
 
 
+@api_cache("monthly_trend")
 def get_monthly_trend(
     date_from: str,
     date_to: str,
@@ -276,6 +286,7 @@ def get_monthly_trend(
         return {"status": "error", "message": str(e)}
 
 
+@api_cache("top_items")
 def get_top_items(
     date_from: str,
     date_to: str,
@@ -337,6 +348,7 @@ def get_top_items(
         return {"status": "error", "message": str(e)}
 
 
+@api_cache("compare_periods")
 def compare_periods(
     period1_from: str,
     period1_to: str,
@@ -390,8 +402,12 @@ def compare_periods(
             if item_code:
                 ql.add_info("item_code", item_code)
 
-            r1 = _query_stats(p1_from, p1_next)
-            r2 = _query_stats(p2_from, p2_next)
+            # P1-1: Run both period queries in parallel (each uses its own thread-local conn)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                f1 = executor.submit(_query_stats, p1_from, p1_next)
+                f2 = executor.submit(_query_stats, p2_from, p2_next)
+                r1 = f1.result()
+                r2 = f2.result()
             ql.set_row_count(2)
 
         t1 = r1.get("total") or 0
@@ -432,6 +448,7 @@ def compare_periods(
         return {"status": "error", "message": str(e)}
 
 
+@api_cache("item_history")
 def get_item_history(
     item_code: str,
     limit: int = 10
@@ -533,7 +550,14 @@ def execute_custom_query(
     """
     import sqlite3
     import threading
-    from shared.config import DB_FILE, ARCHIVE_DB_FILE, DB_TIMEOUT
+    from shared.config import (
+        DB_FILE,
+        ARCHIVE_DB_FILE,
+        DB_TIMEOUT,
+        CUSTOM_QUERY_TIMEOUT_SEC,
+        ARCHIVE_DB_WHITELIST,
+    )
+    from shared.database import _apply_pragma_settings
 
     try:
         # Strip SQL comments before any validation (prevent bypass via comments)
@@ -586,18 +610,31 @@ def execute_custom_query(
             ql.add_info("description", description or "custom query")
 
             # Execute with timeout (3 seconds)
-            # Create a dedicated connection outside the thread so we can interrupt it
+            # Dedicated connection required for conn.interrupt() — cannot use thread-local cache.
+            # Apply PRAGMA settings so custom queries get same perf as regular API queries.
             db_uri = f"file:{DB_FILE.absolute()}?mode=ro"
             conn = sqlite3.connect(db_uri, uri=True, timeout=DB_TIMEOUT)
             conn.row_factory = sqlite3.Row
+            _apply_pragma_settings(conn)
 
-            if use_archive and ARCHIVE_DB_FILE.exists():
-                archive_path = str(ARCHIVE_DB_FILE.absolute())
-                # Validate path to prevent injection
-                validate_db_path(archive_path)
-                # Escape single quotes for SQL string literal
-                archive_path_escaped = archive_path.replace("'", "''")
-                conn.execute(f"ATTACH DATABASE '{archive_path_escaped}' AS archive")
+            if use_archive:
+                # Whitelist-enforced archive resolution (security-and-test-improvement)
+                try:
+                    archive_resolved = resolve_archive_db(ARCHIVE_DB_FILE, ARCHIVE_DB_WHITELIST)
+                except (ValueError, FileNotFoundError) as e:
+                    conn.close()
+                    return {
+                        "status": "error",
+                        "code": "INVALID_ARCHIVE_PATH",
+                        "message": f"Invalid archive DB: {e}",
+                    }
+                archive_uri = f"file:{archive_resolved.as_posix()}?mode=ro"
+                try:
+                    conn.execute("ATTACH DATABASE ? AS archive", (archive_uri,))
+                except sqlite3.OperationalError:
+                    # Parameter binding unsupported on some sqlite builds;
+                    # safe because archive_resolved came from whitelist.
+                    conn.execute(f"ATTACH DATABASE '{archive_uri}' AS archive")
 
             result = {"rows": [], "error": None}
 
@@ -612,7 +649,7 @@ def execute_custom_query(
 
             thread = threading.Thread(target=run_query, args=(conn,))
             thread.start()
-            thread.join(timeout=3.0)
+            thread.join(timeout=CUSTOM_QUERY_TIMEOUT_SEC)
 
             if thread.is_alive():
                 conn.interrupt()  # Cancel the running SQLite query
@@ -620,7 +657,8 @@ def execute_custom_query(
                 conn.close()
                 return {
                     "status": "error",
-                    "message": "Query timeout (exceeded 3 seconds). Please simplify your query."
+                    "code": "QUERY_TIMEOUT",
+                    "message": f"Query timeout (exceeded {CUSTOM_QUERY_TIMEOUT_SEC:.0f} seconds). Please simplify your query."
                 }
 
             conn.close()

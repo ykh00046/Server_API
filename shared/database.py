@@ -38,49 +38,11 @@ from .validators import validate_db_path
 logger = logging.getLogger(__name__)
 
 # ==========================================================
-# v8: SQLite PRAGMA Optimization
-# ==========================================================
-def _apply_pragma_settings(conn: sqlite3.Connection) -> None:
-    """
-    Apply optimized SQLite PRAGMA settings.
-
-    WAL mode benefits:
-    - Readers don't block writers
-    - Writers don't block readers
-    - Better crash recovery
-    """
-    try:
-        # Enable WAL mode for better concurrency
-        result = conn.execute("PRAGMA journal_mode=WAL").fetchone()
-        if result and result[0].upper() == "WAL":
-            logger.debug("WAL mode enabled")
-
-        # Larger cache size (negative = KB)
-        conn.execute("PRAGMA cache_size=-64000")  # 64MB
-
-        # Memory-mapped I/O for read performance
-        conn.execute("PRAGMA mmap_size=268435456")  # 256MB
-
-        # Busy timeout for write conflicts
-        conn.execute(f"PRAGMA busy_timeout={DB_TIMEOUT * 1000}")
-
-        # Synchronous mode (NORMAL is safe with WAL)
-        conn.execute("PRAGMA synchronous=NORMAL")
-
-        # Temp store in memory
-        conn.execute("PRAGMA temp_store=MEMORY")
-
-    except sqlite3.Error as e:
-        logger.warning(f"Failed to apply some PRAGMA settings: {e}")
-
-
-# ==========================================================
 # v7: Thread-local Connection Cache with mtime invalidation
 # ==========================================================
 _local = threading.local()
 _all_connections: list[sqlite3.Connection] = []
 _connection_lock = threading.Lock()
-_wal_enabled_dbs: set[str] = set()  # Track which DBs have WAL enabled
 
 
 def _cleanup_all_connections() -> None:

@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 # ==========================================================
-# Required Indexes (single source of truth)
+# Required Indexes (single source of truth - v8 Optimized)
 # ==========================================================
 REQUIRED_INDEXES = {
     "idx_production_date": (
@@ -31,9 +31,21 @@ REQUIRED_INDEXES = {
         "CREATE INDEX IF NOT EXISTS idx_item_code "
         "ON production_records(item_code)"
     ),
-    "idx_item_date": (
-        "CREATE INDEX IF NOT EXISTS idx_item_date "
-        "ON production_records(item_code, production_date)"
+    "idx_production_date_item": (
+        "CREATE INDEX IF NOT EXISTS idx_production_date_item "
+        "ON production_records(production_date, item_code)"
+    ),
+    "idx_lot_number": (
+        "CREATE INDEX IF NOT EXISTS idx_lot_number "
+        "ON production_records(lot_number)"
+    ),
+    "idx_agg_covering": (
+        "CREATE INDEX IF NOT EXISTS idx_agg_covering "
+        "ON production_records(item_code, production_date, good_quantity)"
+    ),
+    "idx_date_qty": (
+        "CREATE INDEX IF NOT EXISTS idx_date_qty "
+        "ON production_records(production_date, good_quantity)"
     ),
 }
 
@@ -142,8 +154,9 @@ def check_and_heal_indexes(
         conn = sqlite3.connect(str(db_path), timeout=DB_TIMEOUT)
         cursor = conn.cursor()
 
-        cursor.execute("PRAGMA index_list('production_records')")
-        existing = {row[1] for row in cursor.fetchall()}
+        # Get existing index names
+        cursor.execute("SELECT name FROM sqlite_master WHERE type = 'index'")
+        existing = {row[0] for row in cursor.fetchall()}
 
         result["checked"] = True
 
@@ -173,7 +186,7 @@ def check_and_heal_indexes(
 
 
 # ==========================================================
-# ANALYZE (Query Planner Statistics)
+# Maintenance (ANALYZE & VACUUM)
 # ==========================================================
 def run_analyze(db_path: Path) -> dict:
     """
@@ -217,5 +230,51 @@ def run_analyze(db_path: Path) -> dict:
     except Exception as e:
         result["error"] = str(e)
         logger.error("ANALYZE error on %s: %s", db_path.name, e)
+
+    return result
+
+
+def run_vacuum(db_path: Path) -> dict:
+    """
+    Run VACUUM to reclaim space and defragment the database.
+
+    Note: This can be a slow operation and locks the DB completely.
+    Should be run during maintenance windows or after large deletions.
+
+    Args:
+        db_path: Path to the SQLite database file.
+
+    Returns:
+        Dict with keys: db, success (bool), duration_ms (float), error (str|None).
+    """
+    result: dict = {
+        "db": db_path.name,
+        "success": False,
+        "duration_ms": 0.0,
+        "error": None,
+    }
+
+    if not db_path.exists():
+        result["error"] = "File not found"
+        return result
+
+    try:
+        start = time.perf_counter()
+        conn = sqlite3.connect(str(db_path), timeout=DB_TIMEOUT)
+        # VACUUM cannot be run within a transaction
+        conn.execute("VACUUM")
+        conn.close()
+
+        result["duration_ms"] = round((time.perf_counter() - start) * 1000, 1)
+        result["success"] = True
+        logger.info("VACUUM completed: %s (%.1fms)", db_path.name, result["duration_ms"])
+
+    except sqlite3.Error as e:
+        result["error"] = str(e)
+        logger.error("VACUUM failed on %s: %s", db_path.name, e)
+
+    except Exception as e:
+        result["error"] = str(e)
+        logger.error("VACUUM error on %s: %s", db_path.name, e)
 
     return result

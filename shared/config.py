@@ -6,9 +6,12 @@ All hardcoded values are centralized here for maintainability.
 Environment variables can override default values.
 """
 
+import logging
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+
+_logger = logging.getLogger(__name__)
 
 # Load .env file
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
@@ -34,14 +37,20 @@ ARCHIVE_CUTOFF_DATE = f"{ARCHIVE_CUTOFF_YEAR}-01-01"
 # ==========================================================
 # Server Ports (can be overridden via .env)
 # ==========================================================
-DASHBOARD_PORT = int(os.getenv("DASHBOARD_PORT", 8501))
+DASHBOARD_PORT = int(os.getenv("DASHBOARD_PORT", 8502))
 API_PORT = int(os.getenv("API_PORT", 8000))
+API_BASE_URL = os.getenv("API_BASE_URL", f"http://localhost:{API_PORT}")
 
 # ==========================================================
 # Database Connection
 # ==========================================================
 DB_TIMEOUT = 10.0  # seconds
 SLOW_QUERY_THRESHOLD_MS = 500  # Log WARNING for queries exceeding this
+
+# ==========================================================
+# AI / Gemini
+# ==========================================================
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 # ==========================================================
 # Logging
@@ -67,3 +76,36 @@ DATE_FORMAT = "%Y-%m-%d"
 RATE_LIMIT_CHAT = 20      # requests per minute
 RATE_LIMIT_API = 60       # requests per minute (general API)
 RATE_LIMIT_WINDOW = 60    # seconds
+
+# ==========================================================
+# Chat Session Store (security-and-test-improvement)
+# ==========================================================
+CHAT_SESSION_TTL_SEC = int(os.getenv("CHAT_SESSION_TTL_SEC", 1800))
+CHAT_SESSION_MAX_PER_IP = int(os.getenv("CHAT_SESSION_MAX_PER_IP", 20))
+CHAT_SESSION_MAX_TOTAL = int(os.getenv("CHAT_SESSION_MAX_TOTAL", 1000))
+
+# ==========================================================
+# Custom Query Safety (security-and-test-improvement)
+# ==========================================================
+CUSTOM_QUERY_TIMEOUT_SEC = float(os.getenv("CUSTOM_QUERY_TIMEOUT_SEC", 10.0))
+
+
+def _load_archive_whitelist() -> tuple[Path, ...]:
+    raw = os.getenv("ARCHIVE_DB_WHITELIST", "").strip()
+    if not raw:
+        return (ARCHIVE_DB_FILE.resolve(),)
+    items: list[Path] = []
+    for part in raw.split(";"):
+        p = part.strip()
+        if not p:
+            continue
+        resolved = Path(p).resolve()
+        if not resolved.exists():
+            _logger.warning(
+                "ARCHIVE_DB_WHITELIST entry not found at import: %s", resolved
+            )
+        items.append(resolved)
+    return tuple(items) if items else (ARCHIVE_DB_FILE.resolve(),)
+
+
+ARCHIVE_DB_WHITELIST: tuple[Path, ...] = _load_archive_whitelist()

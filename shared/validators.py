@@ -144,23 +144,48 @@ def validate_db_path(path: str) -> bool:
     """
     Validate database file path for safe use in ATTACH statements.
 
-    Only allows alphanumeric characters, underscores, hyphens, dots,
-    and path separators to prevent injection attacks.
-
-    Args:
-        path: Database file path to validate.
-
-    Returns:
-        True if path is safe.
+    Rejects NUL, control chars, quotes, and verifies resolvable absolute path
+    via pathlib. Callers needing whitelist enforcement should use
+    ``resolve_archive_db`` instead.
 
     Raises:
-        ValueError: If path contains potentially dangerous characters.
+        ValueError: If path contains dangerous characters or cannot be resolved.
     """
-    import re
-    # Allow only safe characters: letters, numbers, underscores, hyphens, dots, slashes, backslashes, colons (drive letter)
-    if not re.match(r'^[a-zA-Z0-9_\-./\\:]+$', path):
-        raise ValueError(
-            f"Invalid database path: contains disallowed characters. "
-            f"Only alphanumeric, underscore, hyphen, dot, and path separators are allowed."
-        )
+    from pathlib import Path as _P
+
+    if not path or any(ord(c) < 32 for c in path):
+        raise ValueError("Invalid database path: empty or contains control chars.")
+    if any(c in path for c in ("'", '"', "\x00", "\n", "\r")):
+        raise ValueError("Invalid database path: contains forbidden characters.")
+    try:
+        _P(path).resolve()
+    except (OSError, RuntimeError) as e:
+        raise ValueError(f"Invalid database path: cannot resolve ({e})")
     return True
+
+
+def resolve_archive_db(requested_path, whitelist) -> "Path":
+    """
+    Resolve an archive DB path against a whitelist.
+
+    Args:
+        requested_path: str | Path requested by caller.
+        whitelist: Iterable of allowed Path objects (already resolved).
+
+    Returns:
+        Resolved Path if it is in the whitelist AND exists.
+
+    Raises:
+        ValueError: If path is not in whitelist or does not exist.
+    """
+    from pathlib import Path as _P
+
+    if requested_path is None:
+        raise ValueError("archive db not requested")
+    resolved = _P(requested_path).resolve()
+    allowed = {_P(p).resolve() for p in whitelist}
+    if resolved not in allowed:
+        raise ValueError(f"archive db not in whitelist: {resolved}")
+    if not resolved.exists():
+        raise FileNotFoundError(f"archive db missing: {resolved}")
+    return resolved

@@ -35,6 +35,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from shared import get_logger
+from shared.config import GEMINI_MODEL
 from shared.logging_config import get_request_id
 from shared.rate_limiter import chat_rate_limiter
 
@@ -43,61 +44,10 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 logger = get_logger(__name__)
 
-# GenAI Client - Lazy initialization to avoid startup failure
-_client: genai.Client | None = None
-_client_initialized = False
-
-
-def _get_client() -> genai.Client | None:
-    """
-    Get or initialize the GenAI client with proper validation.
-
-    Uses lazy initialization to:
-    1. Avoid startup failure if API key is missing
-    2. Log appropriate warnings only on first access
-    3. Allow runtime key changes (rare but possible)
-
-    Returns:
-        genai.Client if API key is configured, None otherwise.
-    """
-    global _client, _client_initialized
-
-    if _client_initialized:
-        return _client
-
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        logger.warning("GEMINI_API_KEY not found in .env file. AI chat will not work.")
-        _client_initialized = True
-        return None
-
-    try:
-        _client = genai.Client(api_key=api_key)
-        logger.info("GenAI client initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize GenAI client: {e}")
-        _client = None
-
-    _client_initialized = True
-    return _client
-
-
-# Backward compatibility - property for direct access
-@property
-def client():
-    """Deprecated: Use _get_client() instead."""
-    return _get_client()
-
-# Import Tools
-from .tools import (
-    search_production_items,
-    get_production_summary,
-    get_monthly_trend,
-    get_top_items,
-    compare_periods,
-    get_item_history,
-    execute_custom_query
-)
+# GenAI client factory extracted to api/_gemini_client.py (Act-1).
+from ._gemini_client import get_client as _get_client  # noqa: F401
+# Tool registry extracted to api/_tool_dispatch.py (Act-1).
+from ._tool_dispatch import PRODUCTION_TOOLS
 
 router = APIRouter(prefix="/chat", tags=["AI Chat"])
 
@@ -112,94 +62,38 @@ RETRYABLE_STATUS_CODES = {429, 500, 503}
 
 
 # ==========================================================
-# Multi-turn Session Store (In-memory with limits)
+# Multi-turn Session Store (extracted to api/_session_store.py in Act-1)
 # ==========================================================
-SESSION_TTL = 1800  # 30 minutes
-SESSION_MAX_TURNS = 10  # Max conversation turns per session
-SESSION_MAX_COUNT = 1000  # Max concurrent sessions to prevent memory exhaustion
-SESSION_CLEANUP_INTERVAL = 100  # Cleanup every N requests (rate limiting)
-
-_sessions: dict[str, dict] = {}
-# Structure: {session_id: {"history": [Content, ...], "last_access": float}}
-_cleanup_counter = 0  # Counter for rate-limited cleanup
-
-
-def _get_session_history(session_id: str | None) -> list:
-    """Get conversation history for session. Returns empty list if no session."""
-    if not session_id or session_id not in _sessions:
-        return []
-
-    session = _sessions[session_id]
-    session["last_access"] = time.time()
-    return session["history"]
+from . import _session_store as _sstore
+# Re-exports for backward compatibility (tests + call sites).
+_sessions = _sstore._sessions
+SESSION_TTL = _sstore.SESSION_TTL
+SESSION_MAX_TURNS = _sstore.SESSION_MAX_TURNS
+SESSION_MAX_COUNT = _sstore.SESSION_MAX_COUNT
+SESSION_CLEANUP_INTERVAL = _sstore.SESSION_CLEANUP_INTERVAL
+CHAT_SESSION_MAX_PER_IP = _sstore.CHAT_SESSION_MAX_PER_IP
+_get_session_history = _sstore.get_session_history
+_save_session_history = _sstore.save_session_history
+_cleanup_expired_sessions = _sstore.cleanup_expired_sessions
 
 
-def _save_session_history(session_id: str | None, history: list) -> None:
-    """Save conversation history. Trims to max turns."""
-    if not session_id:
-        return
-
-    # Trim to max turns (each turn = 2 entries: user + model)
-    max_entries = SESSION_MAX_TURNS * 2
-    if len(history) > max_entries:
-        history = history[-max_entries:]
-
-    _sessions[session_id] = {
-        "history": history,
-        "last_access": time.time(),
-    }
+def _get_cleanup_counter() -> int:
+    return _sstore._cleanup_counter
 
 
-def _cleanup_expired_sessions() -> None:
-    """
-    Remove sessions that exceeded TTL (lazy cleanup with rate limiting).
+def _set_cleanup_counter(v: int) -> None:
+    _sstore._cleanup_counter = v
 
-    Rate limiting: Only runs every SESSION_CLEANUP_INTERVAL requests.
-    Memory protection: If session count exceeds SESSION_MAX_COUNT, removes oldest.
-    """
-    global _cleanup_counter
-    _cleanup_counter += 1
 
-    # Rate limiting: Only cleanup every N requests
-    if _cleanup_counter < SESSION_CLEANUP_INTERVAL:
-        return
-    _cleanup_counter = 0
-
-    now = time.time()
-
-    # Remove expired sessions
-    expired = [
-        sid for sid, data in _sessions.items()
-        if now - data["last_access"] > SESSION_TTL
-    ]
-    for sid in expired:
-        del _sessions[sid]
-
-    # Memory protection: Remove oldest if over limit
-    if len(_sessions) > SESSION_MAX_COUNT:
-        # Sort by last_access and remove oldest
-        sorted_sessions = sorted(
-            _sessions.items(),
-            key=lambda x: x[1]["last_access"]
-        )
-        # Remove oldest sessions to get under limit
-        to_remove = len(_sessions) - SESSION_MAX_COUNT
-        for sid, _ in sorted_sessions[:to_remove]:
-            del _sessions[sid]
-        logger.warning(
-            f"[Session Cleanup] Session limit reached ({SESSION_MAX_COUNT}), "
-            f"removed {to_remove} oldest sessions"
-        )
-
-    if expired:
-        logger.debug(f"[Session Cleanup] Removed {len(expired)} expired sessions")
+# Test compatibility: some tests assign to `chat_mod._cleanup_counter`.
+# Attribute access is redirected via module __getattr__/__setattr__ below.
 
 
 # ==========================================================
 # Models
 # ==========================================================
 class ChatRequest(BaseModel):
-    query: str = Field(..., max_length=2000, description="User query text")
+    query: str = Field(..., min_length=1, max_length=2000, description="User query text")
     session_id: str | None = Field(default=None, max_length=100, description="Multi-turn session ID")
 
 
@@ -239,10 +133,32 @@ def _build_system_instruction() -> str:
 10. 데이터가 없으면 추측하지 말고 "조회된 데이터가 없습니다"라고 정직하게 말해.
 11. 오늘 날짜는 {date_str}이야. '올해'는 {current_year}년, '작년'은 {last_year}년을 의미해.
 
-[답변 스타일]
+[답변 형식 — 반드시 지켜야 할 규칙]
+1. **항상 Markdown 표(table)를 사용해.** 순위, 비교, 요약, 이력 등 데이터가 포함된 답변에는 반드시 표를 만들어.
+   번호 리스트(1. 2. 3.)로 데이터를 나열하지 마. 표가 훨씬 읽기 좋아.
+2. 수치 데이터에는 반드시 **천 단위 구분자(,)와 단위(개, 건 등)**를 붙여줘.
+3. 답변의 근거가 된 **조회 기간**을 첫 줄에 명시해.
+
+[분석적 답변 — 단순 조회가 아닌 인사이트 제공]
+1. 데이터 조회 후 반드시 **분석적 해석**을 1-2문장 추가해.
+   - 예: "B0061이 전체의 46%를 차지하며 압도적 1위입니다."
+   - 예: "전월 대비 51% 증가는 신규 수주 증가와 연관될 수 있습니다."
+   - 예: "BW0021은 최근 7일 평균 550개로 안정적인 생산량을 유지합니다."
+2. 가능하면 **관련 부가 정보**를 함께 제공해:
+   - 순위 질문 → 각 제품의 **점유율(%)**을 계산해서 표에 포함
+   - 기간 요약 → **전기 대비 증감률**을 추가 조회해서 언급
+   - 특정 제품 질문 → **전체 대비 해당 제품의 비중**을 계산
+   - 이력 질문 → **평균 생산량, 최대/최소** 같은 통계 요약 추가
+3. 여러 도구를 **조합**해서 풍부한 답변을 만들어.
+   예: "상위 5개 제품"을 물어보면 `get_top_items`로 순위를 얻고,
+   추가로 `get_production_summary`나 `get_monthly_trend`를 사용해서
+   1위 제품의 추이나 전체 비중도 함께 언급해.
+4. 데이터가 0이거나 없으면 **이전 기간 데이터를 추가 조회**하여 참고 정보로 제공해.
+   예: "해당 기간에 데이터가 없습니다. 대신 직전 30일(12/14~1/12) 데이터를 조회했습니다."
+
+[어조]
 - 친절하고 전문적인 어조를 사용해.
-- 수치 데이터에는 반드시 단위(개, 건 등)를 붙여줘.
-- 답변의 근거가 된 조회 기간을 명확히 명시해.
+- 마무리에 "추가로 궁금한 점이 있으면 질문해 주세요" 같은 후속 안내를 짧게 넣어줘.
 """
 
 
@@ -286,162 +202,138 @@ def _calculate_delay(attempt: int) -> float:
     return delay
 
 
-@router.post("/", response_model=ChatResponse)
-async def chat_with_data(request: ChatRequest, http_request: Request):
-    """
-    Process natural language query using Gemini AI with tool calling.
-    Includes automatic retry with exponential backoff for transient errors.
-    Rate limited to 20 requests per minute per IP.
-    """
-    request_id = get_request_id()
-    start_time = time.perf_counter()
-
-    # ==========================================================
-    # Rate Limiting Check
-    # ==========================================================
-    client_ip = http_request.client.host if http_request.client else "unknown"
-    if not chat_rate_limiter.is_allowed(client_ip):
-        retry_after = chat_rate_limiter.retry_after(client_ip)
-        logger.warning(
-            f"[Chat Rate Limited] request_id={request_id} | "
-            f"ip={client_ip} | retry_after={retry_after}s"
-        )
-        raise HTTPException(
-            status_code=429,
-            detail=f"Rate limit exceeded. Try again in {retry_after} seconds.",
-            headers={"Retry-After": str(retry_after)}
-        )
-
-    if not _get_client():
-        logger.error(f"[Chat] request_id={request_id} | API key not configured")
-        raise HTTPException(status_code=500, detail="Gemini API Key is not configured.")
-
-    # Log incoming request
-    query_preview = request.query[:100] + "..." if len(request.query) > 100 else request.query
-    logger.info(f"[Chat Request] request_id={request_id} | query='{query_preview}'")
-
-    # Build dynamic system instruction
-    system_instruction = _build_system_instruction()
-
-    # Lazy cleanup expired sessions
-    _cleanup_expired_sessions()
-
-    # Build contents with history
-    history = _get_session_history(request.session_id)
-    user_content = types.Content(
-        role="user",
-        parts=[types.Part.from_text(text=request.query)],
+def _enforce_rate_limit(client_ip: str, request_id: str) -> None:
+    if chat_rate_limiter.is_allowed(client_ip):
+        return
+    retry_after = chat_rate_limiter.retry_after(client_ip)
+    logger.warning(
+        f"[Chat Rate Limited] request_id={request_id} | ip={client_ip} | "
+        f"retry_after={retry_after}s"
     )
-    contents = history + [user_content]
+    raise HTTPException(
+        status_code=429,
+        detail={
+            "code": "RATE_LIMITED",
+            "message": f"Rate limit exceeded. Try again in {retry_after} seconds.",
+        },
+        headers={"Retry-After": str(retry_after)},
+    )
 
-    # Retry loop
-    last_error = None
+
+def _ensure_ai_enabled(request_id: str):
+    client_obj = _get_client()
+    if client_obj is None:
+        logger.error(f"[Chat] request_id={request_id} | API key not configured")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "AI_DISABLED",
+                "message": "Gemini API Key is not configured.",
+            },
+        )
+    return client_obj
+
+
+async def _generate_with_retry(client_obj, contents, system_instruction, request_id, query_preview):
+    """Run Gemini call with retry/backoff. Returns response or raises last_error."""
+    last_error: Exception | None = None
     total_delay = 0.0
-
     for attempt in range(MAX_RETRIES):
         try:
-            # Generate content with tools and system instruction
-            response = _get_client().models.generate_content(
-                model='gemini-2.5-flash',
+            return await asyncio.to_thread(
+                client_obj.models.generate_content,
+                model=GEMINI_MODEL,
                 contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
-                    tools=[
-                        search_production_items,
-                        get_production_summary,
-                        get_monthly_trend,
-                        get_top_items,
-                        compare_periods,
-                        get_item_history,
-                        execute_custom_query
-                    ],
+                    tools=PRODUCTION_TOOLS,
                 ),
             )
-
-            # Success - extract tools and return
-            tools_used, tool_calls_detail = _extract_tool_info(response, request_id)
-            duration_ms = (time.perf_counter() - start_time) * 1000
-            token_info = _log_token_usage(response, request_id)
-
-            # Log response
-            if not tools_used:
-                logger.warning(
-                    f"[Chat Response] request_id={request_id} | "
-                    f"NO TOOLS USED - potential hallucination | "
-                    f"query='{query_preview}' | {token_info} | duration_ms={duration_ms:.1f}"
-                )
-            else:
-                logger.info(
-                    f"[Chat Response] request_id={request_id} | "
-                    f"tools_used={tools_used} | "
-                    f"tool_calls={tool_calls_detail} | "
-                    f"{token_info} | duration_ms={duration_ms:.1f}"
-                )
-
-            # Save session history (user message + model response)
-            if request.session_id:
-                model_content = types.Content(
-                    role="model",
-                    parts=[types.Part.from_text(text=response.text)],
-                )
-                updated_history = history + [user_content, model_content]
-                _save_session_history(request.session_id, updated_history)
-
-            return ChatResponse(
-                answer=response.text,
-                tools_used=tools_used,
-                request_id=request_id
-            )
-
         except (ClientError, ServerError) as e:
             last_error = e
-            is_retryable, status_code = _is_retryable_error(e)
-
-            if is_retryable and attempt < MAX_RETRIES - 1:
+            retryable, status_code = _is_retryable_error(e)
+            if retryable and attempt < MAX_RETRIES - 1:
                 delay = _calculate_delay(attempt)
                 total_delay += delay
-
-                # Check if we've exceeded total delay budget
                 if total_delay > MAX_TOTAL_DELAY:
                     logger.warning(
                         f"[Chat Retry] request_id={request_id} | "
-                        f"Total delay budget exceeded ({total_delay:.1f}s > {MAX_TOTAL_DELAY}s). Giving up."
+                        f"delay budget exceeded ({total_delay:.1f}s)."
                     )
                     break
-
                 logger.warning(
-                    f"[Chat Retry] request_id={request_id} | "
-                    f"status={status_code} | attempt={attempt+1}/{MAX_RETRIES} | "
-                    f"delay={delay:.1f}s | error={e}"
+                    f"[Chat Retry] request_id={request_id} | status={status_code} | "
+                    f"attempt={attempt+1}/{MAX_RETRIES} | delay={delay:.1f}s | error={e}"
                 )
                 await asyncio.sleep(delay)
-            else:
-                # Non-retryable or last attempt
-                break
-
+                continue
+            break
         except Exception as e:
-            # Non-API errors - don't retry
             last_error = e
             break
+    raise last_error if last_error else RuntimeError("Gemini call failed")
 
-    # All retries exhausted or non-retryable error
-    duration_ms = (time.perf_counter() - start_time) * 1000
 
-    # Log full exception with stack trace
-    logger.exception(
-        f"[Chat Error] request_id={request_id} | "
-        f"query='{query_preview}' | "
-        f"error={type(last_error).__name__}: {last_error} | "
-        f"duration_ms={duration_ms:.1f}"
+@router.post("/", response_model=ChatResponse)
+async def chat_with_data(request: ChatRequest, http_request: Request):
+    """Orchestrator: rate-limit → AI guard → call → persist session → respond."""
+    request_id = get_request_id()
+    start_time = time.perf_counter()
+    client_ip = http_request.client.host if http_request.client else "unknown"
+
+    _enforce_rate_limit(client_ip, request_id)
+    client_obj = _ensure_ai_enabled(request_id)
+
+    query_preview = request.query[:100] + ("..." if len(request.query) > 100 else "")
+    logger.info(f"[Chat Request] request_id={request_id} | query='{query_preview}'")
+
+    _cleanup_expired_sessions()
+    history = _get_session_history(request.session_id, client_ip)
+    user_content = types.Content(
+        role="user", parts=[types.Part.from_text(text=request.query)]
     )
+    contents = history + [user_content]
 
-    # Provide helpful error message based on error type
-    error_message = _get_user_friendly_error(last_error)
+    try:
+        response = await _generate_with_retry(
+            client_obj, contents, _build_system_instruction(), request_id, query_preview
+        )
+    except Exception as e:
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        logger.exception(
+            f"[Chat Error] request_id={request_id} | query='{query_preview}' | "
+            f"error={type(e).__name__}: {e} | duration_ms={duration_ms:.1f}"
+        )
+        return ChatResponse(
+            answer=_get_user_friendly_error(e),
+            status="error",
+            request_id=request_id,
+        )
+
+    tools_used, tool_calls_detail = _extract_tool_info(response, request_id)
+    duration_ms = (time.perf_counter() - start_time) * 1000
+    token_info = _log_token_usage(response, request_id)
+    if tools_used:
+        logger.info(
+            f"[Chat Response] request_id={request_id} | tools_used={tools_used} | "
+            f"tool_calls={tool_calls_detail} | {token_info} | duration_ms={duration_ms:.1f}"
+        )
+    else:
+        logger.warning(
+            f"[Chat Response] request_id={request_id} | NO TOOLS USED — potential hallucination | "
+            f"query='{query_preview}' | {token_info} | duration_ms={duration_ms:.1f}"
+        )
+
+    if request.session_id:
+        model_content = types.Content(
+            role="model", parts=[types.Part.from_text(text=response.text)]
+        )
+        _save_session_history(
+            request.session_id, history + [user_content, model_content], client_ip
+        )
 
     return ChatResponse(
-        answer=error_message,
-        status="error",
-        request_id=request_id
+        answer=response.text, tools_used=tools_used, request_id=request_id
     )
 
 
