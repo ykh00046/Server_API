@@ -48,6 +48,8 @@ logger = get_logger(__name__)
 from ._gemini_client import get_client as _get_client  # noqa: F401
 # Tool registry extracted to api/_tool_dispatch.py (Act-1).
 from ._tool_dispatch import PRODUCTION_TOOLS
+# SSE streaming helper (ui-modernization-streamlit-extras).
+from ._chat_stream import run_stream, streaming_response
 
 router = APIRouter(prefix="/chat", tags=["AI Chat"])
 
@@ -335,6 +337,28 @@ async def chat_with_data(request: ChatRequest, http_request: Request):
     return ChatResponse(
         answer=response.text, tools_used=tools_used, request_id=request_id
     )
+
+
+@router.post("/stream")
+async def chat_stream(request: ChatRequest, http_request: Request):
+    """SSE streaming endpoint. Emits meta → [tool_call]* → token+ → done.
+
+    Rate limit, session cleanup, and system instruction are shared with /chat/.
+    """
+    request_id = get_request_id()
+    client_ip = http_request.client.host if http_request.client else "unknown"
+
+    _enforce_rate_limit(client_ip, request_id)
+    _cleanup_expired_sessions()
+
+    gen = run_stream(
+        query=request.query,
+        session_id=request.session_id,
+        client_ip=client_ip,
+        request_id=request_id,
+        system_instruction=_build_system_instruction(),
+    )
+    return streaming_response(gen)
 
 
 def _extract_tool_info(response, request_id: str) -> tuple[List[str], List[str]]:
