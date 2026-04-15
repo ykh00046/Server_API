@@ -13,9 +13,17 @@ build/
 .venv/
 venv/
 env/
+.smoke-venv/
 
 # Databases
 *.db
+*.db-shm
+*.db-wal
+database/.watcher_state.json
+
+# Local agent / PDCA state
+.agents/
+docs/.pdca-snapshots/
 
 # Logs
 logs/
