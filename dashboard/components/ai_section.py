@@ -8,10 +8,121 @@ Features:
 - Excel download from AI tables
 """
 
-import streamlit as st
+import json
+from typing import Iterator, Optional
+
+import httpx
 import requests
-from typing import Optional
+import streamlit as st
+
 from shared.config import API_BASE_URL, GEMINI_MODEL
+
+try:
+    import streamlit_shadcn_ui as sui
+    _HAS_SHADCN = True
+except Exception:
+    sui = None  # type: ignore[assignment]
+    _HAS_SHADCN = False
+
+
+STARTER_PROMPTS = [
+    {
+        "icon": "📊",
+        "title": "이번 달 제품별 생산 현황",
+        "desc": "최근 30일간 제품별 생산량, 배치 수, 점유율을 표로 정리합니다.",
+        "prompt": "최근 30일간 제품별 생산량, 배치 수, 점유율(%)을 표로 정리하고 분석 코멘트도 달아줘.",
+    },
+    {
+        "icon": "🏆",
+        "title": "생산량 TOP 10 리포트",
+        "desc": "올해 상위 10개 제품의 생산량·점유율·증감을 분석합니다.",
+        "prompt": "올해 상위 10개 제품의 생산량, 점유율(%), 전월 대비 증감률을 표로 보여주고 주요 트렌드를 분석해 줘.",
+    },
+    {
+        "icon": "⚖️",
+        "title": "전월 대비 증감 분석",
+        "desc": "이번 달과 지난 달 제품별 성과를 비교합니다.",
+        "prompt": "이번 달과 지난 달의 총 생산량, 배치 수를 비교하고, 주요 제품별 증감 현황도 표로 정리해 줘.",
+    },
+    {
+        "icon": "🔍",
+        "title": "BW0021 종합 분석",
+        "desc": "BW0021 제품의 월별 추이와 최근 이력을 확인합니다.",
+        "prompt": "BW0021 제품의 월별 생산 추이와 최근 10건 이력을 표로 보여주고, 평균 생산량과 추세를 분석해 줘.",
+    },
+]
+
+
+def _stream_chat_tokens(stream_url: str, payload: dict) -> Iterator[str]:
+    """Yield text tokens from the /chat/stream SSE endpoint.
+
+    Side effects:
+    - st.toast on `tool_call` events
+    - st.error on `error` events
+    - st.session_state["_last_chat_meta"] populated on `done`
+    """
+    try:
+        with httpx.stream("POST", stream_url, json=payload, timeout=60.0) as r:
+            if r.status_code != 200:
+                try:
+                    detail = r.read().decode("utf-8", "replace")
+                except Exception:
+                    detail = ""
+                st.error(f"스트리밍 요청 실패: HTTP {r.status_code} {detail[:200]}")
+                return
+            event_name: Optional[str] = None
+            for line in r.iter_lines():
+                if not line:
+                    event_name = None
+                    continue
+                if line.startswith("event:"):
+                    event_name = line[6:].strip()
+                    continue
+                if line.startswith("data:"):
+                    raw = line[5:].strip()
+                    try:
+                        data = json.loads(raw)
+                    except json.JSONDecodeError:
+                        continue
+                    if event_name == "token":
+                        yield data.get("text", "")
+                    elif event_name == "tool_call":
+                        st.toast(f"🔧 {data.get('name', '')}", icon="⚙️")
+                    elif event_name == "error":
+                        st.error(data.get("message", "AI 스트리밍 오류"))
+                        return
+                    elif event_name == "done":
+                        st.session_state["_last_chat_meta"] = data
+                        return
+    except httpx.ConnectError:
+        st.error("AI 서버에 연결할 수 없습니다. API가 실행 중인지 확인하세요.")
+    except httpx.ReadTimeout:
+        st.error("AI 응답 시간이 초과되었습니다. 다시 시도해 주세요.")
+    except Exception as e:
+        st.error(f"스트리밍 오류: {e}")
+
+
+def _render_starter_card(idx: int, item: dict) -> Optional[str]:
+    """Render one starter prompt card. Returns the selected prompt or None."""
+    title = f"{item['icon']} {item['title']}"
+    if _HAS_SHADCN:
+        sui.card(
+            title=title,
+            content=item["desc"],
+            description="클릭해서 AI에게 분석을 요청하세요.",
+            key=f"starter_card_{idx}",
+        )
+        if sui.button(
+            text="이 분석 시작",
+            variant="outline",
+            key=f"starter_btn_{idx}",
+        ):
+            return item["prompt"]
+        return None
+    # Fallback: plain Streamlit button
+    if st.button(f"{title}\n\n{item['desc']}", key=f"starter_fallback_{idx}"):
+        return item["prompt"]
+    return None
 
 
 def render_ai_status_indicator(is_online: bool = True) -> None:
@@ -37,7 +148,7 @@ def render_ai_header_with_animation() -> None:
         <h1 style="
             font-size: 2.2rem;
             font-weight: 700;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -52,7 +163,7 @@ def render_ai_header_with_animation() -> None:
     """, unsafe_allow_html=True)
 
 
-def render_ai_chat(api_url: str = f"{API_BASE_URL}/chat/") -> None:
+def render_ai_chat(api_url: str = f"{API_BASE_URL}/chat/stream") -> None:
     """
     Render professional AI chat interface with Zero-State Conversational UI.
     """
@@ -72,49 +183,36 @@ def render_ai_chat(api_url: str = f"{API_BASE_URL}/chat/") -> None:
         </div>
         """, unsafe_allow_html=True)
 
-        # Starter Prompt Cards (2x2 Grid)
-        st.markdown("""
-        <style>
-            /* Reset button styling for cards */
-            div[data-testid="column"] button {
-                width: 100%;
-                height: 100%;
-                min-height: 120px;
-                padding: 20px;
-                text-align: left;
-                background-color: var(--background-color);
-                border: 1px solid rgba(102, 126, 234, 0.2);
-                border-radius: 12px;
-                transition: all 0.2s ease;
-                white-space: pre-wrap;
-            }
-            div[data-testid="column"] button:hover {
-                border-color: #667eea;
-                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
-                transform: translateY(-2px);
-            }
-            div[data-testid="column"] button p {
-                font-size: 1rem;
-                color: var(--text-color);
-                margin: 0;
-            }
-        </style>
-        """, unsafe_allow_html=True)
+        # Fallback styling for plain-button path (shadcn unavailable)
+        if not _HAS_SHADCN:
+            st.markdown("""
+            <style>
+                div[data-testid="column"] button {
+                    width: 100%;
+                    min-height: 120px;
+                    padding: 20px;
+                    text-align: left;
+                    background-color: var(--color-bg-card);
+                    border: 1px solid var(--color-border);
+                    border-radius: var(--radius-card);
+                    transition: all 0.2s ease;
+                    white-space: pre-wrap;
+                }
+                div[data-testid="column"] button:hover {
+                    border-color: var(--color-primary);
+                    box-shadow: var(--shadow-card-hover);
+                    transform: translateY(-2px);
+                }
+            </style>
+            """, unsafe_allow_html=True)
 
         col1, col2 = st.columns(2)
-        prompt_clicked = None
-        
-        with col1:
-            if st.button("📊 이번 달 제품별 생산 현황\n\n최근 30일간 제품별 생산량, 배치 수, 점유율을 표로 정리해 줘."):
-                prompt_clicked = "최근 30일간 제품별 생산량, 배치 수, 점유율(%)을 표로 정리하고 분석 코멘트도 달아줘."
-            if st.button("🏆 생산량 TOP 10 리포트\n\n올해 상위 10개 제품의 생산량, 점유율, 전월 대비 증감을 분석해 줘."):
-                prompt_clicked = "올해 상위 10개 제품의 생산량, 점유율(%), 전월 대비 증감률을 표로 보여주고 주요 트렌드를 분석해 줘."
-                
-        with col2:
-            if st.button("⚖️ 전월 대비 증감 분석 리포트\n\n이번 달과 지난 달의 제품별 성과를 비교 분석해 줘."):
-                prompt_clicked = "이번 달과 지난 달의 총 생산량, 배치 수를 비교하고, 주요 제품별 증감 현황도 표로 정리해 줘."
-            if st.button("🔍 BW0021 종합 분석\n\nBW0021 제품의 월별 추이와 최근 이력을 함께 보여줘."):
-                prompt_clicked = "BW0021 제품의 월별 생산 추이와 최근 10건 이력을 표로 보여주고, 평균 생산량과 추세를 분석해 줘."
+        prompt_clicked: Optional[str] = None
+        for idx, item in enumerate(STARTER_PROMPTS):
+            with (col1 if idx % 2 == 0 else col2):
+                chosen = _render_starter_card(idx, item)
+                if chosen:
+                    prompt_clicked = chosen
 
         if prompt_clicked:
             st.session_state.messages.append({"role": "user", "content": prompt_clicked})
@@ -130,7 +228,7 @@ def render_ai_chat(api_url: str = f"{API_BASE_URL}/chat/") -> None:
         # Context Hint Badge
         st.markdown("""
         <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
-            <span style="background: rgba(102, 126, 234, 0.1); color: #667eea; padding: 6px 16px; border-radius: 20px; font-size: 0.85rem; font-weight: 500;">
+            <span style="background: var(--color-bg-card-alt); color: var(--color-primary); padding: 6px 16px; border-radius: var(--radius-pill); font-size: 0.85rem; font-weight: 500;">
                 💡 팁: '표로 정리해줘'라고 질문하면 데이터를 엑셀로 다운로드할 수 있습니다.
             </span>
         </div>
@@ -188,38 +286,25 @@ def render_ai_chat(api_url: str = f"{API_BASE_URL}/chat/") -> None:
             st.session_state.messages.append({"role": "user", "content": prompt})
             st.rerun()
 
-    # Process the last message if it's from the user
+    # Process the last message if it's from the user (SSE streaming)
     if len(st.session_state.messages) > 0 and st.session_state.messages[-1]["role"] == "user":
         latest_prompt = st.session_state.messages[-1]["content"]
-        
+
         with chat_container if 'chat_container' in locals() else st.container():
             with st.chat_message("assistant", avatar="🤖"):
-                status_placeholder = st.empty()
-                status_placeholder.markdown("""
-                <div class="typing">
-                    <span></span><span></span><span></span>
-                </div>
-                <style>
-                    .typing { display: flex; gap: 4px; padding: 10px; }
-                    .typing span { width: 8px; height: 8px; background: #667eea; border-radius: 50%; animation: bounce 1.4s infinite ease-in-out; }
-                    .typing span:nth-child(1) { animation-delay: -0.32s; }
-                    .typing span:nth-child(2) { animation-delay: -0.16s; }
-                    @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
-                </style>
-                """, unsafe_allow_html=True)
-                
-                try:
-                    resp = requests.post(api_url, json={"query": latest_prompt}, timeout=60)
-                    if resp.status_code == 200:
-                        answer = resp.json().get("answer", "응답 없음")
-                        st.session_state.messages.append({"role": "assistant", "content": answer})
-                        st.rerun()
-                    else:
-                        status_placeholder.error(f"API 오류: {resp.status_code}")
-                except requests.exceptions.ConnectionError:
-                    status_placeholder.error("AI 서버에 연결할 수 없습니다. API가 실행 중인지 확인하세요.")
-                except Exception as e:
-                    status_placeholder.error(f"오류: {e}")
+                payload = {
+                    "query": latest_prompt,
+                    "session_id": st.session_state.get("chat_session_id"),
+                }
+                # st.write_stream collects all yielded strings and returns the joined result
+                full_answer = st.write_stream(_stream_chat_tokens(api_url, payload))
+                if isinstance(full_answer, list):
+                    full_answer = "".join(str(p) for p in full_answer)
+                if full_answer:
+                    st.session_state.messages.append(
+                        {"role": "assistant", "content": full_answer}
+                    )
+                    st.rerun()
 
     # Clear chat button (Only in Active Chat UI)
     if len(st.session_state.messages) > 0:
@@ -231,74 +316,24 @@ def render_ai_chat(api_url: str = f"{API_BASE_URL}/chat/") -> None:
                 st.rerun()
 
 
-def render_ai_section(api_url: str = f"{API_BASE_URL}/chat/") -> None:
+def render_ai_section(api_url: str = f"{API_BASE_URL}/chat/stream") -> None:
     """
-    Render complete AI analysis section with premium CSS.
+    Render complete AI analysis section.
+
+    Base message/table/download styling is centralized in
+    `shared/ui/theme.apply_custom_css()` via CSS tokens.
+    Role-specific accents (user vs assistant) remain here since they
+    depend on DOM attributes that the centralized rules do not target.
     """
-    # Premium Enterprise CSS
     st.markdown("""
     <style>
-        /* Message bubble enhancement */
-        [data-testid="stChatMessage"] {
-            border: 1px solid rgba(102, 126, 234, 0.15);
-            border-radius: 16px;
-            padding: 1rem;
-            margin-bottom: 1rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-            transition: all 0.3s ease;
-        }
-        
-        [data-testid="stChatMessage"]:hover {
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
-            transform: translateY(-1px);
-        }
-
-        /* Distinct colors for roles */
         [data-testid="stChatMessage"][data-testid*="assistant"] {
-            background-color: rgba(102, 126, 234, 0.03);
-            border-left: 4px solid #667eea;
+            background-color: var(--color-bg-card-alt);
+            border-left: 4px solid var(--color-primary);
         }
-
         [data-testid="stChatMessage"][data-testid*="user"] {
-            background-color: rgba(118, 75, 162, 0.03);
-            border-right: 4px solid #764ba2;
-        }
-
-        /* Table styling inside chat */
-        .stMarkdown table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 10px 0;
-            font-size: 0.85rem;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        }
-        
-        .stMarkdown th {
-            background-color: #667eea !important;
-            color: white !important;
-            padding: 10px !important;
-            text-align: left !important;
-            font-weight: 600;
-        }
-        
-        .stMarkdown td {
-            padding: 8px 10px !important;
-            border-bottom: 1px solid rgba(128,128,128,0.1) !important;
-        }
-
-        /* Download button */
-        .stDownloadButton button {
-            border-color: #667eea;
-            color: #667eea;
-            border-radius: 20px;
-            padding: 2px 15px;
-            font-size: 0.8rem;
-        }
-        .stDownloadButton button:hover {
-            background-color: #667eea;
-            color: white;
+            background-color: var(--color-bg-card-alt);
+            border-right: 4px solid var(--color-accent);
         }
     </style>
     """, unsafe_allow_html=True)

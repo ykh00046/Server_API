@@ -175,9 +175,8 @@ def render_kpi_cards(
     if top_product_sparkline is None:
         top_product_sparkline = [0] * 7
 
-    # Detect dark mode from colors dict
-    is_dark = colors.get("chart_template") == "plotly_dark"
-    sparkline_color = "#FF6B6B" if is_dark else "#FF4B4B"  # Slightly lighter for dark mode
+    # Sparkline color sourced from the theme palette (shared/ui/theme.CHART_COLORS).
+    sparkline_color = colors.get("accent", "#FF4B4B")
 
     # CSS for equal-width cards and visible sparklines
     st.markdown(f"""

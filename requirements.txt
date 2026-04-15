@@ -11,3 +11,16 @@ plotly
 requests
 orjson
 cachetools
+altair
+pystray
+Pillow
+httpx
+streamlit-shadcn-ui
+
+# Portal Automation (webcloring-pdf)
+selenium
+webdriver-manager
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+psutil
