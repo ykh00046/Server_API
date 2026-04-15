@@ -14,10 +14,10 @@
 
 ## 설치 (Windows)
 
-### 1. 저장소 클론
+### 1. 저장소 준비
 ```bash
-git clone https://github.com/ykh00046/new_calculator.git
-cd new_calculator
+git clone <repo-url>
+cd Server_API
 ```
 
 ### 2. 가상환경 생성 및 활성화
@@ -106,11 +106,13 @@ python tools/watcher.py --daemon --interval 3600
 | `date_from` | YYYY-MM-DD | 시작일 (포함) |
 | `date_to` | YYYY-MM-DD | 종료일 (포함) |
 | `item_code` | string | 제품 코드 |
+| `q` | string | 제품 코드/이름/로트 검색 (부분 일치) |
 | `lot_number` | string | 로트 번호 (prefix 매칭) |
 | `min_quantity` | int | 최소 생산량 |
 | `max_quantity` | int | 최대 생산량 |
-| `limit` | int | 반환 건수 (기본 500, 최대 5000) |
+| `limit` | int | 반환 건수 (기본 1000, 최대 5000) |
 | `cursor` | string | Cursor Pagination 토큰 |
+| `offset` | int | 오프셋 기반 페이지네이션 (하위 호환용, 비권장) |
 
 ### AI Chat
 
@@ -137,6 +139,8 @@ curl -X POST http://localhost:8000/chat/ \
 | `compare_periods` | "이번 달 vs 저번 달 비교" |
 | `get_item_history` | "BW0021 최근 10건 이력" |
 | `execute_custom_query` | "로트번호 LT2026으로 시작하는 항목" |
+
+`GET /records` 응답에는 `next_cursor`, `has_more`, `count`가 포함된다. 대량 조회는 `offset`보다 `cursor` 기반 페이지네이션을 권장한다.
 
 ---
 
@@ -211,6 +215,28 @@ Server_API/
 pytest tests/ -v
 ```
 
+### 스모크 검증
+
+Linux/WSL 기준 재현 가능한 최소 검증 경로:
+
+```bash
+tools/smoke_api.sh
+```
+
+의존성이 없는 환경이면 스모크 전용 가상환경을 만들고 최소 패키지를 설치한 뒤 실행:
+
+```bash
+SMOKE_INSTALL=1 tools/smoke_api.sh
+```
+
+선택적으로 로컬 헬스 엔드포인트까지 확인:
+
+```bash
+SMOKE_INSTALL=1 SMOKE_RUN_HEALTH=1 tools/smoke_api.sh
+```
+
+`requirements.txt` 전체 설치는 Streamlit/GUI 의존성까지 포함하므로, API 최소 검증만 필요할 때는 `requirements-smoke.txt` 경로를 우선 사용한다.
+
 | 테스트 파일 | 케이스 수 | 설명 |
 |-------------|:---------:|------|
 | `test_sql_validation.py` | 16 | SQL 인젝션 방지 |
@@ -253,6 +279,11 @@ python tools/backup_db.py --cleanup
 
 ## 문서
 
-- [v8 통합 로드맵](docs/plans/v8_consolidated_roadmap.md)
+- [Server API 인수 계획 (archive)](docs/archive/2026-04/server-api-intake/server-api-intake.plan.md)
+- [문서 정합성 및 스모크 (archive)](docs/archive/2026-04/server-api-consistency-and-smoke/)
+- [WSL 스모크 검증 리포트](docs/04-report/server-api-smoke-2026-03-31.report.md)
+- [2026-04 PDCA 아카이브 인덱스](docs/archive/2026-04/_INDEX.md)
+- [v8 통합 로드맵(기존)](docs/plans/v8_consolidated_roadmap.md)
 - [API 통합 가이드](docs/api_integration_guide.md)
+- [운영 매뉴얼](docs/specs/operations_manual.md)
 - [변경 로그](docs/04-report/changelog.md)

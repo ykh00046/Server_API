@@ -1,5 +1,31 @@
 # 변경 사항 기록
 
+## [2026-03-31] - Server_API 인수 문서 및 보드 링크 정합화
+
+### 추가된 문서
+
+- `docs/01-plan/features/server-api-intake.plan.md`
+  - Server_API 인수 관점의 기준 계획 추가
+  - 현재 문서 구조와 보드 연계 범위 명시
+
+- `docs/01-plan/features/server-api-consistency-and-smoke.plan.md`
+  - 문서 정합성 보정과 최소 스모크 검증 범위를 별도 계획으로 정리
+  - `requirements-smoke.txt`, `tools/smoke_api.sh`, 스모크 리포트와 연결
+
+### 변경된 사항
+
+- `README.md`
+  - 문서 섹션에 현행 계획/리포트 링크 추가
+  - `docs/01-plan` 및 `docs/04-report` 중심 구조로 갱신
+  - 운영 매뉴얼 링크 추가, 기존 `docs/plans` 문서는 레거시 로드맵으로 구분
+
+- `docs/04-report/server-api-smoke-2026-03-31.report.md`
+  - 보드 이슈의 구 경로 표기를 저장소 현행 계획 문서 경로로 대응시켜 후속 참조 혼선을 제거
+
+### 관련 리포트
+
+- `docs/04-report/server-api-smoke-2026-03-31.report.md`
+
 ## [2026-02-26] - 세션 완료: AI 도구 추가, DB 자동화, 문서화 3종
 
 ### 추가된 기능
@@ -154,4 +180,3 @@ a2951d4 - docs: API 사용 가이드 작성
 - 코드 품질 분석 수행 (23개 문제 식별)
 - Critical: 5개, High: 6개, Medium: 6개, Low: 6개
 - 우선순위별 개선 계획 수립
-

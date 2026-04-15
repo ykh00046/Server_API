@@ -2,7 +2,7 @@
 
 > 대상: 시스템 운영자
 > 기준 버전: v8 (2026-02-26)
-> 프로젝트 경로: `C:\Users\interojo\Desktop\Server_API`
+> 프로젝트 경로: 프로젝트 루트 기준 (`Server_API`, 현재 워크스페이스 예: `/mnt/c/X/Server_API`)
 
 ---
 
@@ -83,9 +83,9 @@ python tools/watcher.py --daemon --interval 3600
 작업 스케줄러 → 기본 작업 만들기
   트리거: 컴퓨터 시작 시
   동작: 프로그램 시작
-    프로그램: C:\Users\interojo\Desktop\Server_API\.venv\Scripts\python.exe
+    프로그램: [프로젝트 루트]\.venv\Scripts\python.exe
     인수:     manager.py
-    시작 위치: C:\Users\interojo\Desktop\Server_API
+    시작 위치: [프로젝트 루트]
 ```
 
 ---
@@ -198,9 +198,9 @@ python tools/backup_db.py --cleanup
 기본 작업 만들기
   트리거: 매일 오전 2:00
   동작: 프로그램 시작
-    프로그램: C:\Users\interojo\Desktop\Server_API\.venv\Scripts\python.exe
+    프로그램: [프로젝트 루트]\.venv\Scripts\python.exe
     인수:     tools/backup_db.py
-    시작 위치: C:\Users\interojo\Desktop\Server_API
+    시작 위치: [프로젝트 루트]
 ```
 
 ### DB 복구 절차
@@ -684,3 +684,34 @@ python tools/watcher.py --daemon --interval 1800
 □ 백업 정책 검토 (보관 개수 적정성)
 □ 요구사항 변화 반영 여부 검토
 ```
+
+---
+
+## 10. 테스트 / 스모크 벽시계 (security-followup-observability)
+
+**측정일**: 2026-04-14
+**환경**: Windows 11, pytest 로컬 실행 (API TestClient in-process)
+
+| 항목 | 값 |
+|---|---|
+| `pytest tests/ -q` | **10.52s / 133 tests** (설계 목표 <30s ✅) |
+| 10k `/healthz` 스모크 | 수동 — `python scripts/perf_smoke.py --n 10000` 로 측정 |
+| 10k 스모크 RSS Δ 목표 | < 50 MB |
+
+### 수동 10k 스모크 실행 방법
+
+```bash
+# Terminal 1: API 기동
+python manager.py  # or: uvicorn api.main:app --port 8000 --workers 1
+
+# Terminal 2: 스모크 실행
+python scripts/perf_smoke.py --url http://localhost:8000 --path /healthz --n 10000
+# 출력 예: {"elapsed_sec": 7.42, "rps": 1347.7, "rss_delta_mb": 3.1, "counts": {"2xx": 10000}}
+```
+
+`psutil` 미설치 시 `rss_delta_mb` 는 null 로 출력되며 나머지는 정상 동작한다.
+
+### 주의
+
+- 이 스모크는 CI 에 편입되지 않는다 (과도한 시간 소모 및 서버 기동 의존).
+- 회귀 관측에 사용할 때만 리눅스 운영 환경과 수치 비교.
