@@ -51,6 +51,8 @@ SLOW_QUERY_THRESHOLD_MS = 500  # Log WARNING for queries exceeding this
 # AI / Gemini
 # ==========================================================
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3.1-flash-lite")
+GEMINI_FALLBACK_ENABLED = os.getenv("GEMINI_FALLBACK_ENABLED", "true").lower() == "true"
 
 # ==========================================================
 # Logging

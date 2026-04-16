@@ -35,7 +35,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from shared import get_logger
-from shared.config import GEMINI_MODEL
+from shared.config import GEMINI_MODEL, GEMINI_FALLBACK_MODEL, GEMINI_FALLBACK_ENABLED
 from shared.logging_config import get_request_id
 from shared.rate_limiter import chat_rate_limiter
 
@@ -104,6 +104,7 @@ class ChatResponse(BaseModel):
     status: str = "success"
     tools_used: List[str] = []
     request_id: str = ""  # 요청 추적용 ID
+    model_used: str = ""  # 실제 응답한 모델명
 
 
 # ==========================================================
@@ -236,13 +237,28 @@ def _ensure_ai_enabled(request_id: str):
     return client_obj
 
 
+FALLBACK_STATUS_CODES = {429, 503}
+
+
+def _is_fallbackable(e: Exception) -> bool:
+    """Check if the error warrants a model fallback (429/503 only)."""
+    if isinstance(e, (ClientError, ServerError)):
+        status = getattr(e, "status", 0) or 0
+        if status == 0:
+            for code in FALLBACK_STATUS_CODES:
+                if str(code) in str(e):
+                    return True
+        return status in FALLBACK_STATUS_CODES
+    return False
+
+
 async def _generate_with_retry(client_obj, contents, system_instruction, request_id, query_preview):
-    """Run Gemini call with retry/backoff. Returns response or raises last_error."""
+    """Run Gemini call with retry/backoff + fallback. Returns (response, model_used)."""
     last_error: Exception | None = None
     total_delay = 0.0
     for attempt in range(MAX_RETRIES):
         try:
-            return await asyncio.to_thread(
+            response = await asyncio.to_thread(
                 client_obj.models.generate_content,
                 model=GEMINI_MODEL,
                 contents=contents,
@@ -251,6 +267,7 @@ async def _generate_with_retry(client_obj, contents, system_instruction, request
                     tools=PRODUCTION_TOOLS,
                 ),
             )
+            return response, GEMINI_MODEL
         except (ClientError, ServerError) as e:
             last_error = e
             retryable, status_code = _is_retryable_error(e)
@@ -273,6 +290,29 @@ async def _generate_with_retry(client_obj, contents, system_instruction, request
         except Exception as e:
             last_error = e
             break
+
+    # Fallback: try alternate model on 429/503
+    if GEMINI_FALLBACK_ENABLED and last_error and _is_fallbackable(last_error):
+        logger.warning(
+            f"[Chat Fallback] request_id={request_id} | "
+            f"{GEMINI_MODEL} → {GEMINI_FALLBACK_MODEL} | trigger={last_error}"
+        )
+        try:
+            response = await asyncio.to_thread(
+                client_obj.models.generate_content,
+                model=GEMINI_FALLBACK_MODEL,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    tools=PRODUCTION_TOOLS,
+                ),
+            )
+            return response, GEMINI_FALLBACK_MODEL
+        except Exception as fb_err:
+            logger.error(
+                f"[Chat Fallback Failed] request_id={request_id} | error={fb_err}"
+            )
+
     raise last_error if last_error else RuntimeError("Gemini call failed")
 
 
@@ -297,7 +337,7 @@ async def chat_with_data(request: ChatRequest, http_request: Request):
     contents = history + [user_content]
 
     try:
-        response = await _generate_with_retry(
+        response, model_used = await _generate_with_retry(
             client_obj, contents, _build_system_instruction(), request_id, query_preview
         )
     except Exception as e:
@@ -335,7 +375,8 @@ async def chat_with_data(request: ChatRequest, http_request: Request):
         )
 
     return ChatResponse(
-        answer=response.text, tools_used=tools_used, request_id=request_id
+        answer=response.text, tools_used=tools_used,
+        request_id=request_id, model_used=model_used,
     )
 
 

@@ -21,12 +21,28 @@ from typing import AsyncIterator
 from fastapi.responses import StreamingResponse
 from google.genai import types
 
+from google.genai.errors import ClientError, ServerError
+
 from shared import get_logger
-from shared.config import GEMINI_MODEL
+from shared.config import GEMINI_MODEL, GEMINI_FALLBACK_MODEL, GEMINI_FALLBACK_ENABLED
 
 from ._gemini_client import get_client
 from ._tool_dispatch import PRODUCTION_TOOLS
 from . import _session_store as _sstore
+
+FALLBACK_STATUS_CODES = {429, 503}
+
+
+def _is_fallbackable(e: Exception) -> bool:
+    """Check if the error warrants a model fallback (429/503 only)."""
+    if isinstance(e, (ClientError, ServerError)):
+        status = getattr(e, "status", 0) or 0
+        if status == 0:
+            for code in FALLBACK_STATUS_CODES:
+                if str(code) in str(e):
+                    return True
+        return status in FALLBACK_STATUS_CODES
+    return False
 
 logger = get_logger(__name__)
 
@@ -58,27 +74,62 @@ async def run_stream(
     user_content = types.Content(role="user", parts=[types.Part.from_text(text=query)])
     contents = history + [user_content]
 
-    yield _sse("meta", {
-        "request_id": request_id,
-        "session_id": session_id,
-        "model": GEMINI_MODEL,
-    })
-
-    full_text_parts: list[str] = []
-    tools_emitted: set[str] = set()
     start = time.perf_counter()
     query_preview = query[:100] + ("..." if len(query) > 100 else "")
     logger.info(f"[ChatStream Start] request_id={request_id} | query='{query_preview}'")
 
+    # Attempt primary model, fallback on 429/503
+    model_to_use = GEMINI_MODEL
+    fallback_used = False
+    config = types.GenerateContentConfig(
+        system_instruction=system_instruction,
+        tools=PRODUCTION_TOOLS,
+    )
+
     try:
         stream = await client_obj.aio.models.generate_content_stream(
-            model=GEMINI_MODEL,
-            contents=contents,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                tools=PRODUCTION_TOOLS,
-            ),
+            model=model_to_use, contents=contents, config=config,
         )
+    except (ClientError, ServerError) as e:
+        if GEMINI_FALLBACK_ENABLED and _is_fallbackable(e):
+            model_to_use = GEMINI_FALLBACK_MODEL
+            fallback_used = True
+            logger.warning(
+                f"[ChatStream Fallback] request_id={request_id} | "
+                f"{GEMINI_MODEL} → {GEMINI_FALLBACK_MODEL} | trigger={e}"
+            )
+            try:
+                stream = await client_obj.aio.models.generate_content_stream(
+                    model=model_to_use, contents=contents, config=config,
+                )
+            except Exception as fb_err:
+                duration_ms = (time.perf_counter() - start) * 1000
+                logger.error(
+                    f"[ChatStream Fallback Failed] request_id={request_id} | error={fb_err} | "
+                    f"duration_ms={duration_ms:.1f}"
+                )
+                yield _sse("error", {"code": type(fb_err).__name__, "message": str(fb_err)[:300]})
+                return
+        else:
+            duration_ms = (time.perf_counter() - start) * 1000
+            logger.exception(
+                f"[ChatStream Error] request_id={request_id} | "
+                f"error={type(e).__name__}: {e} | duration_ms={duration_ms:.1f}"
+            )
+            yield _sse("error", {"code": type(e).__name__, "message": str(e)[:300]})
+            return
+
+    yield _sse("meta", {
+        "request_id": request_id,
+        "session_id": session_id,
+        "model": model_to_use,
+        "fallback": fallback_used,
+    })
+
+    full_text_parts: list[str] = []
+    tools_emitted: set[str] = set()
+
+    try:
         async for chunk in stream:
             # 1) tool_call emission
             candidates = getattr(chunk, "candidates", None) or []
