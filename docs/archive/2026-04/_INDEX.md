@@ -77,6 +77,13 @@
 - **요약**: FastAPI SSE `/chat/stream` + Gemini async streaming, CSS 토큰 테마 시스템(라이트/다크/고대비 WCAG AA), streamlit-shadcn-ui 스타터 카드. 136 → 142 tests, Playwright E2E 4 시나리오 통과.
 - **문서**: plan / design / analysis / report
 
+### 11. Gemini 모델 폴백 (gemini-fallback)
+- **경로**: `gemini-fallback/`
+- **완료일**: 2026-04-17
+- **상태**: ✅ 완료 (Match Rate 98%, iteration 0)
+- **요약**: Gemini 2.5 Flash 429/503 시 3.1 Flash Lite 자동 폴백. sync/stream 양쪽 지원. RPD 20→500 확보. 149 tests pass (폴백 전용 7개 포함).
+- **문서**: plan / design / analysis / report
+
 ---
 
 ## 📊 요약
@@ -93,7 +100,8 @@
 | DB 성능 최적화 | 92% | 136 pass | ✅ 완료 (축소안) |
 | UI/UX 개선 | 73% | 0 browser errors | ✅ 완료 (11 impl + 4 Defer) |
 | UI 현대화 (streamlit-extras) | 97% | 142 pass | ✅ 완료 |
+| Gemini 모델 폴백 | 98% | 149 pass | ✅ 완료 |
 
 ---
 
-*생성일: 2026-04-14*
+*최종 갱신: 2026-04-17*
