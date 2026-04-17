@@ -84,6 +84,13 @@
 - **요약**: Gemini 2.5 Flash 429/503 시 3.1 Flash Lite 자동 폴백. sync/stream 양쪽 지원. RPD 20→500 확보. 149 tests pass (폴백 전용 7개 포함).
 - **문서**: plan / design / analysis / report
 
+### 12. 대시보드 사이드바 리디자인 (dashboard-sidebar-redesign)
+- **경로**: `dashboard-sidebar-redesign/`
+- **완료일**: 2026-04-17
+- **상태**: ✅ 완료 (Match Rate 96%, iteration 0)
+- **요약**: 탭 기반 UI → `st.navigation` 멀티페이지 + 사이드바 네비 + 토글 가능 우측 AI 패널. app.py 536→149줄(72% 감축), data.py 분리, 4개 페이지 파일 신규. 색상 보라-블루 → 핑크-스카이(#ec4899/#0ea5e9). segmented_control 집계 단위, xaxis category 타입 강제.
+- **문서**: plan / analysis / report (design 생략 — 소급 PDCA)
+
 ---
 
 ## 📊 요약
@@ -101,6 +108,7 @@
 | UI/UX 개선 | 73% | 0 browser errors | ✅ 완료 (11 impl + 4 Defer) |
 | UI 현대화 (streamlit-extras) | 97% | 142 pass | ✅ 완료 |
 | Gemini 모델 폴백 | 98% | 149 pass | ✅ 완료 |
+| 대시보드 사이드바 리디자인 | 96% | 0 browser errors | ✅ 완료 (소급 PDCA) |
 
 ---
 

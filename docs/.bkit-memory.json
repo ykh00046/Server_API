@@ -1,12 +1,19 @@
 {
-  "sessionCount": 20,
+  "sessionCount": 24,
   "lastSession": {
-    "startedAt": "2026-04-15T02:47:01.334Z",
+    "startedAt": "2026-04-17T07:16:34.423Z",
     "platform": "claude",
     "level": "Dynamic"
   },
   "activeFeature": null,
   "completedFeatures": [
+    {
+      "name": "dashboard-sidebar-redesign",
+      "pdcaPhase": "archived",
+      "matchRate": 96,
+      "completedAt": "2026-04-17",
+      "archivedTo": "docs/archive/2026-04/dashboard-sidebar-redesign/"
+    },
     {
       "name": "4-critical-issues-fix",
       "pdcaPhase": "completed",

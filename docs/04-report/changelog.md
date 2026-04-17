@@ -1,5 +1,112 @@
 # 변경 사항 기록
 
+## [2026-04-17] - Dashboard Sidebar Redesign PDCA 완료 (96% 설계 일치율)
+
+### 추가된 기능
+
+**다중 페이지 라우팅 및 사이드바 네비게이션**
+- `dashboard/pages/overview.py`: KPI 카드 + 추세 차트 + AI 토글
+- `dashboard/pages/trends.py`: 일/주/월 집계 단위 + 생산 추세 라인 차트
+- `dashboard/pages/batches.py`: 배치 상세 테이블 + Excel/CSV 다운로드
+- `dashboard/pages/products.py`: 제품 비교 + Top-10 분포 차트 + 추세 비교
+- `st.navigation()` 기반 4페이지 멀티페이지 아키텍처
+
+**데이터 레이어 분리**
+- `dashboard/data.py` (신규, 331줄): 6개 `@st.cache_data` 함수
+  - `load_records()`, `load_monthly_summary()`, `load_batch_data()`, `load_product_data()`, `load_product_details()`, `get_filter_params()`
+  - TTL: 60-300초 (함수별 차등 설정)
+
+**공통 컴포넌트 및 레이아웃**
+- `dashboard/components/layout.py` (신규): 
+  - `render_page_header()`: 페이지 제목 + 필터 정보
+  - `get_page_columns()`: AI 패널 토글에 따른 7:3 또는 10:0 컬럼 비율
+  - `render_ai_column()`: 우측 AI 패널 렌더링
+  - `init_ai_panel_state()`: 세션 상태 초기화
+- `dashboard/components/ai_section.py` (수정):
+  - `render_ai_section_compact()` (160줄) — 사이드바 대응 AI 패널 레이아웃
+  - Quick chips + 스트리밍 채팅 + Excel 다운로드
+
+**색상 체계 전환**
+- 보라-블루 (#667eea) → 핑크-스카이 (#ec4899 / #0ea5e9) 전면 교체
+- 적용: Plotly 차트, 라인, 채우기, 강조 요소
+- 관련 파일: overview.py, trends.py, products.py, charts.py
+
+**필터 공유 메커니즘**
+- `session_state["_filters"]` dict 기반 전페이지 필터 상태 공유
+- 사이드바: 날짜 범위, 키워드, 제품 선택, 레코드 수 슬라이더
+- 필터 프리셋 저장/로드 (기존 기능 유지)
+
+### 변경된 사항
+
+**dashboard/app.py** (주요 리팩토링)
+- 536줄 → 149줄 (72% 축약)
+- 엔트리포인트 전문화: `st.navigation()` + 사이드바 필터만 담당
+- 모든 데이터 로딩 및 차트 렌더링 로직 data.py/pages로 이동
+
+**dashboard/components/charts.py**
+- 색상 팔레트 마이그레이션: #667eea → #ec4899 (pink) / #0ea5e9 (sky)
+- 정수 포맷팅: `f"{x:,.0f}"` 포맷 적용
+- X축 타입 지정: `xaxis_type="category"` (날짜 자동 파싱 방지)
+
+**dashboard/components/__init__.py**
+- layout.py 모듈 export 추가
+
+### 수정된 버그
+
+**필터 상태 유지**
+- 페이지 전환 시 필터 초기화 문제 해결 (session_state 활용)
+
+**AI 패널 컨텍스트 보존**
+- 다중 페이지 전환 후에도 채팅 이력 유지
+
+### 품질 지표
+
+| 항목 | 목표 | 달성 | 상태 |
+|------|------|------|------|
+| 설계 일치율 | ≥90% | 96% | ✅ 초과 달성 |
+| 범위 항목 커버리지 (S1-S10) | ≥90% | 95% | ✅ 초과 달성 |
+| 기능 요구사항 일치 (FR-01~FR-08) | 100% | 100% | ✅ 목표 달성 |
+| 아키텍처 준수 | 100% | 100% | ✅ 목표 달성 |
+| app.py 라인 수 축약 | 간소화 | 536→149줄 | ✅ 72% 축약 |
+| 캐시 함수 추출 | 6개 필수 | 6개 구현 | ✅ 목표 달성 |
+
+### 적시 이슈 (우선도 낮음)
+
+| ID | 문제 | 영향도 | 해결책 |
+|-----|------|--------|--------|
+| G-01 | `charts.py:create_trend_lines()` X축 타입 미적용 | Low | `xaxis_type="category"` 추가 |
+| G-02 | `data.py:get_filter_state()` 미사용 코드 | None | 삭제 또는 리팩토링 |
+
+### 코드 통계
+
+| 항목 | 수치 |
+|------|:----:|
+| 신규 파일 | 5개 (data.py, 4×pages) |
+| 수정 파일 | 5개 (app.py, ai_section.py, charts.py, __init__.py 등) |
+| 신규 코드 | ~800줄 |
+| 추출 함수 | 6개 (@st.cache_data) |
+| 컴포넌트 함수 | 4개 (layout.py) |
+| 설계 일치율 | 96% |
+
+### PDCA 주기
+
+| 단계 | 문서 | 상태 |
+|------|------|------|
+| Plan | `docs/01-plan/features/dashboard-sidebar-redesign.plan.md` | ✅ 완료 |
+| Design | (생략 — 소급 PDCA) | ℹ️ 미작성 |
+| Do | (구현 완료) | ✅ 완료 |
+| Check | `docs/03-analysis/dashboard-sidebar-redesign.analysis.md` | ✅ 완료 |
+| Act | `docs/04-report/features/dashboard-sidebar-redesign.report.md` | ✅ 완료 |
+
+### 완료 보고서
+- `docs/04-report/features/dashboard-sidebar-redesign.report.md`
+
+### 관련 문서
+- 선행 UI 모더나이제이션 사이클: `docs/archive/2026-04/ui-modernization-streamlit-extras/`
+- 목업 참조: `mockup-b3-sidebar.html`
+
+---
+
 ## [2026-03-31] - Server_API 인수 문서 및 보드 링크 정합화
 
 ### 추가된 문서
