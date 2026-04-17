@@ -206,6 +206,6 @@ def render_cache_status(cache_hit: bool) -> None:
     from cache or fetched from the database.
     """
     if cache_hit:
-        st.success("Loaded from cache", icon=":")
+        st.success("Loaded from cache", icon="✅")
     else:
-        st.info("Fetched from database", icon=":")
+        st.info("Fetched from database", icon="ℹ️")

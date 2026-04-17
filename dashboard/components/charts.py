@@ -10,7 +10,6 @@ Provides interactive charts:
 """
 
 import plotly.graph_objects as go
-import plotly.express as px
 import pandas as pd
 from typing import List, Optional
 
@@ -48,9 +47,9 @@ def create_top10_bar_chart(df: pd.DataFrame, template: str) -> go.Figure:
         x=item_totals["good_quantity"],
         y=item_totals["item_code"],
         orientation='h',
-        text=item_totals["good_quantity"].apply(lambda x: f"{x:,}"),
+        text=item_totals["good_quantity"].apply(lambda x: f"{x:,.0f}"),
         textposition='outside',
-        marker_color='#1f77b4',
+        marker_color='#ec4899',
         hovertemplate=(
             "<b>%{y}</b><br>"
             "생산량: %{x:,} 개<br>"
@@ -199,8 +198,8 @@ def create_trend_lines(
     fig = go.Figure()
 
     # Color palette for lines
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
-              '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+    colors = ['#ec4899', '#0ea5e9', '#f472b6', '#38bdf8',
+              '#f9a8d4', '#7dd3fc', '#f43f5e', '#0284c7', '#fda4af', '#bae6fd']
 
     for idx, item_code in enumerate(item_codes):
         item_data = agg_df[agg_df["item_code"] == item_code].sort_values("period")
@@ -227,68 +226,10 @@ def create_trend_lines(
         template=template,
         height=400,
         hovermode="x unified",
+        xaxis_type="category",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
 
-    return fig
-
-
-def add_range_selector(fig: go.Figure) -> go.Figure:
-    """
-    Add range selector buttons to chart x-axis.
-
-    Adds buttons for quick time range selection:
-    - 1 week
-    - 2 weeks
-    - 1 month
-    - 3 months
-    - 6 months
-    - All
-
-    Args:
-        fig: Plotly Figure object to enhance
-
-    Returns:
-        Modified Figure with range selector.
-    """
-    fig.update_xaxes(
-        rangeslider_visible=True,
-        rangeselector=dict(
-            buttons=list([
-                dict(count=7, label="1W", step="day", stepmode="backward"),
-                dict(count=14, label="2W", step="day", stepmode="backward"),
-                dict(count=1, label="1M", step="month", stepmode="backward"),
-                dict(count=3, label="3M", step="month", stepmode="backward"),
-                dict(count=6, label="6M", step="month", stepmode="backward"),
-                dict(step="all", label="All")
-            ]),
-            font=dict(size=10)
-        )
-    )
-    return fig
-
-
-def add_download_button(fig: go.Figure, filename: str) -> go.Figure:
-    """
-    Configure chart for enhanced download options.
-
-    Sets up the chart's modebar to include:
-    - Download as PNG with high resolution
-    - Scroll zoom
-    - Hidden Plotly logo
-
-    Args:
-        fig: Plotly Figure object to enhance
-        filename: Base filename for downloaded images
-
-    Returns:
-        Modified Figure with download configuration.
-    """
-    fig.update_layout(
-        modebar_add=["downloadCSV"],
-    )
-    # Note: config options are passed to st.plotly_chart, not the figure
-    # This function is kept for API consistency
     return fig
 
 

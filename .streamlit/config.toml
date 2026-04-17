@@ -1,39 +1,10 @@
 # Streamlit Theme Configuration
-# Based on Streamlit agent-skills best practices
+# B3 Sidebar UI — Pink/Sky palette (clean, no sidebar override)
 
 [theme]
 base = "light"
-primaryColor = "#FF4B4B"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F0F2F6"
-textColor = "#1F1F1F"
-borderColor = "#E0E0E0"
+primaryColor = "#ec4899"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f8fafc"
+textColor = "#1e293b"
 font = "sans-serif"
-baseFontSize = 14
-
-# Chart colors
-chartCategoricalColors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2"]
-
-# Semantic colors
-redColor = "#d62728"
-greenColor = "#2ca02c"
-yellowColor = "#ff7f0e"
-blueColor = "#1f77b4"
-
-# 라이트 모드 사이드바
-[theme.light.sidebar]
-backgroundColor = "#F0F2F6"
-secondaryBackgroundColor = "#E8EAED"
-
-# 다크 모드 설정
-[theme.dark]
-primaryColor = "#FF4B4B"
-backgroundColor = "#0E1117"
-secondaryBackgroundColor = "#262730"
-textColor = "#FAFAFA"
-borderColor = "#333333"
-
-# 다크 모드 사이드바
-[theme.dark.sidebar]
-backgroundColor = "#262730"
-secondaryBackgroundColor = "#1E1E2E"

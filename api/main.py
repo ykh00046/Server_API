@@ -60,13 +60,30 @@ setup_logging()
 logger = get_logger(__name__)
 
 # ==========================================================
-# FastAPI App (v7: ORJSONResponse + GZip)
+# FastAPI App (v7: ORJSONResponse + GZip + CORS)
 # ==========================================================
 app = FastAPI(
     title="Production Data API",
     default_response_class=ORJSONResponse,  # Faster JSON serialization
 )
 app.add_middleware(GZipMiddleware, minimum_size=500)  # Compress responses > 500 bytes
+
+# CORS — allows future web frontend (React/Next.js) to call this API
+from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",    # Next.js dev
+        "http://localhost:5173",    # Vite dev
+        "http://localhost:8502",    # Streamlit
+        "http://192.168.11.147:8502",
+        "http://192.168.11.147:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(chat.router)
 
 

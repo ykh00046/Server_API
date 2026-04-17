@@ -8,11 +8,13 @@ Features:
 - Excel download from AI tables
 """
 
+import io
 import json
+import re
 from typing import Iterator, Optional
 
 import httpx
-import requests
+import pandas as pd
 import streamlit as st
 
 from shared.config import API_BASE_URL, GEMINI_MODEL
@@ -102,6 +104,79 @@ def _stream_chat_tokens(stream_url: str, payload: dict) -> Iterator[str]:
         st.error(f"스트리밍 오류: {e}")
 
 
+_UNSAFE_HTML_RE = re.compile(
+    r"<\s*script[^>]*>.*?<\s*/\s*script\s*>|"
+    r"\bon\w+\s*=\s*[\"'][^\"']*[\"']|"
+    r"<\s*iframe[^>]*>|<\s*object[^>]*>|<\s*embed[^>]*>|"
+    r"javascript\s*:",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _sanitize_ai_content(content: str) -> str:
+    """Strip dangerous HTML from AI-generated content."""
+    return _UNSAFE_HTML_RE.sub("", content)
+
+
+def _render_table_download(content: str, key_prefix: str, index: int) -> None:
+    """Render Excel download button if content contains a markdown table."""
+    if "|" not in content or "\n|" not in content:
+        return
+    try:
+        lines = content.split("\n")
+        table_lines = [
+            line for line in lines if "|" in line and line.strip().startswith("|")
+        ]
+        if len(table_lines) <= 2:
+            return
+        table_text = "\n".join(table_lines).replace("**", "")
+        df = pd.read_csv(
+            io.StringIO(table_text.replace(" ", "")), sep="|"
+        ).dropna(how="all", axis=1)
+        df = df[~df.iloc[:, 0].str.contains(r"^-+$", na=False)]
+        df.columns = [col.strip() for col in df.columns]
+        if df.empty:
+            return
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name="AI_Data")
+        st.download_button(
+            label="📊 엑셀 다운로드",
+            data=output.getvalue(),
+            file_name=f"ai_analysis_{index}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key=f"{key_prefix}_{index}",
+        )
+    except Exception:
+        pass
+
+
+def _process_pending_user_message(chat_container, api_url: str) -> None:
+    """Stream AI response for the last user message. Handles rerun safely."""
+    if (
+        len(st.session_state.messages) == 0
+        or st.session_state.messages[-1]["role"] != "user"
+    ):
+        return
+
+    latest_prompt = st.session_state.messages[-1]["content"]
+    target = chat_container if chat_container is not None else st.container()
+    with target:
+        with st.chat_message("assistant", avatar="🤖"):
+            payload = {
+                "query": latest_prompt,
+                "session_id": st.session_state.get("chat_session_id"),
+            }
+            full_answer = st.write_stream(_stream_chat_tokens(api_url, payload))
+            if isinstance(full_answer, list):
+                full_answer = "".join(str(p) for p in full_answer)
+            # Always append assistant message to prevent infinite rerun (H5)
+            st.session_state.messages.append(
+                {"role": "assistant", "content": full_answer or "⚠️ 응답을 받지 못했습니다."}
+            )
+            st.rerun()
+
+
 def _render_starter_card(idx: int, item: dict) -> Optional[str]:
     """Render one starter prompt card. Returns the selected prompt or None."""
     title = f"{item['icon']} {item['title']}"
@@ -170,6 +245,8 @@ def render_ai_chat(api_url: str = f"{API_BASE_URL}/chat/stream") -> None:
     # Initialize chat history (Empty for True Zero-State)
     if "messages" not in st.session_state:
         st.session_state.messages = []
+
+    chat_container = None  # Set when active chat is rendered
 
     # ==========================================
     # 1. Zero-State UI (대화 시작 전 중앙 화면)
@@ -241,39 +318,10 @@ def render_ai_chat(api_url: str = f"{API_BASE_URL}/chat/stream") -> None:
             for i, message in enumerate(st.session_state.messages):
                 avatar = "👤" if message["role"] == "user" else "🤖"
                 with st.chat_message(message["role"], avatar=avatar):
-                    content = message["content"]
+                    content = _sanitize_ai_content(message["content"])
                     st.markdown(content)
-                    
-                    # Excel Download Logic for AI Tables
-                    if message["role"] == "assistant" and "|" in content and "\n|" in content:
-                        try:
-                            import pandas as pd
-                            import io
-                            
-                            lines = content.split('\n')
-                            table_lines = [line for line in lines if '|' in line and line.strip().startswith('|')]
-                            
-                            if len(table_lines) > 2:
-                                table_text = '\n'.join(table_lines).replace('**', '')
-                                df = pd.read_csv(io.StringIO(table_text.replace(' ', '')), sep='|').dropna(how='all', axis=1)
-                                df = df[~df.iloc[:, 0].str.contains(r'^-+$', na=False)]
-                                df.columns = [col.strip() for col in df.columns]
-                                
-                                if not df.empty:
-                                    output = io.BytesIO()
-                                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                                        df.to_excel(writer, index=False, sheet_name='AI_Data')
-                                    excel_data = output.getvalue()
-                                    
-                                    st.download_button(
-                                        label="📊 이 데이터를 엑셀로 다운로드",
-                                        data=excel_data,
-                                        file_name=f"ai_analysis_{i}.xlsx",
-                                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                        key=f"dl_ai_table_{i}"
-                                    )
-                        except Exception:
-                            pass
+                    if message["role"] == "assistant":
+                        _render_table_download(content, "dl_ai_table", i)
 
     # ==========================================
     # 3. Input & Processing (공통)
@@ -281,30 +329,11 @@ def render_ai_chat(api_url: str = f"{API_BASE_URL}/chat/stream") -> None:
     prompt = st.chat_input("데이터에 대해 무엇이든 질문하세요 (예: 올해 1분기 총 생산량은?)")
 
     if prompt:
-        # Avoid duplicate appending if triggered from button
         if len(st.session_state.messages) == 0 or st.session_state.messages[-1]["content"] != prompt:
             st.session_state.messages.append({"role": "user", "content": prompt})
             st.rerun()
 
-    # Process the last message if it's from the user (SSE streaming)
-    if len(st.session_state.messages) > 0 and st.session_state.messages[-1]["role"] == "user":
-        latest_prompt = st.session_state.messages[-1]["content"]
-
-        with chat_container if 'chat_container' in locals() else st.container():
-            with st.chat_message("assistant", avatar="🤖"):
-                payload = {
-                    "query": latest_prompt,
-                    "session_id": st.session_state.get("chat_session_id"),
-                }
-                # st.write_stream collects all yielded strings and returns the joined result
-                full_answer = st.write_stream(_stream_chat_tokens(api_url, payload))
-                if isinstance(full_answer, list):
-                    full_answer = "".join(str(p) for p in full_answer)
-                if full_answer:
-                    st.session_state.messages.append(
-                        {"role": "assistant", "content": full_answer}
-                    )
-                    st.rerun()
+    _process_pending_user_message(chat_container, api_url)
 
     # Clear chat button (Only in Active Chat UI)
     if len(st.session_state.messages) > 0:
@@ -318,7 +347,7 @@ def render_ai_chat(api_url: str = f"{API_BASE_URL}/chat/stream") -> None:
 
 def render_ai_section(api_url: str = f"{API_BASE_URL}/chat/stream") -> None:
     """
-    Render complete AI analysis section.
+    Render complete AI analysis section (full-width, for dedicated AI page).
 
     Base message/table/download styling is centralized in
     `shared/ui/theme.apply_custom_css()` via CSS tokens.
@@ -349,3 +378,120 @@ def render_ai_section(api_url: str = f"{API_BASE_URL}/chat/stream") -> None:
     
     st.divider()
     render_ai_chat(api_url)
+
+
+# ==========================================================
+# Compact AI Panel (for right-side column in 2-panel layout)
+# ==========================================================
+QUICK_CHIPS = [
+    ("이번 주 요약", "이번 주 생산 현황을 요약해 줘."),
+    ("이상 감지", "최근 생산 데이터에서 이상 패턴이 있는지 확인해 줘."),
+    ("전월 비교", "이번 달과 지난 달의 총 생산량, 배치 수를 비교해 줘."),
+    ("TOP 5 제품", "상위 5개 제품의 생산량과 점유율을 표로 보여줘."),
+]
+
+
+def render_ai_section_compact(api_url: str = f"{API_BASE_URL}/chat/stream") -> None:
+    """
+    Render compact AI panel for the always-visible right column.
+
+    Differences from full render_ai_section:
+    - Smaller header (no large gradient text)
+    - Quick prompt chips instead of starter cards
+    - Height-constrained chat container (400px)
+    - No full-page zero-state UI
+    """
+    # Compact CSS
+    st.markdown("""
+    <style>
+        [data-testid="stChatMessage"][data-testid*="assistant"] {
+            background-color: var(--color-bg-card-alt);
+            border-left: 3px solid var(--color-primary);
+            padding: 0.6rem;
+            margin-bottom: 0.5rem;
+        }
+        [data-testid="stChatMessage"][data-testid*="user"] {
+            background-color: var(--color-bg-card-alt);
+            border-right: 3px solid var(--color-accent);
+            padding: 0.6rem;
+            margin-bottom: 0.5rem;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Compact header
+    st.markdown(f"""
+    <div style="
+        padding: 10px 14px;
+        background: var(--color-gradient, linear-gradient(135deg, #ec4899, #0ea5e9));
+        border-radius: var(--radius-sm, 8px);
+        margin-bottom: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    ">
+        <span style="font-size: 0.9rem; font-weight: 700; color: #fff;">
+            🤖 AI 분석 비서
+        </span>
+        <span style="font-size: 0.7rem; color: rgba(255,255,255,0.8);">
+            {GEMINI_MODEL}
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Initialize chat history
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    chat_container = None  # Set when active chat is rendered
+
+    # Quick prompt chips (shown when no messages)
+    if len(st.session_state.messages) == 0:
+        st.markdown("""
+        <div style="text-align: center; padding: 20px 0 10px;">
+            <div style="font-size: 1.8rem; margin-bottom: 8px;">💬</div>
+            <p style="color: var(--color-text-muted, #64748b); font-size: 0.85rem;">
+                무엇을 분석할까요?
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Quick chips as buttons
+        chip_clicked = None
+        cols = st.columns(2)
+        for idx, (label, prompt) in enumerate(QUICK_CHIPS):
+            with cols[idx % 2]:
+                if st.button(label, key=f"qchip_{idx}", use_container_width=True):
+                    chip_clicked = prompt
+
+        if chip_clicked:
+            st.session_state.messages.append({"role": "user", "content": chip_clicked})
+            st.rerun()
+
+    # Active chat
+    else:
+        chat_container = st.container(height=400)
+        with chat_container:
+            for i, message in enumerate(st.session_state.messages):
+                avatar = "👤" if message["role"] == "user" else "🤖"
+                with st.chat_message(message["role"], avatar=avatar):
+                    content = _sanitize_ai_content(message["content"])
+                    st.markdown(content)
+                    if message["role"] == "assistant":
+                        _render_table_download(content, "dl_compact", i)
+
+    # Chat input
+    prompt = st.chat_input("질문하세요...", key="compact_chat_input")
+
+    if prompt:
+        if len(st.session_state.messages) == 0 or st.session_state.messages[-1]["content"] != prompt:
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            st.rerun()
+
+    _process_pending_user_message(chat_container, api_url)
+
+    # New chat button
+    if len(st.session_state.messages) > 0:
+        if st.button("✨ 새 대화", key="compact_new_chat", use_container_width=True):
+            st.session_state.messages = []
+            st.rerun()

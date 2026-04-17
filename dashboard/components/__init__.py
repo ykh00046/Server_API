@@ -2,11 +2,12 @@
 Dashboard UI Enhancement Components.
 
 This package contains modular components for the Production Data Hub dashboard:
-- kpi_cards: KPI dashboard cards (U2)
-- charts: Chart components (U3-U5)
-- presets: Filter preset manager (U7)
-- loading: Loading state display (U6)
-- ai_section: AI analysis section with animations (U9)
+- kpi_cards: KPI dashboard cards (B3 style)
+- charts: Chart components (pink/sky palette)
+- presets: Filter preset manager
+- loading: Loading state display
+- ai_section: AI analysis section with compact panel
+- layout: Page layout helpers (header, AI toggle, columns)
 """
 
 from .loading import (
@@ -24,8 +25,6 @@ from .charts import (
     create_top10_bar_chart,
     create_distribution_pie,
     create_trend_lines,
-    add_range_selector,
-    add_download_button,
     get_chart_config,
 )
 from .presets import (
@@ -38,8 +37,15 @@ from .presets import (
 )
 from .ai_section import (
     render_ai_section,
+    render_ai_section_compact,
     render_ai_status_indicator,
     render_ai_header_with_animation,
+)
+from .layout import (
+    init_ai_panel_state,
+    render_page_header,
+    get_page_columns,
+    render_ai_column,
 )
 
 __all__ = [
@@ -56,8 +62,6 @@ __all__ = [
     "create_top10_bar_chart",
     "create_distribution_pie",
     "create_trend_lines",
-    "add_range_selector",
-    "add_download_button",
     "get_chart_config",
     # presets
     "init_presets",
@@ -68,6 +72,12 @@ __all__ = [
     "render_preset_manager",
     # ai_section
     "render_ai_section",
+    "render_ai_section_compact",
     "render_ai_status_indicator",
     "render_ai_header_with_animation",
+    # layout
+    "init_ai_panel_state",
+    "render_page_header",
+    "get_page_columns",
+    "render_ai_column",
 ]

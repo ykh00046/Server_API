@@ -1,10 +1,10 @@
 """
 Theme Manager - CSS token system + dark/high-contrast modes.
 
-ui-modernization-streamlit-extras (2026-04-15):
-- Introduces CSS custom properties (tokens) for color, radius, shadow.
-- Adds high-contrast palette (MA-04 accessibility, WCAG AA).
-- apply_custom_css() now injects :root tokens + base rules.
+B3 Sidebar UI: Pink/Sky palette (2026-04-17).
+- Pink (#ec4899) as primary
+- Sky (#0ea5e9) as accent
+- Gradient: linear-gradient(135deg, #ec4899, #0ea5e9)
 
 Dark mode is still driven by Streamlit's config.toml / Settings menu;
 `_theme_mode` in session_state overrides for explicit user choice.
@@ -18,83 +18,110 @@ from typing import Literal, Dict
 ThemeMode = Literal["light", "dark", "high-contrast"]
 
 # --------------------------------------------------------------
-# Chart color palettes (legacy — still used by plotly templates)
+# Chart color palettes (used by plotly templates)
 # --------------------------------------------------------------
 CHART_COLORS: Dict[str, Dict[str, str]] = {
     "light": {
         "chart_template": "plotly_white",
-        "primary": "#667eea",
-        "secondary": "#764ba2",
-        "accent": "#FF4B4B",
+        "primary": "#ec4899",
+        "secondary": "#0ea5e9",
+        "accent": "#f43f5e",
     },
     "dark": {
         "chart_template": "plotly_dark",
-        "primary": "#4da6ff",
-        "secondary": "#ffaa00",
-        "accent": "#FF6B6B",
+        "primary": "#f472b6",
+        "secondary": "#38bdf8",
+        "accent": "#fb7185",
     },
     "high-contrast": {
         "chart_template": "plotly_white",
-        "primary": "#0000ee",
-        "secondary": "#000000",
+        "primary": "#be185d",
+        "secondary": "#0369a1",
         "accent": "#cc0000",
     },
 }
+
+# Pink/Sky chart color series for multi-series charts
+CHART_SERIES_COLORS = [
+    "#ec4899", "#0ea5e9", "#f472b6", "#38bdf8",
+    "#f9a8d4", "#7dd3fc", "#f43f5e", "#0284c7",
+    "#fda4af", "#bae6fd",
+]
 
 # --------------------------------------------------------------
 # CSS Tokens (injected as :root custom properties)
 # --------------------------------------------------------------
 TOKENS_LIGHT: Dict[str, str] = {
-    "--color-primary": "#667eea",
-    "--color-primary-hover": "#5568d3",
-    "--color-accent": "#764ba2",
+    "--color-primary": "#ec4899",
+    "--color-primary-hover": "#db2777",
+    "--color-accent": "#0ea5e9",
+    "--color-accent-hover": "#0284c7",
+    "--color-gradient": "linear-gradient(135deg, #ec4899, #0ea5e9)",
+    "--color-bg": "#f8f9fc",
     "--color-bg-card": "#ffffff",
-    "--color-bg-card-alt": "rgba(102,126,234,0.03)",
-    "--color-border": "rgba(102,126,234,0.15)",
-    "--color-border-strong": "rgba(102,126,234,0.35)",
-    "--color-text": "#1a1a1a",
-    "--color-text-muted": "#666666",
+    "--color-bg-card-alt": "rgba(236,72,153,0.03)",
+    "--color-border": "rgba(236,72,153,0.15)",
+    "--color-border-strong": "rgba(236,72,153,0.35)",
+    "--color-text": "#1e293b",
+    "--color-text-muted": "#64748b",
+    "--color-success": "#10b981",
+    "--color-warning": "#f59e0b",
+    "--color-danger": "#ef4444",
     "--radius-card": "12px",
+    "--radius-sm": "8px",
     "--radius-pill": "20px",
-    "--shadow-card": "0 2px 8px rgba(0,0,0,0.05)",
-    "--shadow-card-hover": "0 4px 12px rgba(102,126,234,0.15)",
-    "--focus-ring": "0 0 0 3px rgba(102,126,234,0.35)",
+    "--shadow-card": "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
+    "--shadow-card-hover": "0 4px 12px rgba(236,72,153,0.12)",
+    "--focus-ring": "0 0 0 3px rgba(236,72,153,0.35)",
 }
 
 TOKENS_DARK: Dict[str, str] = {
-    "--color-primary": "#8ea3ff",
-    "--color-primary-hover": "#a5b6ff",
-    "--color-accent": "#b388ff",
-    "--color-bg-card": "#1e1e2e",
-    "--color-bg-card-alt": "rgba(142,163,255,0.05)",
-    "--color-border": "rgba(142,163,255,0.25)",
-    "--color-border-strong": "rgba(142,163,255,0.5)",
-    "--color-text": "#e6e6e6",
-    "--color-text-muted": "#a0a0b0",
+    "--color-primary": "#f472b6",
+    "--color-primary-hover": "#f9a8d4",
+    "--color-accent": "#38bdf8",
+    "--color-accent-hover": "#7dd3fc",
+    "--color-gradient": "linear-gradient(135deg, #f472b6, #38bdf8)",
+    "--color-bg": "#0f172a",
+    "--color-bg-card": "#1e293b",
+    "--color-bg-card-alt": "rgba(244,114,182,0.05)",
+    "--color-border": "rgba(244,114,182,0.25)",
+    "--color-border-strong": "rgba(244,114,182,0.5)",
+    "--color-text": "#e2e8f0",
+    "--color-text-muted": "#94a3b8",
+    "--color-success": "#34d399",
+    "--color-warning": "#fbbf24",
+    "--color-danger": "#f87171",
     "--radius-card": "12px",
+    "--radius-sm": "8px",
     "--radius-pill": "20px",
     "--shadow-card": "0 2px 8px rgba(0,0,0,0.35)",
-    "--shadow-card-hover": "0 4px 14px rgba(142,163,255,0.25)",
-    "--focus-ring": "0 0 0 3px rgba(142,163,255,0.55)",
+    "--shadow-card-hover": "0 4px 14px rgba(244,114,182,0.25)",
+    "--focus-ring": "0 0 0 3px rgba(244,114,182,0.55)",
 }
 
 # WCAG AA target: ≥ 4.5:1 for normal text, ≥ 7:1 preferred.
-# Pure #000/#fff pair achieves 21:1.
 TOKENS_HIGH_CONTRAST: Dict[str, str] = {
-    "--color-primary": "#0000ee",
-    "--color-primary-hover": "#0000aa",
-    "--color-accent": "#000000",
+    "--color-primary": "#be185d",
+    "--color-primary-hover": "#9d174d",
+    "--color-accent": "#0369a1",
+    "--color-accent-hover": "#075985",
+    "--color-gradient": "linear-gradient(135deg, #be185d, #0369a1)",
+    "--color-bg": "#ffffff",
     "--color-bg-card": "#ffffff",
     "--color-bg-card-alt": "#ffffff",
     "--color-border": "#000000",
     "--color-border-strong": "#000000",
     "--color-text": "#000000",
     "--color-text-muted": "#000000",
+    "--color-success": "#065f46",
+    "--color-warning": "#92400e",
+    "--color-danger": "#991b1b",
     "--radius-card": "4px",
+    "--radius-sm": "4px",
     "--radius-pill": "4px",
     "--shadow-card": "none",
     "--shadow-card-hover": "none",
-    "--focus-ring": "0 0 0 3px #0000ee",
+    "--focus-ring": "0 0 0 3px #be185d",
 }
 
 _BASE_RULES = """
@@ -120,7 +147,7 @@ _BASE_RULES = """
     box-shadow: var(--shadow-card);
 }
 .stMarkdown th {
-    background-color: var(--color-primary) !important;
+    background: var(--color-gradient) !important;
     color: #ffffff !important;
     padding: 10px !important;
     text-align: left !important;
