@@ -110,6 +110,33 @@
 | Gemini 모델 폴백 | 98% | 149 pass | ✅ 완료 |
 | 대시보드 사이드바 리디자인 | 96% | 0 browser errors | ✅ 완료 (소급 PDCA) |
 
+### 13. 대시보드 코드 품질 (dashboard-code-quality)
+- **경로**: `dashboard-code-quality/`
+- **완료일**: 2026-04-18
+- **상태**: ✅ 완료 (Match Rate 78% → 95%, Act-1)
+- **요약**: `dashboard-sidebar-redesign` 코드 리뷰(Quality Score 68/100) 후속. 인라인 style ~30+ → 6(동적만), sys.path.insert 2→1, mutable default 3→0, 미사용 key 파라미터 3→0, UI 문자열 15+ English→Korean. theme.py `_BASE_RULES` CSS 유틸리티 클래스 ~60줄 추가.
+- **문서**: plan / design / analysis / report
+
 ---
 
-*최종 갱신: 2026-04-17*
+## 📊 요약
+
+| 기능 | Match Rate | 테스트 | 상태 |
+|------|-----------|--------|------|
+| 보안·테스트 개선 | 93% | 128 pass | ✅ 완료 |
+| 보안·관측성 후속 | 95% | 133 pass | ✅ 완료 |
+| SQL 테스트 + 멀티턴 챗 | 97% | - | ✅ 완료 (소급 아카이브) |
+| Tracing + Validation + RateLimit | 97% | 134 pass | ✅ 완료 (Act-1) |
+| API 정합성 + 스모크 | 100% | 134 pass | ✅ 완료 (소급) |
+| Server API 인수 | 100% | - | ✅ 완료 (소급) |
+| 성능 + 필터 개선 | 100% | 134 pass | ✅ 완료 (소급) |
+| DB 성능 최적화 | 92% | 136 pass | ✅ 완료 (축소안) |
+| UI/UX 개선 | 73% | 0 browser errors | ✅ 완료 (11 impl + 4 Defer) |
+| UI 현대화 (streamlit-extras) | 97% | 142 pass | ✅ 완료 |
+| Gemini 모델 폴백 | 98% | 149 pass | ✅ 완료 |
+| 대시보드 사이드바 리디자인 | 96% | 0 browser errors | ✅ 완료 (소급 PDCA) |
+| 대시보드 코드 품질 | 95% | 149 pass | ✅ 완료 (Act-1) |
+
+---
+
+*최종 갱신: 2026-04-18*
