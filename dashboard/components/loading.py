@@ -64,14 +64,13 @@ _SKELETON_CSS = """
 """
 
 
-def show_skeleton_table(rows: int = 5, cols: int = 4, key: Optional[str] = None) -> None:
+def show_skeleton_table(rows: int = 5, cols: int = 4) -> None:
     """
     Display skeleton table while loading.
 
     Args:
         rows: Number of skeleton rows
         cols: Number of columns
-        key: Unique key for the component
     """
     html = _SKELETON_CSS + '<table class="skeleton-table">'
     for _ in range(rows):
@@ -84,13 +83,12 @@ def show_skeleton_table(rows: int = 5, cols: int = 4, key: Optional[str] = None)
     st.markdown(html, unsafe_allow_html=True)
 
 
-def show_skeleton_kpi(count: int = 4, key: Optional[str] = None) -> None:
+def show_skeleton_kpi(count: int = 4) -> None:
     """
     Display skeleton KPI cards while loading.
 
     Args:
         count: Number of skeleton cards
-        key: Unique key for the component
     """
     html = _SKELETON_CSS + '<div class="skeleton-kpi-container">'
     for _ in range(count):
@@ -99,13 +97,12 @@ def show_skeleton_kpi(count: int = 4, key: Optional[str] = None) -> None:
     st.markdown(html, unsafe_allow_html=True)
 
 
-def show_skeleton_chart(height: int = 400, key: Optional[str] = None) -> None:
+def show_skeleton_chart(height: int = 400) -> None:
     """
     Display skeleton chart while loading.
 
     Args:
         height: Height of skeleton in pixels
-        key: Unique key for the component
     """
     html = f'{_SKELETON_CSS}<div class="skeleton-chart" style="height: {height}px"></div>'
     st.markdown(html, unsafe_allow_html=True)
@@ -192,7 +189,7 @@ def render_last_update() -> None:
 
     Displays the current timestamp indicating when data was last refreshed.
     """
-    st.caption(f"Last updated: {datetime.now():%Y-%m-%d %H:%M:%S}")
+    st.caption(f"마지막 업데이트: {datetime.now():%Y-%m-%d %H:%M:%S}")
 
 
 def render_cache_status(cache_hit: bool) -> None:
@@ -206,6 +203,6 @@ def render_cache_status(cache_hit: bool) -> None:
     from cache or fetched from the database.
     """
     if cache_hit:
-        st.success("Loaded from cache", icon="✅")
+        st.success("캐시에서 로드됨", icon="✅")
     else:
-        st.info("Fetched from database", icon="ℹ️")
+        st.info("데이터베이스에서 로드됨", icon="ℹ️")

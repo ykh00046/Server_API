@@ -227,26 +227,15 @@ def render_kpi_cards(
     cols = st.columns(4)
     for i, card in enumerate(cards):
         with cols[i]:
-            st.markdown(f"""
-            <div style="
-                background: var(--color-bg-card, #fff);
-                border-radius: var(--radius-card, 12px);
-                padding: 18px;
-                box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.06));
-                border: 1px solid var(--color-border, rgba(236,72,153,0.1));
-                position: relative;
-                overflow: hidden;
-            ">
-                <div style="position:absolute;top:0;left:0;right:0;height:3px;background:{card['gradient']};"></div>
-                <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-                    <span style="font-size:0.75rem;color:var(--color-text-muted, #64748b);font-weight:500;">{card['label']}</span>
-                    <span style="
-                        width:36px;height:36px;border-radius:10px;
-                        display:flex;align-items:center;justify-content:center;
-                        font-size:16px;background:{card['icon_bg']};
-                    ">{card['icon']}</span>
-                </div>
-                <div style="font-size:1.75rem;font-weight:700;color:var(--color-text, #1e293b);margin:6px 0 4px;">{card['value']}</div>
-                {card['spark']}
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="bkit-kpi-card">'
+                f'<div class="bkit-kpi-bar" style="background:{card["gradient"]}"></div>'
+                f'<div class="bkit-kpi-header">'
+                f'<span class="bkit-kpi-label">{card["label"]}</span>'
+                f'<span class="bkit-kpi-icon" style="background:{card["icon_bg"]}">{card["icon"]}</span>'
+                f'</div>'
+                f'<div class="bkit-kpi-value">{card["value"]}</div>'
+                f'{card["spark"]}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )

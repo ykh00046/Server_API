@@ -125,6 +125,118 @@ TOKENS_HIGH_CONTRAST: Dict[str, str] = {
 }
 
 _BASE_RULES = """
+/* Utility classes — replace inline unsafe_allow_html */
+.bkit-flex-center {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+.bkit-status-dot { font-size: 1.2rem; }
+.bkit-hint-badge {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 10px;
+}
+.bkit-hint-badge span {
+    background: var(--color-bg-card-alt);
+    color: var(--color-primary);
+    padding: 6px 16px;
+    border-radius: var(--radius-pill);
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+.bkit-spacer-8 { height: 8px; }
+.bkit-gradient-header {
+    padding: 10px 14px;
+    background: var(--color-gradient, linear-gradient(135deg, #ec4899, #0ea5e9));
+    border-radius: var(--radius-sm, 8px);
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.bkit-gradient-header span { color: #fff; }
+.bkit-gradient-header .bkit-model-tag { font-size: 0.7rem; color: rgba(255,255,255,0.8); }
+.bkit-zero-state {
+    text-align: center;
+    margin-top: 60px;
+    margin-bottom: 40px;
+}
+.bkit-zero-state .bkit-icon { font-size: 3.5rem; margin-bottom: 15px; }
+.bkit-zero-state h2 { font-weight: 700; color: var(--color-text); }
+.bkit-zero-state p { color: #888; font-size: 1.1rem; }
+.bkit-compact-zero-state {
+    text-align: center;
+    padding: 20px 0 10px;
+}
+.bkit-compact-zero-state .bkit-icon { font-size: 1.8rem; margin-bottom: 8px; }
+.bkit-compact-zero-state p { color: var(--color-text-muted, #64748b); font-size: 0.85rem; }
+.bkit-ai-header {
+    padding: 5px 0;
+}
+.bkit-ai-header h1 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0px;
+}
+.bkit-ai-header p { color: #888; font-size: 0.95rem; }
+/* Chat role accents */
+[data-testid="stChatMessage"][data-testid*="assistant"] {
+    background-color: var(--color-bg-card-alt);
+    border-left: 3px solid var(--color-primary);
+    padding: 0.6rem;
+    margin-bottom: 0.5rem;
+}
+[data-testid="stChatMessage"][data-testid*="user"] {
+    background-color: var(--color-bg-card-alt);
+    border-right: 3px solid var(--color-accent);
+    padding: 0.6rem;
+    margin-bottom: 0.5rem;
+}
+/* Sidebar logo */
+.bkit-sidebar-logo {
+    padding: 8px 0 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 12px;
+}
+.bkit-sidebar-logo .bkit-title { font-size:1.1rem;font-weight:700;color:var(--color-text, #1e293b); }
+.bkit-sidebar-logo .bkit-subtitle { font-size:0.7rem;color:var(--color-text-muted, #64748b); }
+/* KPI card styling */
+.bkit-kpi-card {
+    background: var(--color-bg-card, #fff);
+    border-radius: var(--radius-card, 12px);
+    padding: 18px;
+    box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.06));
+    border: 1px solid var(--color-border, rgba(236,72,153,0.1));
+    position: relative;
+    overflow: hidden;
+}
+.bkit-kpi-card .bkit-kpi-bar { position:absolute;top:0;left:0;right:0;height:3px; }
+.bkit-kpi-card .bkit-kpi-header { display:flex;justify-content:space-between;align-items:flex-start; }
+.bkit-kpi-card .bkit-kpi-label { font-size:0.75rem;color:var(--color-text-muted, #64748b);font-weight:500; }
+.bkit-kpi-card .bkit-kpi-icon { width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px; }
+.bkit-kpi-card .bkit-kpi-value { font-size:1.75rem;font-weight:700;color:var(--color-text, #1e293b);margin:6px 0 4px; }
+/* Starter card button styling (zero-state AI prompt cards) */
+[data-testid="stVerticalBlock"] [data-testid="column"] [data-testid="stBaseButton-secondary"] button {
+    min-height: 120px;
+    text-align: left;
+    background-color: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    transition: all 0.2s ease;
+    white-space: pre-wrap;
+}
+[data-testid="stVerticalBlock"] [data-testid="column"] [data-testid="stBaseButton-secondary"] button:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-2px);
+}
+
 [data-testid="stChatMessage"] {
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);

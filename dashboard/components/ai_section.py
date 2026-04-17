@@ -208,40 +208,32 @@ def render_ai_status_indicator(is_online: bool = True) -> None:
     status_text = "온라인" if is_online else "오프라인"
     status_icon = "●" if is_online else "○"
 
-    st.markdown(f"""
-    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px;">
-        <span style="color: {status_color}; font-size: 1.2rem;">{status_icon}</span>
-        <span style="color: {status_color}; font-weight: 600;">AI 엔진: {status_text}</span>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="bkit-flex-center">'
+        f'<span class="bkit-status-dot" style="color:{status_color}">{status_icon}</span>'
+        f'<span style="color:{status_color};font-weight:600">AI 엔진: {status_text}</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def render_ai_header_with_animation() -> None:
     """Render AI section header with styling."""
-    st.markdown(f"""
-    <div style="padding: 5px 0;">
-        <h1 style="
-            font-size: 2.2rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 0px;
-        ">
-            생산 데이터 분석 AI
-        </h1>
-        <p style="color: #888; font-size: 0.95rem;">
-            Core Engine: {GEMINI_MODEL} | 2025-2026 통합 데이터
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="bkit-ai-header">'
+        f'<h1>생산 데이터 분석 AI</h1>'
+        f'<p>Core Engine: {GEMINI_MODEL} | 2025-2026 통합 데이터</p>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
 
-def render_ai_chat(api_url: str = f"{API_BASE_URL}/chat/stream") -> None:
+def render_ai_chat(api_url: str | None = None) -> None:
     """
     Render professional AI chat interface with Zero-State Conversational UI.
     """
+    api_url = api_url or f"{API_BASE_URL}/chat/stream"
+
     # Initialize chat history (Empty for True Zero-State)
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -252,36 +244,16 @@ def render_ai_chat(api_url: str = f"{API_BASE_URL}/chat/stream") -> None:
     # 1. Zero-State UI (대화 시작 전 중앙 화면)
     # ==========================================
     if len(st.session_state.messages) == 0:
-        st.markdown("""
-        <div style="text-align: center; margin-top: 60px; margin-bottom: 40px;">
-            <div style="font-size: 3.5rem; margin-bottom: 15px;">👋</div>
-            <h2 style="font-weight: 700; color: var(--text-color);">무엇을 분석해 드릴까요?</h2>
-            <p style="color: #888; font-size: 1.1rem;">자연어로 질문하면, 수십만 건의 데이터를 즉시 분석해 표와 차트로 답변합니다.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            '<div class="bkit-zero-state">'
+            '<div class="bkit-icon">👋</div>'
+            '<h2>무엇을 분석해 드릴까요?</h2>'
+            '<p>자연어로 질문하면, 수십만 건의 데이터를 즉시 분석해 표와 차트로 답변합니다.</p>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
 
-        # Fallback styling for plain-button path (shadcn unavailable)
-        if not _HAS_SHADCN:
-            st.markdown("""
-            <style>
-                div[data-testid="column"] button {
-                    width: 100%;
-                    min-height: 120px;
-                    padding: 20px;
-                    text-align: left;
-                    background-color: var(--color-bg-card);
-                    border: 1px solid var(--color-border);
-                    border-radius: var(--radius-card);
-                    transition: all 0.2s ease;
-                    white-space: pre-wrap;
-                }
-                div[data-testid="column"] button:hover {
-                    border-color: var(--color-primary);
-                    box-shadow: var(--shadow-card-hover);
-                    transform: translateY(-2px);
-                }
-            </style>
-            """, unsafe_allow_html=True)
+        # Starter card styling is in theme.py _BASE_RULES (.bkit-starter-cards)
 
         col1, col2 = st.columns(2)
         prompt_clicked: Optional[str] = None
@@ -296,20 +268,19 @@ def render_ai_chat(api_url: str = f"{API_BASE_URL}/chat/stream") -> None:
             st.rerun()
 
         # Fill remaining space so input stays at bottom
-        st.markdown("<div style='height: 150px;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:150px'></div>", unsafe_allow_html=True)
 
     # ==========================================
     # 2. Active Chat UI (대화 진행 중)
     # ==========================================
     else:
         # Context Hint Badge
-        st.markdown("""
-        <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
-            <span style="background: var(--color-bg-card-alt); color: var(--color-primary); padding: 6px 16px; border-radius: var(--radius-pill); font-size: 0.85rem; font-weight: 500;">
-                💡 팁: '표로 정리해줘'라고 질문하면 데이터를 엑셀로 다운로드할 수 있습니다.
-            </span>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            '<div class="bkit-hint-badge">'
+            '<span>💡 팁: \'표로 정리해줘\'라고 질문하면 데이터를 엑셀로 다운로드할 수 있습니다.</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
 
         # Chat container
         chat_container = st.container(height=500)
@@ -337,7 +308,7 @@ def render_ai_chat(api_url: str = f"{API_BASE_URL}/chat/stream") -> None:
 
     # Clear chat button (Only in Active Chat UI)
     if len(st.session_state.messages) > 0:
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("")  # spacer
         col1, col2 = st.columns([1, 5])
         with col1:
             if st.button("새로운 대화 시작", icon="✨", help="대화 기록을 지우고 초기 화면으로 돌아갑니다."):
@@ -345,7 +316,7 @@ def render_ai_chat(api_url: str = f"{API_BASE_URL}/chat/stream") -> None:
                 st.rerun()
 
 
-def render_ai_section(api_url: str = f"{API_BASE_URL}/chat/stream") -> None:
+def render_ai_section(api_url: str | None = None) -> None:
     """
     Render complete AI analysis section (full-width, for dedicated AI page).
 
@@ -354,18 +325,9 @@ def render_ai_section(api_url: str = f"{API_BASE_URL}/chat/stream") -> None:
     Role-specific accents (user vs assistant) remain here since they
     depend on DOM attributes that the centralized rules do not target.
     """
-    st.markdown("""
-    <style>
-        [data-testid="stChatMessage"][data-testid*="assistant"] {
-            background-color: var(--color-bg-card-alt);
-            border-left: 4px solid var(--color-primary);
-        }
-        [data-testid="stChatMessage"][data-testid*="user"] {
-            background-color: var(--color-bg-card-alt);
-            border-right: 4px solid var(--color-accent);
-        }
-    </style>
-    """, unsafe_allow_html=True)
+    api_url = api_url or f"{API_BASE_URL}/chat/stream"
+
+    # Chat role CSS is in theme.py _BASE_RULES
 
     # Header and Status
     col_h, col_s = st.columns([3, 1])
@@ -391,7 +353,7 @@ QUICK_CHIPS = [
 ]
 
 
-def render_ai_section_compact(api_url: str = f"{API_BASE_URL}/chat/stream") -> None:
+def render_ai_section_compact(api_url: str | None = None) -> None:
     """
     Render compact AI panel for the always-visible right column.
 
@@ -401,43 +363,18 @@ def render_ai_section_compact(api_url: str = f"{API_BASE_URL}/chat/stream") -> N
     - Height-constrained chat container (400px)
     - No full-page zero-state UI
     """
-    # Compact CSS
-    st.markdown("""
-    <style>
-        [data-testid="stChatMessage"][data-testid*="assistant"] {
-            background-color: var(--color-bg-card-alt);
-            border-left: 3px solid var(--color-primary);
-            padding: 0.6rem;
-            margin-bottom: 0.5rem;
-        }
-        [data-testid="stChatMessage"][data-testid*="user"] {
-            background-color: var(--color-bg-card-alt);
-            border-right: 3px solid var(--color-accent);
-            padding: 0.6rem;
-            margin-bottom: 0.5rem;
-        }
-    </style>
-    """, unsafe_allow_html=True)
+    api_url = api_url or f"{API_BASE_URL}/chat/stream"
+
+    # Chat role CSS is in theme.py _BASE_RULES
 
     # Compact header
-    st.markdown(f"""
-    <div style="
-        padding: 10px 14px;
-        background: var(--color-gradient, linear-gradient(135deg, #ec4899, #0ea5e9));
-        border-radius: var(--radius-sm, 8px);
-        margin-bottom: 10px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    ">
-        <span style="font-size: 0.9rem; font-weight: 700; color: #fff;">
-            🤖 AI 분석 비서
-        </span>
-        <span style="font-size: 0.7rem; color: rgba(255,255,255,0.8);">
-            {GEMINI_MODEL}
-        </span>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="bkit-gradient-header">'
+        f'<span style="font-size:0.9rem;font-weight:700">🤖 AI 분석 비서</span>'
+        f'<span class="bkit-model-tag">{GEMINI_MODEL}</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
     # Initialize chat history
     if "messages" not in st.session_state:
@@ -447,14 +384,13 @@ def render_ai_section_compact(api_url: str = f"{API_BASE_URL}/chat/stream") -> N
 
     # Quick prompt chips (shown when no messages)
     if len(st.session_state.messages) == 0:
-        st.markdown("""
-        <div style="text-align: center; padding: 20px 0 10px;">
-            <div style="font-size: 1.8rem; margin-bottom: 8px;">💬</div>
-            <p style="color: var(--color-text-muted, #64748b); font-size: 0.85rem;">
-                무엇을 분석할까요?
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            '<div class="bkit-compact-zero-state">'
+            '<div class="bkit-icon">💬</div>'
+            '<p>무엇을 분석할까요?</p>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
 
         # Quick chips as buttons
         chip_clicked = None

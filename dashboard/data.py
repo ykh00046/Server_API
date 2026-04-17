@@ -8,16 +8,13 @@ All data loading, parsing, and caching functions live here.
 import io
 import os
 import re
-import sys
 from datetime import date, timedelta
-from pathlib import Path
 from typing import Optional, List, Tuple
 
 import pandas as pd
 import streamlit as st
 
-# Add parent directory for shared imports
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# Note: sys.path is set by app.py entrypoint — no need to repeat here
 
 from shared import (
     DB_FILE,

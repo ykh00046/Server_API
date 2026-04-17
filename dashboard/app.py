@@ -74,20 +74,13 @@ nav = st.navigation(pages)
 # ==========================================================
 with st.sidebar:
     # Logo area
-    st.markdown("""
-    <div style="
-        padding: 8px 0 16px;
-        border-bottom: 1px solid rgba(255,255,255,0.08);
-        margin-bottom: 12px;
-    ">
-        <div style="font-size: 1.1rem; font-weight: 700; color: var(--color-text, #1e293b);">
-            🏭 생산 데이터 허브
-        </div>
-        <div style="font-size: 0.7rem; color: var(--color-text-muted, #64748b);">
-            Production Data Hub
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        '<div class="bkit-sidebar-logo">'
+        '<div class="bkit-title">🏭 생산 데이터 허브</div>'
+        '<div class="bkit-subtitle">Production Data Hub</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
     # Filters section
     st.markdown("#### 🔍 검색 필터")

@@ -63,7 +63,7 @@ def save_preset(
 
     # Enforce maximum presets limit
     if len(presets) >= MAX_PRESETS and name not in presets:
-        st.warning(f"Maximum {MAX_PRESETS} presets allowed. Please delete an existing preset.")
+        st.warning(f"프리셋은 최대 {MAX_PRESETS}개까지 저장 가능합니다. 기존 프리셋을 삭제해 주세요.")
         return False
 
     # Store preset
@@ -159,7 +159,7 @@ def render_preset_manager(
         The caller should apply these values to the filter controls.
     """
     st.sidebar.divider()
-    st.sidebar.subheader("Filter Presets")
+    st.sidebar.subheader("필터 프리셋")
 
     loaded_preset = None
 
@@ -167,35 +167,35 @@ def render_preset_manager(
     preset_names = get_preset_names()
     if preset_names:
         selected_preset = st.sidebar.selectbox(
-            "Load Preset",
-            options=["-- Select --"] + preset_names,
+            "프리셋 불러오기",
+            options=["-- 선택 --"] + preset_names,
             index=0,
             key="preset_selector",
-            help="Select a saved filter preset"
+            help="저장된 필터 프리셋을 선택하세요",
         )
 
-        if selected_preset and selected_preset != "-- Select --":
+        if selected_preset and selected_preset != "-- 선택 --":
             col_a, col_b = st.sidebar.columns(2)
 
             with col_a:
-                if st.button("Apply", key="apply_preset", width="stretch"):
+                if st.button("적용", key="apply_preset", width="stretch"):
                     loaded_preset = load_preset(selected_preset)
 
             with col_b:
-                if st.button("Delete", key="delete_preset", width="stretch"):
+                if st.button("삭제", key="delete_preset", width="stretch"):
                     if delete_preset(selected_preset):
-                        st.sidebar.success(f"Deleted '{selected_preset}'")
+                        st.sidebar.success(f"'{selected_preset}' 삭제됨")
                         st.rerun()
 
     # Save preset section
     st.sidebar.text_input(
-        "New Preset Name",
+        "새 프리셋 이름",
         key="new_preset_name",
-        placeholder="e.g., BW0021 Last 30 Days",
-        help="Enter a name for the current filter settings"
+        placeholder="예: BW0021 최근 30일",
+        help="현재 필터 설정을 저장할 이름을 입력하세요",
     )
 
-    if st.sidebar.button("Save Current Filters", key="save_preset", width="stretch"):
+    if st.sidebar.button("현재 필터 저장", key="save_preset", width="stretch"):
         name = st.session_state.get("new_preset_name", "").strip()
         if name:
             if save_preset(
@@ -206,14 +206,14 @@ def render_preset_manager(
                 current_keyword,
                 current_limit
             ):
-                st.sidebar.success(f"Preset '{name}' saved!")
+                st.sidebar.success(f"프리셋 '{name}' 저장됨!")
                 st.session_state.new_preset_name = ""
                 st.rerun()
         else:
-            st.sidebar.warning("Please enter a preset name")
+            st.sidebar.warning("프리셋 이름을 입력하세요")
 
     # Show preset count
     preset_count = len(get_preset_names())
-    st.sidebar.caption(f"Presets: {preset_count}/{MAX_PRESETS}")
+    st.sidebar.caption(f"프리셋: {preset_count}/{MAX_PRESETS}")
 
     return loaded_preset

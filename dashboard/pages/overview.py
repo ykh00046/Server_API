@@ -59,7 +59,7 @@ with col_main:
         top_product_sparkline=top_spark,
     )
 
-    st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+    st.markdown('<div class="bkit-spacer-8"></div>', unsafe_allow_html=True)
 
     # Chart row 1: Monthly trend + Top 10
     chart_col1, chart_col2 = st.columns(2)
