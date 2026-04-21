@@ -7,12 +7,7 @@ and cache utility functions.
 """
 
 import pytest
-import sys
-from pathlib import Path
 from unittest.mock import patch, MagicMock
-
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
 # ==========================================================

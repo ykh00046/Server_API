@@ -7,18 +7,12 @@ Covers sync /chat/ and SSE /chat/stream endpoints.
 from __future__ import annotations
 
 import json
-import sys
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
 from google.genai.errors import ClientError, ServerError
-from fastapi.testclient import TestClient
 
-from api.main import app
 from api import chat as chat_mod
 from api import _chat_stream as stream_mod
 
@@ -26,23 +20,8 @@ from api import _chat_stream as stream_mod
 # ------------------------------------------------------------------
 # Fixtures
 # ------------------------------------------------------------------
-@pytest.fixture(scope="module")
-def client():
-    return TestClient(app)
-
-
 @pytest.fixture(autouse=True)
-def _reset_state():
-    from shared import api_rate_limiter
-    from api.chat import chat_rate_limiter
-    try:
-        api_rate_limiter._requests.clear()
-    except AttributeError:
-        pass
-    try:
-        chat_rate_limiter._requests.clear()
-    except AttributeError:
-        pass
+def _reset_sessions():
     chat_mod._sessions.clear()
     yield
 

@@ -8,12 +8,7 @@ All tests use mocks to avoid real DB/filesystem dependencies.
 """
 
 import pytest
-import sys
-from pathlib import Path
 from unittest.mock import patch, MagicMock, PropertyMock
-
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from shared.database import DBTargets, DBRouter
 

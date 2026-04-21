@@ -6,12 +6,7 @@ Tests for date range validation and input length constraints.
 """
 
 import pytest
-import sys
-from pathlib import Path
 from unittest.mock import patch, MagicMock
-
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi import HTTPException
 from api.main import _validate_date_range, _validate_length

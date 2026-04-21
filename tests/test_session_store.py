@@ -4,13 +4,9 @@
 Tests exercise the module-level _sessions dict + helpers in api/chat.py.
 """
 
-import sys
 import time
-from pathlib import Path
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from api import chat as chat_mod
 from api import _session_store as sstore

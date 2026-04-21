@@ -1,12 +1,7 @@
 # tests/test_archive_whitelist.py
 """Archive DB whitelist and path validation tests."""
 
-import sys
-from pathlib import Path
-
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from shared.validators import validate_db_path, resolve_archive_db
 

@@ -685,15 +685,3 @@ def execute_custom_query(
     except Exception as e:
         logger.exception(f"[Tool Error] execute_custom_query failed: {str(e)}")
         return {"status": "error", "message": str(e)}
-
-
-# Tool list for Gemini AI
-PRODUCTION_TOOLS = [
-    search_production_items,
-    get_production_summary,
-    get_monthly_trend,
-    get_top_items,
-    compare_periods,
-    get_item_history,
-    execute_custom_query
-]

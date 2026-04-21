@@ -5,38 +5,9 @@ Covers the public REST surface plus the /chat/ endpoint with a mocked
 Gemini client so no external API calls are made.
 """
 
-import sys
-from pathlib import Path
-
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-from fastapi.testclient import TestClient
-
-from api.main import app
 from api import chat as chat_mod
-
-
-@pytest.fixture(scope="module")
-def client():
-    return TestClient(app)
-
-
-@pytest.fixture(autouse=True)
-def _reset_rate_limiters():
-    # Avoid cross-test pollution of the in-memory rate limiter.
-    from shared import api_rate_limiter
-    from api.chat import chat_rate_limiter
-    try:
-        api_rate_limiter._requests.clear()  # type: ignore[attr-defined]
-    except AttributeError:
-        pass
-    try:
-        chat_rate_limiter._requests.clear()  # type: ignore[attr-defined]
-    except AttributeError:
-        pass
-    yield
 
 
 # ----------------------------------------------------------

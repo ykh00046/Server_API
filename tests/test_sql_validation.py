@@ -1,9 +1,5 @@
 import pytest
-import sys
-from pathlib import Path
 
-# api 모듈 import를 위한 경로 설정
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from api.tools import _strip_sql_comments, execute_custom_query
 
 
