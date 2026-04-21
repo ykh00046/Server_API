@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 
 from google import genai
+from google.genai.errors import ClientError, ServerError
 
 from shared import get_logger
 
@@ -47,3 +48,18 @@ def reset_for_tests() -> None:
     global _client, _client_initialized
     _client = None
     _client_initialized = False
+
+
+FALLBACK_STATUS_CODES = {429, 503}
+
+
+def is_fallbackable(e: Exception) -> bool:
+    """Check if the error warrants a model fallback (429/503 only)."""
+    if isinstance(e, (ClientError, ServerError)):
+        status = getattr(e, "status", 0) or 0
+        if status == 0:
+            for code in FALLBACK_STATUS_CODES:
+                if str(code) in str(e):
+                    return True
+        return status in FALLBACK_STATUS_CODES
+    return False

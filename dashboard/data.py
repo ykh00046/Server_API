@@ -161,7 +161,7 @@ def load_records(
         params.extend(item_codes)
     if keyword:
         like = f"%{escape_like_wildcards(keyword)}%"
-        where.append("(item_code LIKE ? OR item_name LIKE ? OR lot_number LIKE ?)")
+        where.append("(item_code LIKE ? ESCAPE '\\' OR item_name LIKE ? ESCAPE '\\' OR lot_number LIKE ? ESCAPE '\\')")
         params.extend([like, like, like])
     if date_from:
         where.append("production_date >= ?")

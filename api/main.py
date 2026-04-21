@@ -35,6 +35,7 @@ from shared.validators import (
     escape_like_wildcards,
 )
 from shared.logging_config import QueryLogger, set_request_id
+from shared.config import CORS_ORIGINS
 from shared.metrics import performance_monitor
 from shared.rate_limiter import RateLimiter
 
@@ -72,13 +73,7 @@ app.add_middleware(GZipMiddleware, minimum_size=500)  # Compress responses > 500
 from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",    # Next.js dev
-        "http://localhost:5173",    # Vite dev
-        "http://localhost:8502",    # Streamlit
-        "http://192.168.11.147:8502",
-        "http://192.168.11.147:3000",
-    ],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -448,12 +443,12 @@ def get_records(
 
     if q:
         like = f"%{escape_like_wildcards(q)}%"
-        where.append("(item_code LIKE ? OR item_name LIKE ? OR lot_number LIKE ?)")
+        where.append("(item_code LIKE ? ESCAPE '\\' OR item_name LIKE ? ESCAPE '\\' OR lot_number LIKE ? ESCAPE '\\')")
         params.extend([like, like, like])
 
     if lot_number:
-        where.append("lot_number LIKE ?")
-        params.append(f"{lot_number}%")  # prefix match for index usage
+        where.append("lot_number LIKE ? ESCAPE '\\'")
+        params.append(f"{escape_like_wildcards(lot_number)}%")  # prefix match for index usage
 
     if date_from_n:
         where.append("production_date >= ?")
@@ -590,7 +585,7 @@ def _list_items_cached(q: str | None, limit: int) -> list[dict]:
 
     if q:
         like = f"%{escape_like_wildcards(q)}%"
-        where = "WHERE item_code LIKE ? OR item_name LIKE ?"
+        where = "WHERE item_code LIKE ? ESCAPE '\\' OR item_name LIKE ? ESCAPE '\\'"
         params.extend([like, like])
 
     sql = f"""

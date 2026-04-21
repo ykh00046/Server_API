@@ -32,6 +32,7 @@ from google.genai import types
 from google.genai.errors import ClientError, ServerError
 
 from shared import get_logger
+from ._gemini_client import is_fallbackable
 from shared.config import (
     GEMINI_MODEL,
     GEMINI_FALLBACK_MODEL,
@@ -43,9 +44,8 @@ from shared.config import (
 
 from ._gemini_client import get_client
 from ._tool_dispatch import PRODUCTION_TOOLS
-from . import _session_store as _sstore
 
-FALLBACK_STATUS_CODES = {429, 503}
+from . import _session_store as _sstore
 
 # Structured error codes for SSE error events
 ERR_AI_DISABLED = "ai_disabled"
@@ -53,19 +53,6 @@ ERR_TIMEOUT = "timeout"
 ERR_MODEL_ERROR = "model_error"
 ERR_RATE_LIMITED = "rate_limited"
 ERR_INTERNAL = "internal"
-
-
-def _is_fallbackable(e: Exception) -> bool:
-    """Check if the error warrants a model fallback (429/503 only)."""
-    if isinstance(e, (ClientError, ServerError)):
-        status = getattr(e, "status", 0) or 0
-        if status == 0:
-            for code in FALLBACK_STATUS_CODES:
-                if str(code) in str(e):
-                    return True
-        return status in FALLBACK_STATUS_CODES
-    return False
-
 
 logger = get_logger(__name__)
 
@@ -140,7 +127,7 @@ async def run_stream(
             model=model_to_use, contents=contents, config=config,
         )
     except (ClientError, ServerError) as e:
-        if GEMINI_FALLBACK_ENABLED and _is_fallbackable(e):
+        if GEMINI_FALLBACK_ENABLED and is_fallbackable(e):
             model_to_use = GEMINI_FALLBACK_MODEL
             fallback_used = True
             logger.warning(

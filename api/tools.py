@@ -79,14 +79,14 @@ def search_production_items(
                 FROM (
                     SELECT item_code, MAX(item_name) as item_name, COUNT(*) as record_count
                     FROM archive.production_records
-                    WHERE (item_code LIKE ? OR item_name LIKE ?)
+                    WHERE (item_code LIKE ? ESCAPE '\\' OR item_name LIKE ? ESCAPE '\\')
                     GROUP BY item_code
 
                     UNION ALL
 
                     SELECT item_code, MAX(item_name) as item_name, COUNT(*) as record_count
                     FROM production_records
-                    WHERE (item_code LIKE ? OR item_name LIKE ?)
+                    WHERE (item_code LIKE ? ESCAPE '\\' OR item_name LIKE ? ESCAPE '\\')
                     GROUP BY item_code
                 )
                 GROUP BY item_code
@@ -101,7 +101,7 @@ def search_production_items(
             sql = """
                 SELECT item_code, MAX(item_name) as item_name, COUNT(*) as record_count
                 FROM production_records
-                WHERE item_code LIKE ? OR item_name LIKE ?
+                WHERE item_code LIKE ? ESCAPE '\\' OR item_name LIKE ? ESCAPE '\\'
                 GROUP BY item_code
                 ORDER BY record_count DESC
                 LIMIT 10

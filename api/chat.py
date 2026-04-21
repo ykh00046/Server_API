@@ -45,7 +45,7 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 logger = get_logger(__name__)
 
 # GenAI client factory extracted to api/_gemini_client.py (Act-1).
-from ._gemini_client import get_client as _get_client  # noqa: F401
+from ._gemini_client import get_client as _get_client, is_fallbackable  # noqa: F401
 # Tool registry extracted to api/_tool_dispatch.py (Act-1).
 from ._tool_dispatch import PRODUCTION_TOOLS
 # SSE streaming helper (ui-modernization-streamlit-extras).
@@ -237,19 +237,6 @@ def _ensure_ai_enabled(request_id: str):
     return client_obj
 
 
-FALLBACK_STATUS_CODES = {429, 503}
-
-
-def _is_fallbackable(e: Exception) -> bool:
-    """Check if the error warrants a model fallback (429/503 only)."""
-    if isinstance(e, (ClientError, ServerError)):
-        status = getattr(e, "status", 0) or 0
-        if status == 0:
-            for code in FALLBACK_STATUS_CODES:
-                if str(code) in str(e):
-                    return True
-        return status in FALLBACK_STATUS_CODES
-    return False
 
 
 async def _generate_with_retry(client_obj, contents, system_instruction, request_id, query_preview):
@@ -292,7 +279,7 @@ async def _generate_with_retry(client_obj, contents, system_instruction, request
             break
 
     # Fallback: try alternate model on 429/503
-    if GEMINI_FALLBACK_ENABLED and last_error and _is_fallbackable(last_error):
+    if GEMINI_FALLBACK_ENABLED and last_error and is_fallbackable(last_error):
         logger.warning(
             f"[Chat Fallback] request_id={request_id} | "
             f"{GEMINI_MODEL} → {GEMINI_FALLBACK_MODEL} | trigger={last_error}"

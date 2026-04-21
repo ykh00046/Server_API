@@ -94,6 +94,20 @@ STREAM_TIMEOUT_SEC = float(os.getenv("STREAM_TIMEOUT_SEC", 120.0))
 STREAM_BUFFER_FLUSH_MS = float(os.getenv("STREAM_BUFFER_FLUSH_MS", 50.0))
 
 # ==========================================================
+# CORS
+# ==========================================================
+_DEFAULT_CORS_ORIGINS = (
+    "http://localhost:3000,"
+    "http://localhost:5173,"
+    "http://localhost:8502,"
+    "http://192.168.11.147:8502,"
+    "http://192.168.11.147:3000"
+)
+CORS_ORIGINS: list[str] = [
+    o.strip() for o in os.getenv("CORS_ORIGINS", _DEFAULT_CORS_ORIGINS).split(",") if o.strip()
+]
+
+# ==========================================================
 # Custom Query Safety (security-and-test-improvement)
 # ==========================================================
 CUSTOM_QUERY_TIMEOUT_SEC = float(os.getenv("CUSTOM_QUERY_TIMEOUT_SEC", 10.0))
