@@ -8,6 +8,13 @@
   "activeFeature": null,
   "completedFeatures": [
     {
+      "name": "sse-streaming-optimization",
+      "pdcaPhase": "archived",
+      "matchRate": 96,
+      "completedAt": "2026-04-21",
+      "archivedTo": "docs/archive/2026-04/sse-streaming-optimization/"
+    },
+    {
       "name": "dashboard-code-quality",
       "pdcaPhase": "archived",
       "matchRate": 95,

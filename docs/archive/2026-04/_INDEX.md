@@ -117,6 +117,13 @@
 - **요약**: `dashboard-sidebar-redesign` 코드 리뷰(Quality Score 68/100) 후속. 인라인 style ~30+ → 6(동적만), sys.path.insert 2→1, mutable default 3→0, 미사용 key 파라미터 3→0, UI 문자열 15+ English→Korean. theme.py `_BASE_RULES` CSS 유틸리티 클래스 ~60줄 추가.
 - **문서**: plan / design / analysis / report
 
+### 14. SSE 스트리밍 최적화 (sse-streaming-optimization)
+- **경로**: `sse-streaming-optimization/`
+- **완료일**: 2026-04-21
+- **상태**: ✅ 완료 (Match Rate 96%, iteration 0)
+- **요약**: SSE /chat/stream 최적화 6건. Heartbeat(10초 코멘트), 스트림 타임아웃(120초), 클라이언트 자동 재연결(1회), 토큰 버퍼링(50ms 병합, TTFT 보장), 구조화된 에러 코드(5종+한글 매핑), tool_call 중복 허용. asyncio.wait 패턴으로 heartbeat 중 청크 유실 방지. 9개 신규 테스트 추가(22 pass).
+- **문서**: plan / design / analysis / report
+
 ---
 
 ## 📊 요약
@@ -136,7 +143,8 @@
 | Gemini 모델 폴백 | 98% | 149 pass | ✅ 완료 |
 | 대시보드 사이드바 리디자인 | 96% | 0 browser errors | ✅ 완료 (소급 PDCA) |
 | 대시보드 코드 품질 | 95% | 149 pass | ✅ 완료 (Act-1) |
+| SSE 스트리밍 최적화 | 96% | 22 pass (SSE) | ✅ 완료 |
 
 ---
 
-*최종 갱신: 2026-04-18*
+*최종 갱신: 2026-04-21*
