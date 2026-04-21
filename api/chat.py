@@ -15,7 +15,6 @@ Features:
 from __future__ import annotations
 
 import asyncio
-import os
 import random
 import sys
 import time
@@ -26,11 +25,8 @@ from typing import List
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from google import genai
 from google.genai import types
 from google.genai.errors import ClientError, ServerError
-from dotenv import load_dotenv
-
 # Add parent directory to path for shared module import
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -38,9 +34,6 @@ from shared import get_logger
 from shared.config import GEMINI_MODEL, GEMINI_FALLBACK_MODEL, GEMINI_FALLBACK_ENABLED
 from shared.logging_config import get_request_id
 from shared.rate_limiter import chat_rate_limiter
-
-# Load Environment Variables
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 logger = get_logger(__name__)
 
