@@ -579,17 +579,25 @@ def execute_custom_query(
             }
 
         # Validation 3: No dangerous keywords (extra safety layer)
-        forbidden = [
+        # Word-boundary check prevents false positives (e.g. LAST_UPDATED matching UPDATE)
+        _forbidden_words = [
             "DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "TRUNCATE",
             "CREATE", "REPLACE", "PRAGMA", "ATTACH", "DETACH", "VACUUM", "REINDEX",
-            "LOAD_EXTENSION", "SQLITE_", "EXEC(", "EXECUTE", "SYSTEM",
-            "SCRIPT", "JAVASCRIPT", "EVAL",
+            "EXECUTE", "SYSTEM", "SCRIPT", "JAVASCRIPT", "EVAL",
         ]
-        for word in forbidden:
-            if word in sql_upper:
+        # Substring patterns (non-word tokens)
+        _forbidden_substrings = ["LOAD_EXTENSION", "SQLITE_", "EXEC("]
+        for word in _forbidden_words:
+            if re.search(r'\b' + word + r'\b', sql_upper):
                 return {
                     "status": "error",
                     "message": f"Forbidden keyword detected: {word}"
+                }
+        for pat in _forbidden_substrings:
+            if pat in sql_upper:
+                return {
+                    "status": "error",
+                    "message": f"Forbidden keyword detected: {pat}"
                 }
 
         # Validation 4: Must reference production_records

@@ -112,3 +112,20 @@ class TestExecuteCustomQueryValidation:
         """DELETE 단독 사용 차단 (non-SELECT)"""
         result = execute_custom_query("DELETE FROM production_records WHERE 1=1")
         assert result["status"] == "error"
+
+    def test_word_boundary_no_false_positive(self):
+        """Column names containing forbidden substrings should not be blocked.
+
+        e.g. LAST_UPDATED contains UPDATE, CREATED_AT contains CREATE.
+        """
+        # These should pass validation (may fail at DB level if DB is absent)
+        for sql in [
+            "SELECT last_updated FROM production_records LIMIT 1",
+            "SELECT created_at FROM production_records LIMIT 1",
+            "SELECT replaced_by FROM production_records LIMIT 1",
+        ]:
+            result = execute_custom_query(sql)
+            if result["status"] == "error":
+                assert "forbidden" not in result["message"].lower(), (
+                    f"False positive on: {sql}"
+                )
