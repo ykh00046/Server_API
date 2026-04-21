@@ -87,6 +87,13 @@ CHAT_SESSION_MAX_PER_IP = int(os.getenv("CHAT_SESSION_MAX_PER_IP", 20))
 CHAT_SESSION_MAX_TOTAL = int(os.getenv("CHAT_SESSION_MAX_TOTAL", 1000))
 
 # ==========================================================
+# SSE Streaming Configuration
+# ==========================================================
+STREAM_HEARTBEAT_SEC = float(os.getenv("STREAM_HEARTBEAT_SEC", 10.0))
+STREAM_TIMEOUT_SEC = float(os.getenv("STREAM_TIMEOUT_SEC", 120.0))
+STREAM_BUFFER_FLUSH_MS = float(os.getenv("STREAM_BUFFER_FLUSH_MS", 50.0))
+
+# ==========================================================
 # Custom Query Safety (security-and-test-improvement)
 # ==========================================================
 CUSTOM_QUERY_TIMEOUT_SEC = float(os.getenv("CUSTOM_QUERY_TIMEOUT_SEC", 10.0))

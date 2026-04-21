@@ -11,6 +11,7 @@ Features:
 import io
 import json
 import re
+import time
 from typing import Iterator, Optional
 
 import httpx
@@ -26,6 +27,18 @@ except Exception:
     sui = None  # type: ignore[assignment]
     _HAS_SHADCN = False
 
+
+# Structured error code → user-facing Korean message mapping
+_ERROR_MESSAGES = {
+    "ai_disabled": "AI 엔진이 비활성화되어 있습니다.",
+    "timeout": "AI 응답 시간이 초과되었습니다. 짧은 질문으로 다시 시도해 주세요.",
+    "model_error": "AI 모델 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+    "rate_limited": "요청이 너무 많습니다. 1분 후 다시 시도해 주세요.",
+    "internal": "내부 오류가 발생했습니다. 관리자에게 문의하세요.",
+}
+
+_MAX_RETRIES = 1
+_RETRY_DELAY_SEC = 2.0
 
 STARTER_PROMPTS = [
     {
@@ -55,53 +68,79 @@ STARTER_PROMPTS = [
 ]
 
 
-def _stream_chat_tokens(stream_url: str, payload: dict) -> Iterator[str]:
-    """Yield text tokens from the /chat/stream SSE endpoint.
+def _stream_chat_tokens_once(stream_url: str, payload: dict) -> Iterator[str]:
+    """Single-attempt SSE stream consumer.
+
+    Raises httpx.ConnectError or httpx.ReadTimeout on connection/timeout issues.
+    Other errors are handled internally (st.error shown, no raise).
 
     Side effects:
     - st.toast on `tool_call` events
     - st.error on `error` events
     - st.session_state["_last_chat_meta"] populated on `done`
     """
-    try:
-        with httpx.stream("POST", stream_url, json=payload, timeout=60.0) as r:
-            if r.status_code != 200:
+    with httpx.stream("POST", stream_url, json=payload, timeout=60.0) as r:
+        if r.status_code != 200:
+            try:
+                detail = r.read().decode("utf-8", "replace")
+            except Exception:
+                detail = ""
+            st.error(f"스트리밍 요청 실패: HTTP {r.status_code} {detail[:200]}")
+            return
+        event_name: Optional[str] = None
+        for line in r.iter_lines():
+            if not line:
+                event_name = None
+                continue
+            if line.startswith("event:"):
+                event_name = line[6:].strip()
+                continue
+            if line.startswith("data:"):
+                raw = line[5:].strip()
                 try:
-                    detail = r.read().decode("utf-8", "replace")
-                except Exception:
-                    detail = ""
-                st.error(f"스트리밍 요청 실패: HTTP {r.status_code} {detail[:200]}")
-                return
-            event_name: Optional[str] = None
-            for line in r.iter_lines():
-                if not line:
-                    event_name = None
+                    data = json.loads(raw)
+                except json.JSONDecodeError:
                     continue
-                if line.startswith("event:"):
-                    event_name = line[6:].strip()
-                    continue
-                if line.startswith("data:"):
-                    raw = line[5:].strip()
-                    try:
-                        data = json.loads(raw)
-                    except json.JSONDecodeError:
-                        continue
-                    if event_name == "token":
-                        yield data.get("text", "")
-                    elif event_name == "tool_call":
-                        st.toast(f"🔧 {data.get('name', '')}", icon="⚙️")
-                    elif event_name == "error":
-                        st.error(data.get("message", "AI 스트리밍 오류"))
-                        return
-                    elif event_name == "done":
-                        st.session_state["_last_chat_meta"] = data
-                        return
-    except httpx.ConnectError:
-        st.error("AI 서버에 연결할 수 없습니다. API가 실행 중인지 확인하세요.")
-    except httpx.ReadTimeout:
-        st.error("AI 응답 시간이 초과되었습니다. 다시 시도해 주세요.")
-    except Exception as e:
-        st.error(f"스트리밍 오류: {e}")
+                if event_name == "token":
+                    yield data.get("text", "")
+                elif event_name == "tool_call":
+                    st.toast(f"🔧 {data.get('name', '')}", icon="⚙️")
+                elif event_name == "error":
+                    code = data.get("code", "internal")
+                    msg = _ERROR_MESSAGES.get(code, data.get("message", "AI 스트리밍 오류"))
+                    st.error(msg)
+                    return
+                elif event_name == "done":
+                    st.session_state["_last_chat_meta"] = data
+                    return
+
+
+def _stream_chat_tokens(stream_url: str, payload: dict) -> Iterator[str]:
+    """Yield text tokens from SSE endpoint with auto-retry on connection errors.
+
+    Retries up to _MAX_RETRIES times on ConnectError or ReadTimeout (only if
+    no tokens have been yielded yet, to prevent duplicate text).
+    """
+    for attempt in range(_MAX_RETRIES + 1):
+        tokens_yielded = False
+        try:
+            for token in _stream_chat_tokens_once(stream_url, payload):
+                tokens_yielded = True
+                yield token
+            return  # Success or handled internally
+        except httpx.ConnectError:
+            if attempt < _MAX_RETRIES:
+                time.sleep(_RETRY_DELAY_SEC)
+                continue
+            st.error("AI 서버에 연결할 수 없습니다. API가 실행 중인지 확인하세요.")
+        except httpx.ReadTimeout:
+            if attempt < _MAX_RETRIES and not tokens_yielded:
+                time.sleep(_RETRY_DELAY_SEC)
+                continue
+            st.error("AI 응답 시간이 초과되었습니다. 다시 시도해 주세요.")
+        except Exception as e:
+            st.error(f"스트리밍 오류: {e}")
+            return  # Don't retry unknown errors
 
 
 _UNSAFE_HTML_RE = re.compile(
