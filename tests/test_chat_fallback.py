@@ -1,5 +1,5 @@
 # tests/test_chat_fallback.py
-"""Fallback tests: primary model (Flash) fails → fallback model (3.1 Flash Lite).
+"""Fallback tests: primary model (Flash) fails → fallback model (2.5 Flash Lite, primary와 같은 family).
 
 Covers sync /chat/ and SSE /chat/stream endpoints.
 """
