@@ -511,6 +511,11 @@ def get_records(
         else:
             # Legacy offset mode (backward compatibility)
             # P0-3: Push OFFSET into SQL instead of Python-side slicing
+            if offset > 0:
+                logger.warning(
+                    f"[Deprecated] /records called with offset={int(offset)} — "
+                    f"use cursor pagination instead (cursor=...)"
+                )
             sql, params_doubled = DBRouter.build_union_sql(
                 select_columns=select_columns,
                 where_clause=where_clause,
