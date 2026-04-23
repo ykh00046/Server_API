@@ -9,7 +9,7 @@
 ## 목차
 
 1. [공통 사항](#1-공통-사항)
-2. [헬스체크](#2-헬스체크)
+2. [헬스체크 & Metrics](#2-헬스체크--metrics)
 3. [레코드 조회](#3-레코드-조회)
 4. [제품 목록](#4-제품-목록)
 5. [집계 API](#5-집계-api)
@@ -49,7 +49,7 @@ Retry-After: 12          # 429 시에만
 
 ---
 
-## 2. 헬스체크
+## 2. 헬스체크 & Metrics
 
 ### `GET /healthz` — 서버 상태 (경량)
 
@@ -95,6 +95,60 @@ curl http://localhost:8000/healthz/ai
 ```
 
 > 쿼터를 소모하므로 자주 호출하지 마세요. 모니터링에는 `/healthz`의 `cached_status`를 사용하세요.
+
+---
+
+### `GET /metrics/performance` — 쿼리 성능 지표
+
+Rolling-window 기반 카운트/평균/p50/p95/p99/cache hit rate 통계를 반환합니다.
+모니터링/Grafana 등에서 polling용으로 사용.
+
+```bash
+curl http://localhost:8000/metrics/performance
+```
+
+```json
+{
+  "search_items": {
+    "count": 142,
+    "avg_ms": 12.3,
+    "p50_ms": 9.8,
+    "p95_ms": 28.4,
+    "p99_ms": 41.2,
+    "cache_hit_rate": 0.74
+  },
+  "production_summary": { "...": "..." }
+}
+```
+
+> Rate-limit 면제 대상이 아니므로 polling 주기는 30s 이상 권장.
+
+---
+
+### `GET /metrics/cache` — 캐시 + 성능 스냅샷
+
+`/healthz`의 `cache` 필드와 동일한 캐시 통계 + `/metrics/performance` 결과를 결합합니다.
+
+```bash
+curl http://localhost:8000/metrics/cache
+```
+
+```json
+{
+  "api_cache": {
+    "size": 12,
+    "maxsize": 200,
+    "ttl": 300,
+    "db_version": "1740512400_1740512000"
+  },
+  "performance": {
+    "search_items": { "count": 142, "avg_ms": 12.3, "...": "..." }
+  }
+}
+```
+
+> 캐시 강제 무효화 엔드포인트는 제공하지 않습니다. 5분 TTL 자연 만료 또는 서버 재시작을 사용하세요
+> (자세한 운영 절차는 `operations_manual.md` §7.4 참고).
 
 ---
 
@@ -158,11 +212,17 @@ curl "http://localhost:8000/records?limit=1000&cursor=eyJkIjoiMjAyNi0wMS0yMCIsIm
     }
   ],
   "count": 1000,
-  "next_cursor": "eyJkIjoiMjAyNi0wMS0yMCIsImlkIjoxMjM0NSwic3JjIjoibGl2ZSJ9"
+  "next_cursor": "eyJkIjoiMjAyNi0wMS0yMCIsImlkIjoxMjM0NSwic3JjIjoibGl2ZSJ9",
+  "has_more": true
 }
 ```
 
-> `next_cursor`가 `null`이면 마지막 페이지입니다.
+| 응답 필드 | 설명 |
+|----------|------|
+| `data` | 레코드 배열 |
+| `count` | 이번 페이지에 반환된 건수 |
+| `next_cursor` | 다음 페이지 토큰 (마지막 페이지면 `null`) |
+| `has_more` | 다음 페이지 존재 여부 boolean (`next_cursor`와 동치이지만 명시적) |
 
 ---
 
@@ -348,9 +408,18 @@ curl "http://localhost:8000/summary/monthly_by_item?item_code=BW0021"
   "answer": "2026년 2월 BW0021(제품명A)의 총 생산량은 42만 개(42건)입니다.",
   "status": "success",
   "tools_used": ["search_production_items", "get_production_summary"],
-  "request_id": "a1b2c3d4"
+  "request_id": "a1b2c3d4",
+  "model_used": "gemini-2.5-flash"
 }
 ```
+
+| 응답 필드 | 설명 |
+|----------|------|
+| `answer` | AI 답변 (markdown 표 포함 가능) |
+| `status` | `"success"` 또는 `"error"` |
+| `tools_used` | 이번 요청에서 호출된 도구명 배열 (순서 보장 X, 중복 제거됨) |
+| `request_id` | 추적용 ID (서버 로그와 매칭) |
+| `model_used` | 실제 응답에 사용된 모델명. fallback 발동 시 `gemini-2.5-flash-lite`로 보고 |
 
 ---
 
@@ -376,9 +445,94 @@ curl -X POST http://localhost:8000/chat/ \
 ```
 
 **세션 정책**
-- TTL: 30분 (마지막 요청 기준)
+- TTL: 30분 (마지막 요청 기준, env `CHAT_SESSION_TTL_SEC`)
 - 최대 대화 턴: 10턴 (초과 시 오래된 순으로 자동 제거)
-- 최대 동시 세션: 1,000개
+- 최대 동시 세션: 1,000개 (env `CHAT_SESSION_MAX_TOTAL`)
+- IP 당 최대 세션: 20개 (env `CHAT_SESSION_MAX_PER_IP`)
+
+---
+
+### `POST /chat/stream` — 자연어 쿼리 (SSE 스트리밍)
+
+`POST /chat/`와 동일한 요청 본문을 받지만, 응답을 **Server-Sent Events**로 점진 송신합니다.
+대시보드의 `st.write_stream`과 같은 점진 렌더링 UX에 사용.
+
+**Request Body**
+
+```json
+{ "query": "이번 달 BW0021 총 생산량은?", "session_id": "user-001" }
+```
+
+**응답** (`Content-Type: text/event-stream; charset=utf-8`)
+
+이벤트 순서:
+
+```
+event: meta
+data: {"session_id": "user-001", "request_id": "a1b2c3d4"}
+
+event: tool_call
+data: {"name": "search_production_items", "args": {"keyword": "BW0021"}}
+
+event: token
+data: {"text": "BW0021"}
+
+event: token
+data: {"text": "(제품명A)의 "}
+
+…
+
+event: done
+data: {"model_used": "gemini-2.5-flash", "tools_used": ["search_production_items", "get_production_summary"]}
+```
+
+**오류 시**
+
+```
+event: error
+data: {"code": "timeout", "message": "Stream exceeded 120s budget"}
+```
+
+| 에러 코드 | 의미 |
+|----------|------|
+| `ai_disabled` | `GEMINI_API_KEY` 미설정 |
+| `timeout` | 총 스트리밍 시간이 `STREAM_TIMEOUT_SEC` 초과 |
+| `model_error` | Gemini API 오류 |
+| `rate_limited` | Chat 요청 제한 초과 |
+| `internal` | 그 외 내부 오류 |
+
+**스트리밍 정책 (env override 가능)**
+
+| 항목 | 기본값 | env |
+|------|--------|-----|
+| 청크 간 heartbeat 주기 (`: heartbeat\n\n` 코멘트 프레임) | 10s | `STREAM_HEARTBEAT_SEC` |
+| 총 스트림 타임아웃 | 120s | `STREAM_TIMEOUT_SEC` |
+| 토큰 버퍼 flush | 50ms | `STREAM_BUFFER_FLUSH_MS` |
+
+**Python 클라이언트 예제 (httpx)**
+
+```python
+import httpx
+import json
+
+with httpx.stream("POST", "http://localhost:8000/chat/stream",
+                  json={"query": "올해 1분기 총 생산량은?", "session_id": "user-001"},
+                  timeout=130.0) as r:
+    event = None
+    for line in r.iter_lines():
+        if not line:
+            event = None
+            continue
+        if line.startswith("event:"):
+            event = line[6:].strip()
+        elif line.startswith("data:") and event == "token":
+            chunk = json.loads(line[5:].strip())
+            print(chunk["text"], end="", flush=True)
+        elif line.startswith("data:") and event == "done":
+            print("\n[done]", json.loads(line[5:].strip()))
+```
+
+> Rate-limit은 `POST /chat/`와 동일(20 req/min/IP).
 
 ---
 

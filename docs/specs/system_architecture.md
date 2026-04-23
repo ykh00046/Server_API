@@ -8,10 +8,12 @@
 ## 2. 시스템 구성
 
 ### 2.1 서버 구성
-| 서버 | 포트 | 역할 | 기술 스택 |
-|------|------|------|-----------|
-| Dashboard Server | 8501 | 데이터 시각화, 조회 UI | Streamlit |
-| API Server | 8000 | AI 채팅, REST API | FastAPI |
+| 서버 | 포트 (기본) | env override | 역할 | 기술 스택 |
+|------|-----------|--------------|------|-----------|
+| Dashboard Server | 8502 | `DASHBOARD_PORT` | 데이터 시각화, 조회 UI | Streamlit |
+| API Server | 8000 | `API_PORT` | AI 채팅, REST API | FastAPI |
+
+> SoT: `shared/config.py:DASHBOARD_PORT` / `API_PORT` (operations_manual.md와 통일).
 
 ### 2.2 데이터베이스
 | DB | 파일 | 용도 |
@@ -27,7 +29,7 @@
 ┌─────────────────┐     ┌─────────────────┐
 │  Dashboard      │     │  API Server     │
 │  (Streamlit)    │     │  (FastAPI)      │
-│  :8501          │     │  :8000          │
+│  :8502          │     │  :8000          │
 └────────┬────────┘     └────────┬────────┘
          │                       │
          │  ┌────────────────────┤
@@ -98,7 +100,7 @@ API 서버 장애가 전체 시스템 장애로 확산되지 않음.
 python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
 
 # 2. Dashboard 서버
-streamlit run dashboard/app.py --server.port 8501
+streamlit run dashboard/app.py --server.port 8502
 ```
 
 ### 5.2 서버 의존성
@@ -228,14 +230,19 @@ records = requests.get(f"{API}/records", params={
 
 ### AI 도구 확장 프로세스
 
-#### 현재 도구 구성
+#### 현재 도구 구성 (7개)
+
+`api/_tool_dispatch.py:PRODUCTION_TOOLS`가 단일 진실 출처. 외부 사용자용 가이드는 `api_guide.md` §6 참고.
+
 | 도구 | 용도 |
 |------|------|
-| `search_production_items` | 제품 검색 |
-| `get_production_summary` | 기간별 생산량 집계 |
+| `search_production_items` | 제품 코드 검색 (LIKE 기반, archive 옵션) |
+| `get_production_summary` | 기간별 생산량 집계 (총량/건수/평균) |
 | `get_monthly_trend` | 월별 추이 |
-| `get_top_items` | 상위 제품 순위 |
-| `execute_custom_query` | 복잡한 조건 (Text-to-SQL) |
+| `get_top_items` | 상위 N개 품목 (기본 5) |
+| `compare_periods` | 두 기간 비교 (병렬 조회 + 증감률) |
+| `get_item_history` | 품목 최근 생산 이력 (Archive+Live 합산) |
+| `execute_custom_query` | 복잡한 조건 (Text-to-SQL, 다층 안전 검증) |
 
 #### 도구 추가 의사결정 프로세스
 
@@ -289,7 +296,7 @@ records = requests.get(f"{API}/records", params={
 - 비정형 질문 → execute_custom_query (스키마 토큰 절약)
 - 도구 10개 초과 시 → 스키마 토큰이 응답 절약분 상쇄
 
-**현재 구성 (5개)**: 토큰 효율 측면에서 적절한 수준
+**현재 구성 (7개)**: 권장 상한(5~7) 안에 위치 — 토큰 효율 측면에서 적절한 수준
 
 ---
 
@@ -303,3 +310,4 @@ records = requests.get(f"{API}/records", params={
 | 2026-01-23 | 1.3 | 토큰 효율성 고려사항 (전용 도구 vs Text-to-SQL 트레이드오프) 추가 |
 | 2026-01-23 | 1.4 | 데이터 조회량 제한 정책 (API vs AI 채팅 차이, 대량 데이터 처리) 추가 |
 | 2026-01-23 | 1.5 | 효율적인 데이터 조회 패턴 (집계 + 상세 조합 전략) 추가 |
+| 2026-04-23 | 1.6 | docs-sync 사이클 — Dashboard 포트 8501→8502 통일, AI 도구 5→7개(compare_periods, get_item_history 추가) 반영 |

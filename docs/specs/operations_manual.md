@@ -398,10 +398,20 @@ grep "SLOW QUERY" logs/app.log | tail -20
 
 **캐시 강제 초기화** (이상 데이터가 캐시된 경우)
 
+캐시 강제 무효화 엔드포인트는 제공하지 않습니다 (익명 호출로 인한 캐시 박싱/RPS 증가 방지).
+다음 두 가지 경로로 처리:
+
 ```bash
-curl -X POST http://localhost:8000/cache/clear
-# 또는 서버 재시작
+# 1) 자연 만료 대기 — 기본 TTL 5분 (shared/cache.py)
+#    /metrics/cache 또는 /healthz 의 cache.size 가 줄어드는지 모니터링
+
+curl http://localhost:8000/metrics/cache
+
+# 2) 즉시 무효화가 필요하면 API 서버 재시작 (manager.py 또는 systemctl)
+#    재시작 직후 /healthz cache.size = 0
 ```
+
+> DB 변경(예: 새 import)으로 인한 캐시 무효화는 `db_version` 키로 자동 처리됩니다 — 수동 개입 불필요.
 
 ---
 
