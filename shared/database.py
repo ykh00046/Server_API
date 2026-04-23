@@ -31,11 +31,55 @@ from .config import (
     DB_FILE,
     ARCHIVE_DB_FILE,
     ARCHIVE_CUTOFF_DATE,
+    ARCHIVE_DB_WHITELIST,
     DB_TIMEOUT,
 )
-from .validators import validate_db_path
+from .validators import resolve_archive_db
 
 logger = logging.getLogger(__name__)
+
+
+# ==========================================================
+# Shared ATTACH helper (security-hardening-v3)
+# ==========================================================
+def attach_archive_safe(
+    conn: sqlite3.Connection,
+    archive_path: "str | os.PathLike | None" = None,
+    *,
+    alias: str = "archive",
+    whitelist: "tuple | None" = None,
+):
+    """ATTACH archive DB safely (whitelist + bind-first + ro mode).
+
+    Used by both `DBRouter.get_connection()` and `api/tools.execute_custom_query`
+    to keep the path-validation + ATTACH pattern in one place.
+
+    Args:
+        conn: Active sqlite3 connection (any mode).
+        archive_path: Requested archive DB path. Defaults to ARCHIVE_DB_FILE.
+        alias: Schema alias used in `ATTACH ... AS <alias>`. Internal constant only.
+        whitelist: Allowed paths. Defaults to ARCHIVE_DB_WHITELIST from config.
+
+    Returns:
+        Resolved Path of the attached archive DB.
+
+    Raises:
+        ValueError: Path not in whitelist.
+        FileNotFoundError: Archive file does not exist.
+        sqlite3.OperationalError: Both bind and string ATTACH variants failed.
+    """
+    target = archive_path if archive_path is not None else ARCHIVE_DB_FILE
+    wl = whitelist if whitelist is not None else ARCHIVE_DB_WHITELIST
+    resolved = resolve_archive_db(target, wl)
+    archive_uri = f"file:{resolved.as_posix()}?mode=ro"
+    try:
+        conn.execute(f"ATTACH DATABASE ? AS {alias}", (archive_uri,))
+    except sqlite3.OperationalError:
+        # Some sqlite builds do not accept parameter binding for ATTACH.
+        # Safe because archive_uri came from resolve_archive_db (whitelist-validated)
+        # and `alias` is an internal constant, never user input.
+        conn.execute(f"ATTACH DATABASE '{archive_uri}' AS {alias}")
+    return resolved
 
 # ==========================================================
 # v7: Thread-local Connection Cache with mtime invalidation
@@ -253,17 +297,12 @@ class DBRouter:
         _apply_pragma_settings(conn)
 
         if use_archive and ARCHIVE_DB_FILE.exists():
-            # Validate and escape path for SQL safety
-            archive_path = str(ARCHIVE_DB_FILE.absolute())
             try:
-                validate_db_path(archive_path)
-            except ValueError as e:
+                resolved = attach_archive_safe(conn)
+                logger.debug(f"Archive DB attached: {resolved}")
+            except (ValueError, FileNotFoundError) as e:
                 logger.error(f"Invalid archive database path: {e}")
                 raise
-            # Escape single quotes for SQL string literal
-            archive_path_escaped = archive_path.replace("'", "''")
-            conn.execute(f"ATTACH DATABASE '{archive_path_escaped}' AS archive")
-            logger.debug(f"Archive DB attached: {ARCHIVE_DB_FILE}")
 
         # Cache the connection
         setattr(_local, cache_key, conn)

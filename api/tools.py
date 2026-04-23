@@ -27,11 +27,10 @@ from shared import (
     get_logger,
 )
 from shared.cache import api_cache
+from shared.database import attach_archive_safe
 from shared.logging_config import QueryLogger
 from shared.validators import (
     validate_date_range_exclusive,
-    validate_db_path,
-    resolve_archive_db,
     escape_like_wildcards,
 )
 
@@ -552,10 +551,8 @@ def execute_custom_query(
     import threading
     from shared.config import (
         DB_FILE,
-        ARCHIVE_DB_FILE,
         DB_TIMEOUT,
         CUSTOM_QUERY_TIMEOUT_SEC,
-        ARCHIVE_DB_WHITELIST,
     )
     from shared.database import _apply_pragma_settings
 
@@ -626,9 +623,9 @@ def execute_custom_query(
             _apply_pragma_settings(conn)
 
             if use_archive:
-                # Whitelist-enforced archive resolution (security-and-test-improvement)
+                # Whitelist-enforced ATTACH via shared helper (security-hardening-v3)
                 try:
-                    archive_resolved = resolve_archive_db(ARCHIVE_DB_FILE, ARCHIVE_DB_WHITELIST)
+                    attach_archive_safe(conn)
                 except (ValueError, FileNotFoundError) as e:
                     conn.close()
                     return {
@@ -636,13 +633,6 @@ def execute_custom_query(
                         "code": "INVALID_ARCHIVE_PATH",
                         "message": f"Invalid archive DB: {e}",
                     }
-                archive_uri = f"file:{archive_resolved.as_posix()}?mode=ro"
-                try:
-                    conn.execute("ATTACH DATABASE ? AS archive", (archive_uri,))
-                except sqlite3.OperationalError:
-                    # Parameter binding unsupported on some sqlite builds;
-                    # safe because archive_resolved came from whitelist.
-                    conn.execute(f"ATTACH DATABASE '{archive_uri}' AS archive")
 
             result = {"rows": [], "error": None}
 
