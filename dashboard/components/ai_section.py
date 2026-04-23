@@ -10,7 +10,6 @@ Features:
 
 import io
 import json
-import re
 import time
 from typing import Iterator, Optional
 
@@ -141,20 +140,6 @@ def _stream_chat_tokens(stream_url: str, payload: dict) -> Iterator[str]:
         except Exception as e:
             st.error(f"스트리밍 오류: {e}")
             return  # Don't retry unknown errors
-
-
-_UNSAFE_HTML_RE = re.compile(
-    r"<\s*script[^>]*>.*?<\s*/\s*script\s*>|"
-    r"\bon\w+\s*=\s*[\"'][^\"']*[\"']|"
-    r"<\s*iframe[^>]*>|<\s*object[^>]*>|<\s*embed[^>]*>|"
-    r"javascript\s*:",
-    re.IGNORECASE | re.DOTALL,
-)
-
-
-def _sanitize_ai_content(content: str) -> str:
-    """Strip dangerous HTML from AI-generated content."""
-    return _UNSAFE_HTML_RE.sub("", content)
 
 
 def _render_table_download(content: str, key_prefix: str, index: int) -> None:
@@ -328,15 +313,15 @@ def render_ai_chat(api_url: str | None = None) -> None:
             for i, message in enumerate(st.session_state.messages):
                 avatar = "👤" if message["role"] == "user" else "🤖"
                 with st.chat_message(message["role"], avatar=avatar):
-                    content = _sanitize_ai_content(message["content"])
-                    st.markdown(content)
+                    content = message["content"]
+                    st.markdown(content, unsafe_allow_html=False)
                     if message["role"] == "assistant":
                         _render_table_download(content, "dl_ai_table", i)
 
     # ==========================================
     # 3. Input & Processing (공통)
     # ==========================================
-    prompt = st.chat_input("데이터에 대해 무엇이든 질문하세요 (예: 올해 1분기 총 생산량은?)")
+    prompt = st.chat_input("데이터에 대해 무엇이든 질문하세요 (예: 올해 1분기 총 생산량은?)", key="full_chat_input")
 
     if prompt:
         if len(st.session_state.messages) == 0 or st.session_state.messages[-1]["content"] != prompt:
@@ -450,8 +435,8 @@ def render_ai_section_compact(api_url: str | None = None) -> None:
             for i, message in enumerate(st.session_state.messages):
                 avatar = "👤" if message["role"] == "user" else "🤖"
                 with st.chat_message(message["role"], avatar=avatar):
-                    content = _sanitize_ai_content(message["content"])
-                    st.markdown(content)
+                    content = message["content"]
+                    st.markdown(content, unsafe_allow_html=False)
                     if message["role"] == "assistant":
                         _render_table_download(content, "dl_compact", i)
 
