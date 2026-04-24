@@ -33,7 +33,18 @@ with col_main:
     if bad_dt > 0:
         st.warning(f"⚠️ {bad_dt:,}개 레코드의 날짜 파싱에 문제가 있습니다.")
 
-    st.subheader(f"총 {len(df):,}개 레코드")
+    # KPI summary cards
+    kpi1, kpi2, kpi3 = st.columns(3)
+    unique_days = df["production_dt"].dt.date.nunique() if not df.empty else 0
+    avg_daily = len(df) / max(unique_days, 1) if not df.empty else 0
+    with kpi1:
+        st.metric("총 레코드", f"{len(df):,}건")
+    with kpi2:
+        st.metric("생산일 수", f"{unique_days}일")
+    with kpi3:
+        st.metric("일 평균 배치", f"{avg_daily:.1f}건")
+
+    st.markdown('<div class="bkit-spacer-8"></div>', unsafe_allow_html=True)
 
     # Display table
     display_detail = df[

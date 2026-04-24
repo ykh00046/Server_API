@@ -43,24 +43,24 @@ def show_toast(
     """
     # Default icons by type
     default_icons = {
-        ToastType.SUCCESS: "",
-        ToastType.ERROR: "",
-        ToastType.WARNING: "",
-        ToastType.INFO: "",
+        ToastType.SUCCESS: "✅",
+        ToastType.ERROR: "❌",
+        ToastType.WARNING: "⚠️",
+        ToastType.INFO: "ℹ️",
     }
 
-    icon = icon or default_icons.get(type, "")
+    icon = icon or default_icons.get(type, "ℹ️")
 
     # Use Streamlit's native toast if available
     if hasattr(st, 'toast'):
         if type == ToastType.SUCCESS:
-            st.toast(message, icon="")
+            st.toast(message, icon="✅")
         elif type == ToastType.ERROR:
-            st.toast(message, icon="")
+            st.toast(message, icon="❌")
         elif type == ToastType.WARNING:
-            st.toast(message, icon="")
+            st.toast(message, icon="⚠️")
         else:
-            st.toast(message, icon="")
+            st.toast(message, icon="ℹ️")
     else:
         # Fallback to styled message
         _show_fallback_toast(message, type)

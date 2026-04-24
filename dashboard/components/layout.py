@@ -18,7 +18,7 @@ def init_ai_panel_state() -> None:
 
 def render_page_header(title: str, breadcrumb: str = "") -> None:
     """Render a page header with title and AI toggle."""
-    col_title, col_toggle = st.columns([9, 1])
+    col_title, col_toggle = st.columns([8, 2])
     with col_title:
         st.markdown(
             f"### {title}",
