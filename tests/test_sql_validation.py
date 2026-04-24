@@ -1,6 +1,10 @@
 import pytest
 
-from api.tools import _strip_sql_comments, execute_custom_query
+from api.tools import (
+    _strip_sql_comments,
+    _validate_custom_query_params,
+    execute_custom_query,
+)
 
 
 class TestStripSqlComments:
@@ -129,3 +133,103 @@ class TestExecuteCustomQueryValidation:
                 assert "forbidden" not in result["message"].lower(), (
                     f"False positive on: {sql}"
                 )
+
+
+class TestValidateCustomQueryParams:
+    """_validate_custom_query_params helper (custom-query-bind-params-v1)"""
+
+    def test_none_returns_empty_tuple(self):
+        assert _validate_custom_query_params(None) == ()
+
+    def test_empty_list_returns_empty_tuple(self):
+        assert _validate_custom_query_params([]) == ()
+
+    def test_valid_strings_become_tuple(self):
+        assert _validate_custom_query_params(["a", "b"]) == ("a", "b")
+
+    def test_dict_rejected(self):
+        with pytest.raises(ValueError, match="list or None"):
+            _validate_custom_query_params({"x": "y"})
+
+    def test_tuple_rejected(self):
+        with pytest.raises(ValueError, match="list or None"):
+            _validate_custom_query_params(("a", "b"))
+
+    def test_int_element_rejected(self):
+        with pytest.raises(ValueError, match="string"):
+            _validate_custom_query_params(["ok", 1000])
+
+    def test_none_element_rejected(self):
+        with pytest.raises(ValueError, match="string"):
+            _validate_custom_query_params([None])
+
+
+class TestCustomQueryParams:
+    """execute_custom_query params bind parameter integration"""
+
+    def test_params_none_backward_compat(self):
+        """params 미지정 → 기존 no-bind 경로. INVALID_PARAMS 에러 발생하지 않아야 함."""
+        result = execute_custom_query(
+            "SELECT COUNT(*) FROM production_records LIMIT 1"
+        )
+        assert result.get("code") != "INVALID_PARAMS"
+
+    def test_params_empty_list_ok(self):
+        result = execute_custom_query(
+            "SELECT COUNT(*) FROM production_records LIMIT 1",
+            params=[],
+        )
+        assert result.get("code") != "INVALID_PARAMS"
+
+    def test_params_dict_rejected(self):
+        result = execute_custom_query(
+            "SELECT * FROM production_records WHERE item_code = ? LIMIT 1",
+            params={"item": "BW0021"},
+        )
+        assert result["status"] == "error"
+        assert result["code"] == "INVALID_PARAMS"
+        assert "list" in result["message"].lower()
+
+    def test_params_tuple_rejected(self):
+        result = execute_custom_query(
+            "SELECT * FROM production_records WHERE item_code = ? LIMIT 1",
+            params=("BW0021",),
+        )
+        assert result["status"] == "error"
+        assert result["code"] == "INVALID_PARAMS"
+
+    def test_params_non_string_element_rejected(self):
+        result = execute_custom_query(
+            "SELECT * FROM production_records WHERE good_quantity > ? LIMIT 1",
+            params=[1000],
+        )
+        assert result["status"] == "error"
+        assert result["code"] == "INVALID_PARAMS"
+        assert "string" in result["message"].lower()
+
+    def test_params_none_element_rejected(self):
+        result = execute_custom_query(
+            "SELECT * FROM production_records WHERE item_code = ? LIMIT 1",
+            params=[None],
+        )
+        assert result["status"] == "error"
+        assert result["code"] == "INVALID_PARAMS"
+
+    def test_params_valid_strings_accepted(self):
+        """list[str] 통과 시 INVALID_PARAMS가 아니어야 함 (DB 실행 단계로 진입)."""
+        result = execute_custom_query(
+            "SELECT item_code FROM production_records WHERE item_code = ? LIMIT 1",
+            params=["BW0021"],
+        )
+        assert result.get("code") != "INVALID_PARAMS"
+
+
+class TestSystemPromptBindGuide:
+    """System prompt rule 9 placeholder/params 가이드 포함 여부"""
+
+    def test_prompt_mentions_placeholder_and_params(self):
+        from api.chat import _build_system_instruction
+
+        prompt = _build_system_instruction()
+        assert "?" in prompt, "placeholder guide missing"
+        assert "params" in prompt, "params keyword missing from guide"
