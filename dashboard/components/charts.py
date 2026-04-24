@@ -13,8 +13,10 @@ import plotly.graph_objects as go
 import pandas as pd
 from typing import List, Optional
 
+from shared.ui.theme import CHART_SERIES_COLORS
 
-def create_top10_bar_chart(df: pd.DataFrame, template: str) -> go.Figure:
+
+def create_top10_bar_chart(df: pd.DataFrame, template: str, marker_color: str = "#ec4899") -> go.Figure:
     """
     Create horizontal bar chart for top 10 products.
 
@@ -49,7 +51,7 @@ def create_top10_bar_chart(df: pd.DataFrame, template: str) -> go.Figure:
         orientation='h',
         text=item_totals["good_quantity"].apply(lambda x: f"{x:,.0f}"),
         textposition='outside',
-        marker_color='#ec4899',
+        marker_color=marker_color,
         hovertemplate=(
             "<b>%{y}</b><br>"
             "생산량: %{x:,} 개<br>"
@@ -197,9 +199,8 @@ def create_trend_lines(
 
     fig = go.Figure()
 
-    # Color palette for lines
-    colors = ['#ec4899', '#0ea5e9', '#f472b6', '#38bdf8',
-              '#f9a8d4', '#7dd3fc', '#f43f5e', '#0284c7', '#fda4af', '#bae6fd']
+    # Color palette for lines (from theme)
+    colors = CHART_SERIES_COLORS
 
     for idx, item_code in enumerate(item_codes):
         item_data = agg_df[agg_df["item_code"] == item_code].sort_values("period")

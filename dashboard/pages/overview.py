@@ -18,11 +18,11 @@ from components import (
     calculate_kpis,
     get_sparkline_data,
     get_sparkline_for_top_product,
-    create_top10_bar_chart,
     create_distribution_pie,
     get_chart_config,
     render_last_update,
 )
+from components.charts import create_top10_bar_chart
 from components.layout import render_page_header, get_page_columns, render_ai_column
 from shared.ui.theme import get_colors
 
@@ -74,7 +74,7 @@ with col_main:
                     x=summary_df["year_month"],
                     y=summary_df["total_production"],
                     name="총 생산량",
-                    marker_color="#ec4899",
+                    marker_color=colors["primary"],
                 ),
                 secondary_y=False,
             )
@@ -84,14 +84,14 @@ with col_main:
                     y=summary_df["batch_count"],
                     name="배치 수",
                     mode="lines+markers",
-                    line=dict(color="#0ea5e9", width=3),
+                    line=dict(color=colors["secondary"], width=3),
                 ),
                 secondary_y=True,
             )
             fig.update_layout(
                 hovermode="x unified",
                 template=chart_template,
-                height=280,
+                height=360,
                 margin=dict(l=40, r=40, t=30, b=40),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02),
                 xaxis_type="category",
@@ -104,8 +104,8 @@ with col_main:
 
     with chart_col2:
         st.markdown("**🏆 Top 10 제품별 생산량**")
-        fig_bar = create_top10_bar_chart(df, chart_template)
-        fig_bar.update_layout(height=280, margin=dict(l=80, r=20, t=30, b=40))
+        fig_bar = create_top10_bar_chart(df, chart_template, marker_color=colors["primary"])
+        fig_bar.update_layout(height=360, margin=dict(l=80, r=20, t=30, b=40))
         st.plotly_chart(fig_bar, use_container_width=True, config=get_chart_config("top10"))
 
     # Chart row 2: Distribution
@@ -113,7 +113,7 @@ with col_main:
     with chart_col3:
         st.markdown("**🍩 생산 분포**")
         fig_pie = create_distribution_pie(df, chart_template)
-        fig_pie.update_layout(height=260, margin=dict(l=20, r=20, t=30, b=40))
+        fig_pie.update_layout(height=340, margin=dict(l=20, r=20, t=30, b=40))
         st.plotly_chart(fig_pie, use_container_width=True, config=get_chart_config("distribution"))
 
     with chart_col4:
@@ -128,7 +128,7 @@ with col_main:
                 "item_name": "제품명",
                 "good_quantity": "양품수량",
             })
-            st.dataframe(recent, use_container_width=True, hide_index=True, height=260)
+            st.dataframe(recent, use_container_width=True, hide_index=True, height=340)
         else:
             st.info("데이터가 없습니다.")
 

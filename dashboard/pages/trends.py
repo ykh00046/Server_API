@@ -51,11 +51,12 @@ with col_main:
         summary_df = load_monthly_summary(date_from, date_to, db_ver=db_ver)
         x_col = "year_month"
 
+    colors = get_colors()
+    chart_template = colors.get("chart_template", "plotly_white")
+
     if len(summary_df) == 0:
         st.info("선택한 기간에 데이터가 없습니다.")
     else:
-        colors = get_colors()
-        chart_template = colors.get("chart_template", "plotly_white")
 
         # Main trend chart
         fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -64,7 +65,7 @@ with col_main:
                 x=summary_df[x_col],
                 y=summary_df["total_production"],
                 name="총 생산량",
-                marker_color="#ec4899",
+                marker_color=colors["primary"],
             ),
             secondary_y=False,
         )
@@ -74,7 +75,7 @@ with col_main:
                 y=summary_df["batch_count"],
                 name="배치 수",
                 mode="lines+markers",
-                line=dict(color="#0ea5e9", width=3),
+                line=dict(color=colors["secondary"], width=3),
             ),
             secondary_y=True,
         )

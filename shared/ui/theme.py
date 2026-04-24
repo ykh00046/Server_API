@@ -125,6 +125,13 @@ TOKENS_HIGH_CONTRAST: Dict[str, str] = {
 }
 
 _BASE_RULES = """
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap');
+
+/* Global font */
+html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"] {
+    font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+}
+
 /* Utility classes — replace inline unsafe_allow_html */
 .bkit-flex-center {
     display: flex;

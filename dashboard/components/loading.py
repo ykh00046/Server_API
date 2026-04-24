@@ -26,10 +26,13 @@ _SKELETON_CSS = """
 }
 .skeleton-table td {
     padding: 12px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--color-border, rgba(0,0,0,0.1));
 }
 .skeleton-cell {
-    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
+    background: linear-gradient(90deg,
+        var(--color-bg-card-alt, #e2e8f0) 25%,
+        var(--color-border, #cbd5e1) 50%,
+        var(--color-bg-card-alt, #e2e8f0) 75%);
     background-size: 200% 100%;
     animation: skeleton-pulse 1.5s ease-in-out infinite;
     height: 20px;
@@ -42,18 +45,24 @@ _SKELETON_CSS = """
 }
 .skeleton-kpi-card {
     flex: 1;
-    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
+    background: linear-gradient(90deg,
+        var(--color-bg-card-alt, #e2e8f0) 25%,
+        var(--color-border, #cbd5e1) 50%,
+        var(--color-bg-card-alt, #e2e8f0) 75%);
     background-size: 200% 100%;
     animation: skeleton-pulse 1.5s ease-in-out infinite;
-    border-radius: 12px;
+    border-radius: var(--radius-card, 12px);
     padding: 20px;
     height: 100px;
 }
 .skeleton-chart {
-    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
+    background: linear-gradient(90deg,
+        var(--color-bg-card-alt, #e2e8f0) 25%,
+        var(--color-border, #cbd5e1) 50%,
+        var(--color-bg-card-alt, #e2e8f0) 75%);
     background-size: 200% 100%;
     animation: skeleton-pulse 1.5s ease-in-out infinite;
-    border-radius: 12px;
+    border-radius: var(--radius-card, 12px);
     width: 100%;
 }
 @keyframes skeleton-pulse {
