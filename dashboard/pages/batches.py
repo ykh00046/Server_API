@@ -2,38 +2,27 @@
 배치 내역 (Batches) — Detailed production records table.
 
 Shows:
-- Record count
+- KPI cards (총 레코드 / 생산일 수 / 일 평균 배치)
 - Filterable/sortable data table
 - Excel/CSV export
+
+Refactored 2026-04-24 (dashboard-pages-refactor cycle): page body decomposed into
+three `_render_*` helpers. `_render_detail_table` returns the renamed DataFrame so
+`_render_export_buttons` can reuse it for CSV export without re-running the prep.
 """
 
+import pandas as pd
 import streamlit as st
 
 from data import get_filter_state, load_records, _cached_excel_bytes
 from components.layout import render_page_header, get_page_columns, render_ai_column
 
-# Page header
-render_page_header("배치 내역", "생산 관리 > 배치 내역")
 
-# Get filter state
-fs = get_filter_state()
-item_codes = fs["item_codes"]
-keyword = fs["keyword"]
-date_from = fs["date_from"]
-date_to = fs["date_to"]
-limit = fs["limit"]
-db_ver = fs["db_ver"]
-
-# 2-Panel layout
-col_main, col_ai = get_page_columns()
-
-with col_main:
-    df, bad_dt = load_records(item_codes, keyword, date_from, date_to, limit, db_ver=db_ver)
-
-    if bad_dt > 0:
-        st.warning(f"⚠️ {bad_dt:,}개 레코드의 날짜 파싱에 문제가 있습니다.")
-
-    # KPI summary cards
+# ==========================================================
+# Section 1: KPI summary cards
+# ==========================================================
+def _render_kpi_cards(df: pd.DataFrame) -> None:
+    """Render 3-column KPI row (총 레코드 / 생산일 수 / 일 평균 배치) + spacer."""
     kpi1, kpi2, kpi3 = st.columns(3)
     unique_days = df["production_dt"].dt.date.nunique() if not df.empty else 0
     avg_daily = len(df) / max(unique_days, 1) if not df.empty else 0
@@ -43,10 +32,14 @@ with col_main:
         st.metric("생산일 수", f"{unique_days}일")
     with kpi3:
         st.metric("일 평균 배치", f"{avg_daily:.1f}건")
-
     st.markdown('<div class="bkit-spacer-8"></div>', unsafe_allow_html=True)
 
-    # Display table
+
+# ==========================================================
+# Section 2: Detail table
+# ==========================================================
+def _render_detail_table(df: pd.DataFrame) -> pd.DataFrame:
+    """Render the production records dataframe and return the renamed copy for reuse."""
     display_detail = df[
         ["production_date", "item_code", "item_name", "good_quantity", "lot_number"]
     ].copy()
@@ -61,8 +54,14 @@ with col_main:
         }
     )
     st.dataframe(display_detail, use_container_width=True, hide_index=True)
+    return display_detail
 
-    # Export buttons
+
+# ==========================================================
+# Section 3: Export buttons
+# ==========================================================
+def _render_export_buttons(df: pd.DataFrame, display_detail: pd.DataFrame) -> None:
+    """Render Excel + CSV download buttons. display_detail reuses the renamed frame."""
     export_col1, export_col2, _ = st.columns([1, 1, 4])
     with export_col1:
         st.download_button(
@@ -81,5 +80,30 @@ with col_main:
             use_container_width=True,
         )
 
-# AI panel
+
+# ==========================================================
+# Page entry
+# ==========================================================
+render_page_header("배치 내역", "생산 관리 > 배치 내역")
+
+fs = get_filter_state()
+item_codes = fs["item_codes"]
+keyword = fs["keyword"]
+date_from = fs["date_from"]
+date_to = fs["date_to"]
+limit = fs["limit"]
+db_ver = fs["db_ver"]
+
+col_main, col_ai = get_page_columns()
+
+with col_main:
+    df, bad_dt = load_records(item_codes, keyword, date_from, date_to, limit, db_ver=db_ver)
+
+    if bad_dt > 0:
+        st.warning(f"⚠️ {bad_dt:,}개 레코드의 날짜 파싱에 문제가 있습니다.")
+
+    _render_kpi_cards(df)
+    display_detail = _render_detail_table(df)
+    _render_export_buttons(df, display_detail)
+
 render_ai_column(col_ai)
