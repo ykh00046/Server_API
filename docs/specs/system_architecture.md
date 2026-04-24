@@ -112,8 +112,11 @@ streamlit run dashboard/app.py --server.port 8502
 
 ### 5.3 공통 모듈
 `shared/` 디렉토리의 모듈은 양쪽 서버에서 공유:
-- `database.py`: DBRouter, 연결 관리
+- `database.py`: DBRouter, 연결 관리, ATTACH helper (`attach_archive_safe`)
 - `__init__.py`: 공통 상수 (DB 경로, 컷오프 날짜 등)
+- `process_utils.py`: `kill_process_tree` — psutil 기반 프로세스 트리 종료 (manager.py / atexit 사용, 2026-04-24)
+- `validators.py`: 날짜 파싱, LIKE escape, ARCHIVE_DB whitelist 검증
+- `cache.py` / `metrics.py` / `rate_limiter.py` / `logging_config.py` / `ui/`: 운영 유틸 및 테마
 
 ### 5.4 API 서버 보안 설계
 

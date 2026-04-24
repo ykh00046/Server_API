@@ -88,6 +88,34 @@ python tools/watcher.py --daemon --interval 3600
     시작 위치: [프로젝트 루트]
 ```
 
+### Manager 종료 동작 (manager-orphan-prevention-v1, 2026-04-24)
+
+**정상 종료 경로**:
+- **Tray → "완전 종료"**: `shared.process_utils.kill_process_tree`로 API / Dashboard / Portal 자식 프로세스 트리 전체 정리
+  - psutil로 descendants를 **사전 스냅샷** → graceful `terminate()` → `wait_procs` → 강제 `kill()` → 최후 `taskkill /F /T` fallback
+- **콘솔 `Ctrl+C`** (직접 `python manager.py` 실행 시): `signal.SIGINT` 핸들러가 main Tk thread에 `_cleanup_and_exit` schedule
+- **창 X 버튼**: tray로 숨김 (원 디자인). tray 초기화 실패 시 `messagebox.askyesno`로 종료 확인 dialog fallback
+
+**종료 확인 방법**:
+```bash
+# 종료 후 5초 뒤 포트가 free 인지 검증
+netstat -ano | findstr ":8000"
+netstat -ano | findstr ":8502"
+```
+
+**강제 종료 (작업 관리자) 시 주의**:
+manager를 작업 관리자로 강제 종료하면 `atexit` 훅이 실행되지 않아 자식 프로세스가 남을 수 있습니다.
+다음 실행 전에 잔존 프로세스를 정리하세요:
+```bash
+# PID 확인
+Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'uvicorn|streamlit' } | Select-Object ProcessId, CommandLine
+
+# 개별 종료
+taskkill /F /T /PID <PID>
+```
+
+이 edge case는 후속 사이클 `manager-pid-recovery-v2`(조건부)에서 startup PID 정리로 커버 검토 중입니다.
+
 ---
 
 ## 3. 상태 확인
@@ -699,12 +727,13 @@ python tools/watcher.py --daemon --interval 1800
 
 ## 10. 테스트 / 스모크 벽시계 (security-followup-observability)
 
-**측정일**: 2026-04-14
+**측정일**: 2026-04-24 (최근 사이클 반영)
 **환경**: Windows 11, pytest 로컬 실행 (API TestClient in-process)
 
 | 항목 | 값 |
 |---|---|
-| `pytest tests/ -q` | **10.52s / 133 tests** (설계 목표 <30s ✅) |
+| `pytest tests/ -q --ignore=tests/test_smoke_e2e.py` | **9.40s / 224 tests** (설계 목표 <30s ✅) |
+| 증가분(2026-04-14 대비) | +91 tests (133 → 224) — security-hardening-v3, custom-query-bind-params-v1, tool-schema-smoke-test, manager-orphan-prevention-v1 기여 |
 | 10k `/healthz` 스모크 | 수동 — `python scripts/perf_smoke.py --n 10000` 로 측정 |
 | 10k 스모크 RSS Δ 목표 | < 50 MB |
 

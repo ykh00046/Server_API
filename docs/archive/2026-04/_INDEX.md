@@ -4,6 +4,54 @@
 
 ## 📁 아카이브 목록
 
+### 19. Manager 고아 프로세스 방지 (manager-orphan-prevention-v1)
+- **완료일**: 2026-04-24
+- **상태**: ✅ 완료 (Match Rate 100%)
+- **요약**: `shared/process_utils.py` 신규 — psutil snapshot-before-kill 기반 `kill_process_tree`로 `taskkill /T` snapshot race 해결. `manager.py`에 `signal.SIGINT` 핸들러 + `_setup_tray` try/except + `on_close` confirmation dialog fallback. 222 → 224 tests.
+- **문서**: plan / design / analysis / report
+
+### 18. Tool Schema Smoke Test (tool-schema-smoke-test)
+- **완료일**: 2026-04-24
+- **상태**: ✅ 완료 (Match Rate 100%)
+- **요약**: PRODUCTION_TOOLS 7개의 Gemini FunctionDeclaration을 `_FakeClient` stub으로 offline 검증. 44 tests 추가 — ARRAY `items` 누락, TYPE_UNSPECIFIED, description 공백 등 drift 조기 감지. 178 → 222 tests.
+- **문서**: plan / design / analysis / report
+
+### 17. Custom Query Bind Parameters (custom-query-bind-params-v1)
+- **완료일**: 2026-04-23
+- **상태**: ✅ 완료 (Match Rate 100%)
+- **요약**: `execute_custom_query(sql, params=list[str]|None, description)` 시그니처 확장 — `?` placeholder 바인딩으로 AI의 SQL literal 삽입 경로 제거. `_validate_custom_query_params` helper + system prompt rule 9 갱신 + spec 동기화. 163 → 178 tests.
+- **문서**: plan / design / analysis / report
+
+### 16. Dashboard Pages Refactor (dashboard-pages-refactor)
+- **완료일**: 2026-04-23
+- **상태**: ✅ 완료 (Match Rate 100%)
+- **요약**: overview/batches/trends 3개 페이지를 products-refactor의 `_render_*` hybrid 패턴으로 분해 (8 helpers 추가). 대시보드 4개 페이지 모두 동일 패턴 통일(총 13 helpers).
+- **문서**: plan / design / analysis / report
+
+### 15. Security Hardening v3 (security-hardening-v3)
+- **완료일**: 2026-04-23
+- **상태**: ✅ 완료 (Match Rate 100%)
+- **요약**: `shared.database.attach_archive_safe` helper 추출로 `DBRouter.get_connection`과 `execute_custom_query` 두 곳의 ATTACH 패턴 통일. legacy offset에 `logger.warning("[Deprecated] /records called with offset=... use cursor pagination")`. `tests/test_db_attach.py` 4 tests 추가.
+- **문서**: plan / design / analysis / report
+
+### 14. Products Page Refactor (products-refactor)
+- **완료일**: 2026-04-23
+- **상태**: ✅ 완료 (Match Rate 100%)
+- **요약**: `dashboard/pages/products.py` 5개 `_render_*` helper 분해 + drill-down tab selectbox/chart key를 `selected_cat` 기반으로 안정화(H5 충돌 방지). `shared/ui/responsive.py`에서 dead viewport-detection chain(`detect_viewport`/`get_optimal_columns`/`responsive_grid`/wrapper 3종) 제거 — 270 → 95 lines.
+- **문서**: plan / design / analysis / report
+
+### 13. Docs Sync v1 (docs-sync)
+- **완료일**: 2026-04-23
+- **상태**: ✅ 완료 (Match Rate 100%)
+- **요약**: 4개 spec 문서를 v8 code ground truth에 동기화. AI Architecture 70% → 100% (도구 5→7개, 모듈 분리, SSE/fallback 정책 반영). Dashboard 포트 8501→8502 통일. `critical-fixes` 사이클과 함께 수행하여 89% → 100% 달성.
+- **문서**: plan / design / analysis / report
+
+### 12. Critical Fixes (critical-fixes)
+- **완료일**: 2026-04-23
+- **상태**: ✅ 완료 (Match Rate 100%)
+- **요약**: `GEMINI_FALLBACK_MODEL` 기본값을 preview(`gemini-3.1-flash-lite`)에서 GA(`gemini-2.5-flash-lite`)로 정렬 — preview deprecate 위험 제거 (WebFetch로 사전 검증). `dashboard/components/ai_section.py`의 brittle regex sanitizer 제거 + `unsafe_allow_html=False` 명시화.
+- **문서**: plan / design / analysis / report
+
 ### 1. 보안·테스트 개선 (security-and-test-improvement)
 - **경로**: `security-and-test-improvement/`
 - **완료일**: 2026-04-14
@@ -144,7 +192,15 @@
 | 대시보드 사이드바 리디자인 | 96% | 0 browser errors | ✅ 완료 (소급 PDCA) |
 | 대시보드 코드 품질 | 95% | 149 pass | ✅ 완료 (Act-1) |
 | SSE 스트리밍 최적화 | 96% | 22 pass (SSE) | ✅ 완료 |
+| Critical Fixes | 100% | 7 pass | ✅ 완료 |
+| Docs Sync v1 | 100% | - | ✅ 완료 |
+| Products Page Refactor | 100% | 163 pass | ✅ 완료 |
+| Security Hardening v3 | 100% | 163 pass (+4) | ✅ 완료 |
+| Dashboard Pages Refactor | 100% | 163 pass | ✅ 완료 |
+| Custom Query Bind Params | 100% | 178 pass (+15) | ✅ 완료 |
+| Tool Schema Smoke Test | 100% | 222 pass (+44) | ✅ 완료 |
+| Manager Orphan Prevention | 100% | 224 pass (+2) | ✅ 완료 |
 
 ---
 
-*최종 갱신: 2026-04-21*
+*최종 갱신: 2026-04-24*
