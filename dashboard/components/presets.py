@@ -159,61 +159,60 @@ def render_preset_manager(
         The caller should apply these values to the filter controls.
     """
     st.sidebar.divider()
-    st.sidebar.subheader("필터 프리셋")
+    with st.sidebar.expander("📁 필터 프리셋", expanded=False):
+        loaded_preset = None
 
-    loaded_preset = None
+        # Load preset section
+        preset_names = get_preset_names()
+        if preset_names:
+            selected_preset = st.selectbox(
+                "프리셋 불러오기",
+                options=["-- 선택 --"] + preset_names,
+                index=0,
+                key="preset_selector",
+                help="저장된 필터 프리셋을 선택하세요",
+            )
 
-    # Load preset section
-    preset_names = get_preset_names()
-    if preset_names:
-        selected_preset = st.sidebar.selectbox(
-            "프리셋 불러오기",
-            options=["-- 선택 --"] + preset_names,
-            index=0,
-            key="preset_selector",
-            help="저장된 필터 프리셋을 선택하세요",
+            if selected_preset and selected_preset != "-- 선택 --":
+                col_a, col_b = st.columns(2)
+
+                with col_a:
+                    if st.button("적용", key="apply_preset", use_container_width=True):
+                        loaded_preset = load_preset(selected_preset)
+
+                with col_b:
+                    if st.button("삭제", key="delete_preset", use_container_width=True):
+                        if delete_preset(selected_preset):
+                            st.success(f"'{selected_preset}' 삭제됨")
+                            st.rerun()
+
+        # Save preset section
+        st.text_input(
+            "새 프리셋 이름",
+            key="new_preset_name",
+            placeholder="예: BW0021 최근 30일",
+            help="현재 필터 설정을 저장할 이름을 입력하세요",
         )
 
-        if selected_preset and selected_preset != "-- 선택 --":
-            col_a, col_b = st.sidebar.columns(2)
+        if st.button("현재 필터 저장", key="save_preset", use_container_width=True):
+            name = st.session_state.get("new_preset_name", "").strip()
+            if name:
+                if save_preset(
+                    name,
+                    current_item_codes,
+                    current_date_from,
+                    current_date_to,
+                    current_keyword,
+                    current_limit
+                ):
+                    st.success(f"프리셋 '{name}' 저장됨!")
+                    st.session_state.new_preset_name = ""
+                    st.rerun()
+            else:
+                st.warning("프리셋 이름을 입력하세요")
 
-            with col_a:
-                if st.button("적용", key="apply_preset", width="stretch"):
-                    loaded_preset = load_preset(selected_preset)
-
-            with col_b:
-                if st.button("삭제", key="delete_preset", width="stretch"):
-                    if delete_preset(selected_preset):
-                        st.sidebar.success(f"'{selected_preset}' 삭제됨")
-                        st.rerun()
-
-    # Save preset section
-    st.sidebar.text_input(
-        "새 프리셋 이름",
-        key="new_preset_name",
-        placeholder="예: BW0021 최근 30일",
-        help="현재 필터 설정을 저장할 이름을 입력하세요",
-    )
-
-    if st.sidebar.button("현재 필터 저장", key="save_preset", width="stretch"):
-        name = st.session_state.get("new_preset_name", "").strip()
-        if name:
-            if save_preset(
-                name,
-                current_item_codes,
-                current_date_from,
-                current_date_to,
-                current_keyword,
-                current_limit
-            ):
-                st.sidebar.success(f"프리셋 '{name}' 저장됨!")
-                st.session_state.new_preset_name = ""
-                st.rerun()
-        else:
-            st.sidebar.warning("프리셋 이름을 입력하세요")
-
-    # Show preset count
-    preset_count = len(get_preset_names())
-    st.sidebar.caption(f"프리셋: {preset_count}/{MAX_PRESETS}")
+        # Show preset count
+        preset_count = len(get_preset_names())
+        st.caption(f"프리셋: {preset_count}/{MAX_PRESETS}")
 
     return loaded_preset
