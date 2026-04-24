@@ -1,6 +1,7 @@
 import os
 import sys
 import atexit
+import signal
 import threading
 import subprocess
 import socket
@@ -30,6 +31,7 @@ from shared import (
     API_PORT,
     DB_TIMEOUT,
 )
+from shared.process_utils import kill_process_tree
 from tools.db_watcher import DBWatcher
 
 
@@ -46,7 +48,7 @@ def _cleanup_all_processes() -> None:
         for proc in _active_processes:
             try:
                 if proc.poll() is None:
-                    _taskkill_tree(proc.pid)
+                    kill_process_tree(proc.pid)
             except Exception:
                 pass
         _active_processes.clear()
@@ -274,14 +276,6 @@ def _is_port_in_use(port: int):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(("localhost", port)) == 0
 
-def _taskkill_tree(pid: int):
-    try:
-        subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], 
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-    except Exception:
-        pass
-
-
 # ==========================================================
 # Manager UI (v3.0 - Portal Integration)
 # ==========================================================
@@ -324,6 +318,15 @@ class ServerManager(ctk.CTk):
 
         # Setup system tray
         self._setup_tray()
+
+        # Console Ctrl+C -> schedule cleanup on main Tk thread.
+        # signal.signal works only on the main thread and only when a console
+        # is attached (direct `python manager.py`). VBS background launch has
+        # no console -> handler registration fails silently (expected).
+        try:
+            signal.signal(signal.SIGINT, self._on_sigint)
+        except (ValueError, OSError):
+            pass
 
     def _init_header(self):
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -540,7 +543,7 @@ class ServerManager(ctk.CTk):
     def stop_web(self):
         if self.web_panel.process:
             _unregister_process(self.web_panel.process)
-            _taskkill_tree(self.web_panel.process.pid)
+            kill_process_tree(self.web_panel.process.pid)
         self.web_panel.process = None
         self.web_panel.set_stopped()
         self.web_panel.append_log(">>> Stopped.", "WARN")
@@ -561,7 +564,7 @@ class ServerManager(ctk.CTk):
     def stop_api(self):
         if self.api_panel.process:
             _unregister_process(self.api_panel.process)
-            _taskkill_tree(self.api_panel.process.pid)
+            kill_process_tree(self.api_panel.process.pid)
         self.api_panel.process = None
         self.api_panel.set_stopped()
         self.api_panel.append_log(">>> Stopped.", "WARN")
@@ -580,7 +583,7 @@ class ServerManager(ctk.CTk):
     def stop_portal(self):
         if self.portal_panel.process:
             _unregister_process(self.portal_panel.process)
-            _taskkill_tree(self.portal_panel.process.pid)
+            kill_process_tree(self.portal_panel.process.pid)
         self.portal_panel.process = None
         self.portal_panel.set_stopped()
         self.portal_panel.append_log(">>> Stopped.", "WARN")
@@ -628,16 +631,26 @@ class ServerManager(ctk.CTk):
     # System Tray
     # --------------------------
     def _setup_tray(self) -> None:
-        """Setup system tray icon."""
-        icon_image = _create_tray_icon()
+        """Setup system tray icon (best-effort).
 
-        menu = pystray.Menu(
-            pystray.MenuItem("창 보이기", self._show_window, default=True),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("완전 종료", self._quit_app),
-        )
-
-        self.tray_icon = pystray.Icon("production_hub", icon_image, "Production Hub", menu)
+        If tray backend is unavailable, `self.tray_icon` stays None and
+        `on_close` falls back to a confirmation dialog so the user can still
+        exit cleanly instead of getting stuck with a hidden window.
+        """
+        self.tray_icon = None
+        try:
+            icon_image = _create_tray_icon()
+            menu = pystray.Menu(
+                pystray.MenuItem("창 보이기", self._show_window, default=True),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("완전 종료", self._quit_app),
+            )
+            self.tray_icon = pystray.Icon(
+                "production_hub", icon_image, "Production Hub", menu
+            )
+        except Exception as e:
+            # Printed so it shows up in console for the dev; UI keeps working.
+            print(f"[Manager] Tray init failed: {e}", flush=True)
 
     def _show_window(self, icon=None, item=None) -> None:
         """Show window from tray."""
@@ -673,8 +686,26 @@ class ServerManager(ctk.CTk):
         sys.exit(0)
 
     def on_close(self) -> None:
-        """Handle window close button - hide to tray instead of quitting."""
-        self._hide_to_tray()
+        """Handle window close button.
+
+        - Tray available: hide to tray (original design — user sees tray icon).
+        - Tray unavailable: prompt to confirm full exit so the user is not
+          stuck with a hidden window and no way to bring it back.
+        """
+        if self.tray_icon is not None:
+            self._hide_to_tray()
+            return
+
+        if messagebox.askyesno(
+            "종료 확인",
+            "트레이 아이콘을 사용할 수 없습니다.\n"
+            "서버를 모두 종료하고 매니저를 닫으시겠습니까?"
+        ):
+            self._cleanup_and_exit()
+
+    def _on_sigint(self, signum, frame) -> None:
+        """Console Ctrl+C handler — schedule graceful exit on main Tk thread."""
+        self.after(0, self._cleanup_and_exit)
 
 
 if __name__ == "__main__":
