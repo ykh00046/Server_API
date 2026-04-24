@@ -686,10 +686,40 @@ Archive + Live 양쪽을 합쳐서 조회합니다.
 production_date, item_code, item_name, good_quantity, lot_number
 ```
 
+**Parameters**
+
+| 파라미터 | 타입 | 기본값 | 설명 |
+|----------|------|--------|------|
+| `sql` | string | (필수) | SELECT 쿼리. 값은 `?` placeholder로 표기 |
+| `params` | list[string] | `null` | `?` 바인딩 값 (순서대로). 미지정 시 no-bind |
+| `description` | string | `""` | 로그용 설명 |
+
 **제약 사항**
 - SELECT만 허용 (INSERT/UPDATE/DELETE 불가)
+- 세미콜론(`;`) 금지 (multi-statement 방지)
 - LIMIT 필수 (미지정 시 자동으로 1000 추가)
-- 실행 타임아웃: 3초
+- 실행 타임아웃: 환경변수 `CUSTOM_QUERY_TIMEOUT_SEC` 기본 10초
+- `params`는 `list[str]`만 허용 (dict/tuple/숫자 원소 거부 → `code: INVALID_PARAMS`)
+
+**파라미터 바인딩 (권장)**
+
+SQL 본문에 값을 직접 박지 말고 `?` placeholder + `params` 배열로 분리하여 인젝션을 방지합니다.
+모든 값은 **문자열로 전달**하며, SQLite가 자동으로 컬럼 타입에 맞게 cast합니다.
+
+```json
+// 안전한 방식 (권장)
+{
+  "sql": "SELECT item_code, SUM(good_quantity) AS total FROM production_records WHERE item_code = ? AND production_date >= ? GROUP BY item_code LIMIT 100",
+  "params": ["BW0021", "2026-01-20"]
+}
+
+// backward compat (literal 포함, 기존 코드 호환)
+{
+  "sql": "SELECT COUNT(*) FROM production_records WHERE lot_number LIKE 'LT2026%' LIMIT 1"
+}
+```
+
+> 컬럼명·테이블명·`ASC/DESC` 같은 SQL **식별자**는 placeholder로 쓸 수 없으므로 SQL 본문에 직접 작성하세요.
 
 **트리거 예시**
 ```

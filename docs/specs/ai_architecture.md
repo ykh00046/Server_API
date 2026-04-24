@@ -106,19 +106,38 @@
 - **제약:** `limit` 1~50으로 clamp.
 - **반환:** `[{production_date, lot_number, good_quantity, source}, ...]`.
 
-### 4.7 `execute_custom_query(sql, description="")`
+### 4.7 `execute_custom_query(sql, params=None, description="")`
 
 - **목적:** 위 6개 도구로 해결 안 되는 복잡한 조건 (Text-to-SQL).
-- **다층 보안 검증** (`api/tools.py:524-695`):
-  1. `_strip_sql_comments()` — block/line 코멘트 제거 후 검증 (bypass 방지).
-  2. 세미콜론 차단 (multi-statement 방지).
-  3. `SELECT`로 시작하는지 확인.
-  4. **Word-boundary 정규식**으로 forbidden keyword(`DROP, DELETE, UPDATE, INSERT, ALTER, TRUNCATE, CREATE, REPLACE, PRAGMA, ATTACH, DETACH, VACUUM, REINDEX, EXECUTE, SYSTEM, SCRIPT, JAVASCRIPT, EVAL`) 검출.
-  5. Substring 패턴(`LOAD_EXTENSION, SQLITE_, EXEC(`) 검출.
-  6. `production_records` 테이블 참조 강제.
-  7. `LIMIT` 미지정 시 자동 1000 추가.
+- **다층 보안 검증** (`api/tools.py`):
+  1. `_validate_custom_query_params()` — params는 `None` 또는 `list[str]`만 허용. dict/tuple/None-in-list/non-str 원소 거부 (`code: INVALID_PARAMS`).
+  2. `_strip_sql_comments()` — block/line 코멘트 제거 후 검증 (bypass 방지).
+  3. 세미콜론 차단 (multi-statement 방지).
+  4. `SELECT`로 시작하는지 확인.
+  5. **Word-boundary 정규식**으로 forbidden keyword(`DROP, DELETE, UPDATE, INSERT, ALTER, TRUNCATE, CREATE, REPLACE, PRAGMA, ATTACH, DETACH, VACUUM, REINDEX, EXECUTE, SYSTEM, SCRIPT, JAVASCRIPT, EVAL`) 검출.
+  6. Substring 패턴(`LOAD_EXTENSION, SQLITE_, EXEC(`) 검출.
+  7. `production_records` 테이블 참조 강제.
+  8. `LIMIT` 미지정 시 자동 1000 추가.
+- **Parameter binding** (custom-query-bind-params-v1):
+  - `params`가 `None`/`[]` → 기존 경로(no-bind). Backward compat 유지.
+  - `params`가 `list[str]` → `conn.execute(sql, tuple(params))`로 SQLite positional bind.
+  - SQL 본문에 `?` placeholder 사용. SQLite dynamic typing으로 TEXT → 컬럼 타입 자동 cast (numeric 비교 OK).
+  - 컬럼명/테이블명/ORDER BY 방향은 placeholder 대상 아니므로 SQL literal로 작성.
 - **격리 실행:** dedicated connection + `threading` + `conn.interrupt()` (timeout `CUSTOM_QUERY_TIMEOUT_SEC` 기본 10s).
-- **Archive 접근:** `ARCHIVE_DB_WHITELIST`로 ATTACH 경로 검증 (security-and-test-improvement 사이클).
+- **Archive 접근:** `shared.database.attach_archive_safe()` helper 사용 — `resolve_archive_db` (whitelist) + `file:...?mode=ro` URI form + bind/string fallback 통합 (security-hardening-v3 사이클).
+- **사용 예시:**
+  ```python
+  # 안전한 방식 (params 분리)
+  execute_custom_query(
+      sql="SELECT item_code, SUM(good_quantity) AS total FROM production_records "
+          "WHERE item_code = ? AND production_date >= ? GROUP BY item_code LIMIT 100",
+      params=["BW0021", "2026-01-20"]
+  )
+  # backward compat (literal 포함, 기존 호출 그대로)
+  execute_custom_query(
+      sql="SELECT COUNT(*) FROM production_records WHERE lot_number LIKE 'LT2026%' LIMIT 1"
+  )
+  ```
 
 ---
 
