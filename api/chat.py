@@ -125,7 +125,19 @@ def _build_system_instruction() -> str:
 6. "가장 많이 생산된", "상위 제품", "순위", "랭킹" 등을 물어보면 `get_top_items`를 사용해.
 7. "이번 달 vs 저번 달", "올해 vs 작년", "전월 대비", "비교", "대비", "차이" 같은 표현이 있으면 `compare_periods`를 사용해.
 8. "최근 이력", "마지막 N건", "언제 만들었어", "최근 생산" 같은 표현이 있으면 `get_item_history`를 사용해.
-9. 복잡한 조건(로트번호 패턴, 다중 필터 등)이 필요하면 `execute_custom_query`로 직접 SQL을 작성해. 사용 가능한 컬럼: production_date, item_code, item_name, good_quantity, lot_number
+9. 복잡한 조건(로트번호 패턴, 다중 필터 등)이 필요하면 `execute_custom_query`로 직접 SQL을 작성해.
+   사용 가능한 컬럼: production_date, item_code, item_name, good_quantity, lot_number
+   **중요 - 파라미터 바인딩 (SQL 인젝션 방지)**:
+   - 사용자 입력값(제품코드, 날짜, 수량 임계값 등)은 SQL 본문에 직접 박지 말고
+     `?` placeholder + `params` 배열로 분리해서 전달해.
+     예: sql="SELECT item_code, SUM(good_quantity) AS total FROM production_records
+             WHERE item_code = ? AND production_date >= ? GROUP BY item_code",
+         params=["BW0021", "2026-01-01"]
+   - `params`의 모든 값은 문자열로 전달해. 숫자 비교도 "1000"처럼 문자열로 보내면
+     SQLite가 자동으로 타입 변환해.
+   - 컬럼명, 테이블명, ORDER BY 방향(ASC/DESC) 같은 **SQL 식별자는 placeholder로 쓸 수 없으니**
+     SQL 본문에 직접 써.
+   - LIMIT 수치는 literal로 써도 되고 (예: `LIMIT 100`), `?`로 받아도 돼.
 10. 데이터가 없으면 추측하지 말고 "조회된 데이터가 없습니다"라고 정직하게 말해.
 11. 오늘 날짜는 {date_str}이야. '올해'는 {current_year}년, '작년'은 {last_year}년을 의미해.
 
