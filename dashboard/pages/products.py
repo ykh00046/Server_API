@@ -153,10 +153,17 @@ def _render_distribution_charts(
 def _render_drilldown_item_detail(
     item_df: pd.DataFrame,
     selected_code: str,
+    selected_cat: str,
     colors: dict,
     chart_template: str,
 ) -> None:
-    """Render KPIs + monthly trend + recent batches for a single selected product."""
+    """Render KPIs + monthly trend + recent batches for a single selected product.
+
+    `selected_cat` is used as a widget-key namespace so that different tabs
+    showing the same `selected_code` (e.g. the 'AS' tab and the '전체' tab
+    both defaulting to top product BW0021) do not collide on Streamlit's
+    auto-generated element IDs (StreamlitDuplicateElementId).
+    """
     d_col1, d_col2, d_col3, d_col4 = st.columns(4)
     with d_col1:
         st.metric("총 생산량", f"{item_df['good_quantity'].sum():,.0f}")
@@ -202,6 +209,7 @@ def _render_drilldown_item_detail(
             st.plotly_chart(
                 fig_monthly, width="stretch",
                 config=get_chart_config(f"product_{selected_code}_trend"),
+                key=f"drill_chart_{selected_cat}_{selected_code}",
             )
         else:
             st.info("데이터가 없습니다.")
@@ -220,7 +228,10 @@ def _render_drilldown_item_detail(
                 "good_quantity": "양품수량",
                 "lot_number": "LOT",
             })
-            st.dataframe(recent, width="stretch", hide_index=True, height=340)
+            st.dataframe(
+                recent, width="stretch", hide_index=True, height=340,
+                key=f"drill_table_{selected_cat}_{selected_code}",
+            )
         else:
             st.info("데이터가 없습니다.")
 
@@ -266,7 +277,9 @@ def _render_drilldown(
             if selected_item_label:
                 selected_code = item_code_map[selected_item_label]
                 item_df = cat_df[cat_df["item_code"] == selected_code].copy()
-                _render_drilldown_item_detail(item_df, selected_code, colors, chart_template)
+                _render_drilldown_item_detail(
+                    item_df, selected_code, selected_cat, colors, chart_template
+                )
 
 
 # ==========================================================
