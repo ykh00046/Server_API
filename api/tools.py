@@ -548,7 +548,7 @@ def _validate_custom_query_params(params) -> tuple:
 
 def execute_custom_query(
     sql: str,
-    params: list = None,
+    params: list[str] | None = None,
     description: str = ""
 ) -> Dict[str, Any]:
     """
