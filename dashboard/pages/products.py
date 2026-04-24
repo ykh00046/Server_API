@@ -109,7 +109,7 @@ def _render_distribution_charts(
             showlegend=False,
             margin=dict(l=20, r=20, t=10, b=20),
         )
-        st.plotly_chart(fig_cat, use_container_width=True, config=get_chart_config("category_dist"))
+        st.plotly_chart(fig_cat, width="stretch", config=get_chart_config("category_dist"))
 
     with chart_col2:
         st.markdown("**📊 카테고리별 Top 5 제품**")
@@ -144,7 +144,7 @@ def _render_distribution_charts(
             legend=dict(orientation="h", yanchor="bottom", y=1.02),
             margin=dict(l=50, r=20, t=40, b=60),
         )
-        st.plotly_chart(fig_stack, use_container_width=True, config=get_chart_config("cat_top5"))
+        st.plotly_chart(fig_stack, width="stretch", config=get_chart_config("cat_top5"))
 
 
 # ==========================================================
@@ -200,7 +200,7 @@ def _render_drilldown_item_detail(
                 margin=dict(l=50, r=20, t=20, b=40),
             )
             st.plotly_chart(
-                fig_monthly, use_container_width=True,
+                fig_monthly, width="stretch",
                 config=get_chart_config(f"product_{selected_code}_trend"),
             )
         else:
@@ -220,7 +220,7 @@ def _render_drilldown_item_detail(
                 "good_quantity": "양품수량",
                 "lot_number": "LOT",
             })
-            st.dataframe(recent, use_container_width=True, hide_index=True, height=340)
+            st.dataframe(recent, width="stretch", hide_index=True, height=340)
         else:
             st.info("데이터가 없습니다.")
 
@@ -302,7 +302,7 @@ def _render_trend_comparison(df: pd.DataFrame, db_ver: str, chart_template: str)
     fig_trend.update_layout(height=400)
     st.plotly_chart(
         fig_trend,
-        use_container_width=True,
+        width="stretch",
         config=get_chart_config("product_trends"),
     )
 

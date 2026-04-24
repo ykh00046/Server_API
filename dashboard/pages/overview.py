@@ -89,7 +89,7 @@ def _render_chart_row_1(df, date_from, date_to, db_ver, chart_template, colors) 
             )
             fig.update_yaxes(title_text="생산량", secondary_y=False)
             fig.update_yaxes(title_text="배치 수", secondary_y=True)
-            st.plotly_chart(fig, use_container_width=True, config=get_chart_config("monthly_trend"))
+            st.plotly_chart(fig, width="stretch", config=get_chart_config("monthly_trend"))
         else:
             st.info("데이터가 없습니다.")
 
@@ -97,7 +97,7 @@ def _render_chart_row_1(df, date_from, date_to, db_ver, chart_template, colors) 
         st.markdown("**🏆 Top 10 제품별 생산량**")
         fig_bar = create_top10_bar_chart(df, chart_template, marker_color=colors["primary"])
         fig_bar.update_layout(height=360, margin=dict(l=80, r=20, t=30, b=40))
-        st.plotly_chart(fig_bar, use_container_width=True, config=get_chart_config("top10"))
+        st.plotly_chart(fig_bar, width="stretch", config=get_chart_config("top10"))
 
 
 # ==========================================================
@@ -111,7 +111,7 @@ def _render_chart_row_2(df, chart_template) -> None:
         st.markdown("**🍩 생산 분포**")
         fig_pie = create_distribution_pie(df, chart_template)
         fig_pie.update_layout(height=340, margin=dict(l=20, r=20, t=30, b=40))
-        st.plotly_chart(fig_pie, use_container_width=True, config=get_chart_config("distribution"))
+        st.plotly_chart(fig_pie, width="stretch", config=get_chart_config("distribution"))
 
     with chart_col4:
         st.markdown("**📊 최근 현황 요약**")
@@ -124,7 +124,7 @@ def _render_chart_row_2(df, chart_template) -> None:
                 "item_name": "제품명",
                 "good_quantity": "양품수량",
             })
-            st.dataframe(recent, use_container_width=True, hide_index=True, height=340)
+            st.dataframe(recent, width="stretch", hide_index=True, height=340)
         else:
             st.info("데이터가 없습니다.")
 

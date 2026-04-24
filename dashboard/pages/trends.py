@@ -67,7 +67,7 @@ def _render_trend_chart(
     fig.update_yaxes(title_text="생산량 (개)", secondary_y=False)
     fig.update_yaxes(title_text="배치 수", secondary_y=True)
     st.plotly_chart(
-        fig, use_container_width=True,
+        fig, width="stretch",
         config=get_chart_config(f"trends_{agg_unit}"),
     )
 
@@ -88,7 +88,7 @@ def _render_summary_table(summary_df: pd.DataFrame) -> None:
     display_summary = summary_df.rename(columns=col_rename)
     if "평균 배치 크기" in display_summary.columns:
         display_summary["평균 배치 크기"] = display_summary["평균 배치 크기"].round(1)
-    st.dataframe(display_summary, use_container_width=True, hide_index=True)
+    st.dataframe(display_summary, width="stretch", hide_index=True)
 
 
 # ==========================================================

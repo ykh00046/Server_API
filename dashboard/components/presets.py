@@ -177,11 +177,11 @@ def render_preset_manager(
                 col_a, col_b = st.columns(2)
 
                 with col_a:
-                    if st.button("적용", key="apply_preset", use_container_width=True):
+                    if st.button("적용", key="apply_preset", width="stretch"):
                         loaded_preset = load_preset(selected_preset)
 
                 with col_b:
-                    if st.button("삭제", key="delete_preset", use_container_width=True):
+                    if st.button("삭제", key="delete_preset", width="stretch"):
                         if delete_preset(selected_preset):
                             st.success(f"'{selected_preset}' 삭제됨")
                             st.rerun()
@@ -194,7 +194,7 @@ def render_preset_manager(
             help="현재 필터 설정을 저장할 이름을 입력하세요",
         )
 
-        if st.button("현재 필터 저장", key="save_preset", use_container_width=True):
+        if st.button("현재 필터 저장", key="save_preset", width="stretch"):
             name = st.session_state.get("new_preset_name", "").strip()
             if name:
                 if save_preset(

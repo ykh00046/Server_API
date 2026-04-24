@@ -126,7 +126,7 @@ with st.sidebar:
     if loaded_preset:
         st.info("프리셋 로드됨. 필터 조정 후 새로고침하세요.")
 
-    if st.button("🔄 새로고침", use_container_width=True):
+    if st.button("🔄 새로고침", width="stretch"):
         st.cache_data.clear()
         st.rerun()
 

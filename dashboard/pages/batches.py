@@ -53,7 +53,7 @@ def _render_detail_table(df: pd.DataFrame) -> pd.DataFrame:
             "lot_number": "LOT 번호",
         }
     )
-    st.dataframe(display_detail, use_container_width=True, hide_index=True)
+    st.dataframe(display_detail, width="stretch", hide_index=True)
     return display_detail
 
 
@@ -68,7 +68,7 @@ def _render_export_buttons(df: pd.DataFrame, display_detail: pd.DataFrame) -> No
             "📥 Excel 다운로드",
             _cached_excel_bytes(df),
             "production_records.xlsx",
-            use_container_width=True,
+            width="stretch",
         )
     with export_col2:
         csv_data = display_detail.to_csv(index=False).encode("utf-8-sig")
@@ -77,7 +77,7 @@ def _render_export_buttons(df: pd.DataFrame, display_detail: pd.DataFrame) -> No
             csv_data,
             "production_records.csv",
             mime="text/csv",
-            use_container_width=True,
+            width="stretch",
         )
 
 

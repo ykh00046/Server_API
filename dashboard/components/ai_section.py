@@ -421,7 +421,7 @@ def render_ai_section_compact(api_url: str | None = None) -> None:
         cols = st.columns(2)
         for idx, (label, prompt) in enumerate(QUICK_CHIPS):
             with cols[idx % 2]:
-                if st.button(label, key=f"qchip_{idx}", use_container_width=True):
+                if st.button(label, key=f"qchip_{idx}", width="stretch"):
                     chip_clicked = prompt
 
         if chip_clicked:
@@ -452,6 +452,6 @@ def render_ai_section_compact(api_url: str | None = None) -> None:
 
     # New chat button
     if len(st.session_state.messages) > 0:
-        if st.button("✨ 새 대화", key="compact_new_chat", use_container_width=True):
+        if st.button("✨ 새 대화", key="compact_new_chat", width="stretch"):
             st.session_state.messages = []
             st.rerun()
