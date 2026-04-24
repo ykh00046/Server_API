@@ -520,8 +520,35 @@ def _strip_sql_comments(sql: str) -> str:
     return sql.strip()
 
 
+def _validate_custom_query_params(params) -> tuple:
+    """Validate execute_custom_query params input.
+
+    Accepts None or list[str]. Returns a tuple suitable for sqlite3 bind.
+    Any other type or non-string element raises ValueError.
+
+    Why str-only: Gemini tool schema stays simple (list[str] has trivial
+    representation), and SQLite dynamic typing auto-casts string values to
+    the column's native type for comparison. Clients must convert numbers
+    to strings ("1000") before passing — explicit over ambiguous union types.
+    """
+    if params is None:
+        return ()
+    if not isinstance(params, list):
+        raise ValueError(
+            f"params must be a list or None (got {type(params).__name__})"
+        )
+    for i, p in enumerate(params):
+        if not isinstance(p, str):
+            raise ValueError(
+                f"params[{i}] must be a string (got {type(p).__name__}); "
+                f"convert numbers to str - SQLite auto-casts for comparison"
+            )
+    return tuple(params)
+
+
 def execute_custom_query(
     sql: str,
+    params: list = None,
     description: str = ""
 ) -> Dict[str, Any]:
     """
@@ -531,21 +558,27 @@ def execute_custom_query(
 
     IMPORTANT RULES:
     - Only SELECT queries are allowed (database is read-only)
-    - Only 'production_records' table is available
+    - Only 'production_records' table is available (use 'archive.production_records' for pre-2026)
     - Available columns: production_date, item_code, item_name, good_quantity, lot_number
     - Always include LIMIT clause (max 1000 rows)
+    - **Use ? placeholders + params for any values (SQL injection safe)**
     - For date ranges spanning multiple years, use UNION ALL with archive.production_records
 
     Args:
-        sql: The SELECT SQL query to execute
-        description: Brief description of what this query does (for logging)
+        sql: The SELECT SQL query. Use ? for each parameter, e.g. "... WHERE item_code = ?".
+        params: List of string values bound to ? placeholders in order. Optional (default: None).
+            All values must be strings; SQLite dynamically casts for numeric comparisons.
+            Example: params=["BW0021", "2026-01-01", "1000"].
+        description: Brief description of what this query does (for logging only).
 
     Returns:
-        Dict with query results or error message
+        Dict with query results or error message.
 
     Example queries:
-        - "SELECT SUM(good_quantity) as total FROM production_records WHERE item_code = 'BW0021' AND lot_number LIKE '2%' AND production_date >= '2026-01-20'"
-        - "SELECT lot_number, SUM(good_quantity) as qty FROM production_records WHERE item_code = 'ABC001' GROUP BY lot_number ORDER BY qty DESC LIMIT 10"
+        - sql="SELECT SUM(good_quantity) as total FROM production_records WHERE item_code = ? AND production_date >= ?"
+          params=["BW0021", "2026-01-20"]
+        - sql="SELECT lot_number, SUM(good_quantity) as qty FROM production_records WHERE item_code = ? GROUP BY lot_number ORDER BY qty DESC LIMIT 10"
+          params=["ABC001"]
     """
     import sqlite3
     import threading
@@ -557,6 +590,16 @@ def execute_custom_query(
     from shared.database import _apply_pragma_settings
 
     try:
+        # Validate bind parameters first (fast-fail before SQL parsing)
+        try:
+            bound_params = _validate_custom_query_params(params)
+        except ValueError as e:
+            return {
+                "status": "error",
+                "code": "INVALID_PARAMS",
+                "message": str(e),
+            }
+
         # Strip SQL comments before any validation (prevent bypass via comments)
         sql_clean = _strip_sql_comments(sql.strip())
         sql_upper = sql_clean.upper()
@@ -638,7 +681,7 @@ def execute_custom_query(
 
             def run_query(connection):
                 try:
-                    cursor = connection.execute(sql_clean)
+                    cursor = connection.execute(sql_clean, bound_params)
                     rows = cursor.fetchall()
                     result["rows"] = [dict(r) for r in rows]
                     result["columns"] = [desc[0] for desc in cursor.description] if cursor.description else []
