@@ -657,11 +657,16 @@ def execute_custom_query(
         with QueryLogger("custom_query", DBTargets(use_archive=use_archive, use_live=True), logger) as ql:
             ql.add_info("description", description or "custom query")
 
-            # Execute with timeout (3 seconds)
+            # Execute with timeout (CUSTOM_QUERY_TIMEOUT_SEC).
             # Dedicated connection required for conn.interrupt() — cannot use thread-local cache.
             # Apply PRAGMA settings so custom queries get same perf as regular API queries.
+            # check_same_thread=False: conn is created on the main thread but
+            # run_query executes on a worker thread. mode=ro makes write-race
+            # concerns moot, so cross-thread use is safe here.
             db_uri = f"file:{DB_FILE.absolute()}?mode=ro"
-            conn = sqlite3.connect(db_uri, uri=True, timeout=DB_TIMEOUT)
+            conn = sqlite3.connect(
+                db_uri, uri=True, timeout=DB_TIMEOUT, check_same_thread=False
+            )
             conn.row_factory = sqlite3.Row
             _apply_pragma_settings(conn)
 
@@ -687,15 +692,25 @@ def execute_custom_query(
                     result["columns"] = [desc[0] for desc in cursor.description] if cursor.description else []
                 except Exception as e:
                     result["error"] = str(e)
+                    logger.exception("[custom_query] run_query failed")
 
-            thread = threading.Thread(target=run_query, args=(conn,))
+            # daemon=True: if run_query gets stuck past timeout + 1s grace, the
+            # thread must not keep the Python process alive. Connection is left
+            # for GC rather than explicit close() to avoid a cross-thread
+            # close/execute race (M-NEW-1, custom-query-thread-safety).
+            thread = threading.Thread(target=run_query, args=(conn,), daemon=True)
             thread.start()
             thread.join(timeout=CUSTOM_QUERY_TIMEOUT_SEC)
 
             if thread.is_alive():
                 conn.interrupt()  # Cancel the running SQLite query
                 thread.join(timeout=1.0)
-                conn.close()
+                # Do NOT close conn here — run_query may still be in C-level
+                # fetchall(). Daemon thread exits with process; GC releases conn.
+                logger.warning(
+                    f"[custom_query] timeout after {CUSTOM_QUERY_TIMEOUT_SEC}s; "
+                    f"leaked connection pending GC (daemon thread still alive)"
+                )
                 return {
                     "status": "error",
                     "code": "QUERY_TIMEOUT",
