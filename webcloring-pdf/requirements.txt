@@ -1,0 +1,43 @@
+# INTEROJO Portal Automation - Requirements
+# Python 3.8+
+
+# ============================================
+# Core Automation
+# ============================================
+selenium==4.15.0
+webdriver-manager==4.0.1
+
+# ============================================
+# Excel Processing
+# ============================================
+openpyxl==3.1.2
+
+# ============================================
+# Google Sheets Integration (Optional)
+# ============================================
+google-api-python-client==2.108.0
+google-auth-httplib2==0.2.0
+google-auth-oauthlib==1.2.0
+
+# ============================================
+# System Monitoring & Health Check
+# ============================================
+psutil==5.9.6
+requests==2.31.0
+urllib3==2.1.0
+
+# ============================================
+# GUI (Tkinter - Built-in with Python)
+# ============================================
+# tkinter is included with Python standard library
+
+# ============================================
+# Development & Testing (Optional)
+# ============================================
+pytest==7.4.3
+pytest-cov==4.1.0
+
+# ============================================
+# Image Processing (Optional)
+# ============================================
+# Pillow==10.1.0  # Uncomment if needed for image processing

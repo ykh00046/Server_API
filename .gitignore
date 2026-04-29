@@ -14,6 +14,7 @@ build/
 venv/
 env/
 .smoke-venv/
+.smoke-venv2/
 
 # Databases
 *.db
@@ -27,6 +28,8 @@ docs/.pdca-snapshots/
 
 # Logs
 logs/
+.playwright-mcp/
+.pytest_cache/
 
 # OS / editor files
 .DS_Store

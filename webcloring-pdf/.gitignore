@@ -1,0 +1,77 @@
+# 가상환경
+.venv/
+.venv_backup/
+venv/
+env/
+ENV/
+
+# 빌드 산출물
+build/
+dist/
+*.spec
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# 로그
+logs/
+*.log
+
+# 데이터 (생성된 파일만 제외, 폴더 구조는 유지)
+data/PDF/*
+!data/PDF/.gitkeep
+data/excel/*.xlsx
+data/excel/backup/*
+!data/excel/.gitkeep
+data/screenshots/*
+!data/screenshots/.gitkeep
+
+# IDE 설정
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 환경변수 (보안)
+.env
+.env.local
+.env.*.local
+
+# PyInstaller
+*.manifest
+*.spec
+
+# 테스트
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 임시 파일
+*.tmp
+*.bak
+*.swp
+
+# 테스트 파일
+test_*.py
+debug_*.py
+*_debug.html
+*_source.html
+
+# Google Sheets 키 파일 (보안)
+*-*.json
+google_sheets_key.json
+src/config/*-*.json
+src/config/google_sheets_settings.json
+
+# Chromedriver (자동 관리됨)
+chromedriver.exe

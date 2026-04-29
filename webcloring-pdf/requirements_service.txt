@@ -1,0 +1,43 @@
+# INTEROJO Real-time Monitoring Service Dependencies
+
+# Web automation (기존)
+selenium>=4.0.0
+webdriver-manager>=3.8.0
+
+# Excel processing (기존)
+openpyxl>=3.0.0
+
+# Environment variables (기존)
+python-dotenv>=0.19.0
+
+# Image processing (기존)
+Pillow>=8.0.0
+
+# HTTP requests (기존)
+requests>=2.25.0
+
+# Date/time processing (기존)
+python-dateutil>=2.8.0
+
+# 실시간 서비스를 위한 새로운 패키지들
+schedule>=1.2.0          # 작업 스케줄링
+psutil>=5.8.0            # 시스템 모니터링
+watchdog>=2.1.0          # 파일 시스템 모니터링 (선택사항)
+colorama>=0.4.4          # 콘솔 색상 출력
+tabulate>=0.9.0          # 테이블 형태 출력
+
+# Google Sheets 통합 (v3.0)
+gspread>=5.0.0           # Google Sheets API
+google-auth>=2.0.0       # Google 인증
+google-auth-oauthlib>=0.5.0  # OAuth 라이브러리
+google-auth-httplib2>=0.1.0  # HTTP 라이브러리
+
+# 알림 서비스 (선택사항)
+# slack-sdk>=3.15.0      # Slack 알림
+# python-telegram-bot>=13.0  # Telegram 알림
+
+# 로깅 강화 (선택사항)
+# loguru>=0.6.0          # 고급 로깅
+
+# 서비스화 (Windows용, 선택사항)
+# pywin32>=227           # Windows 서비스

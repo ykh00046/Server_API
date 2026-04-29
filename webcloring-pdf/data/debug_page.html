@@ -1,0 +1,1212 @@
+<html lang="ko"><head>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scale=no, target-densitydpi=medium-dpi">
+	<title>인터로조</title>
+	
+	
+	<link rel="stylesheet" type="text/css" href="/base/css2.0/common.css">
+	<link rel="stylesheet" media="screen and (min-width: 801px)" href="/base/css2.0/common01.css"> <!--PC-->
+	<link rel="stylesheet" media="screen and (max-width: 800px)" href="/base/css2.0/common02.css"> <!--MOBILE-->
+	<link rel="stylesheet" media="screen and (max-width: 1100px)" href="/base/css2.0/common03.css"> <!-- PC+GNB없음-->
+	
+	<script type="text/javascript" src="/base/js2.0/jquery-1.9.1.min.js"></script>
+	<script type="text/javascript" src="/base/js2.0/jquery-ui.11.12.1.js"></script>
+	<script type="text/javascript" src="/base/js2.0/pluginset.js"></script><!-- 각종 플러그인 모음 -->
+	<script type="text/javascript" src="/base/js2.0/common.js"></script>
+	
+	
+		
+	<!-- <script type="text/javascript" src="/base/js/jquery/jquery-ui-1.8.13.min.without.datepicker.js"></script>
+	<script type="text/javascript" src="/base/js/jquery/jquery.ui.datepicker.customize.min.js"></script> -->
+	<script type="text/javascript" src="/base/js/jquery/jquery.jstree.pack.js"></script>
+	<script type="text/javascript" src="/base/js/jquery/jquery.validate-1.12.0.min.js"></script>
+	<script type="text/javascript" src="/base/js/jquery/plugins.min.js"></script>
+	<script type="text/javascript" src="/base/js/etc.plugins.min.js"></script>
+	<script type="text/javascript" src="/base/js/langResource/ko.js"></script>
+	<script type="text/javascript" src="/base/js/common.min.js"></script>
+	
+	
+<!-- 포인트 색상 입력 -->    
+<style type="text/css">
+	
+	/* 공통 */              
+	.fColor { color:#ff5349 !important; }
+	.bdColor { border-color:#ff5349 !important; }             
+	.bgColor { background-color:#ff5349 !important; }
+	.bdTopColor { border-top:2px solid #ff5349 !important; }
+	.btn-more button span:before { border-top-color:#ff5349 !important; }/* 더보기 버튼 */
+	.calendar-layer .hasDatepicker .ui-datepicker-calendar td .ui-state-active { background-color:#ff5349 !important; } /* 캘린더 레리아웃 선택 박스 배경색 */
+  
+	 /* 연차현황 포틀릿 포인트 색상 */
+	.annual-wrap div.remainder { color:#ff5349 !important; }  
+	.annual-cont .scroll-box .annual-list span:first-child { color:#ff5349 !important; }  
+	
+	/* 지식은행/학점이수 현황 포틀릿 포인트 색상 */
+	.score .allDate p strong { color:#ff5349 !important; }
+	.score .allDate ul li span strong { color:#ff5349 !important; }
+	
+	/* 할일 포틀릿 포인트 색상 */  
+	.write-box .btn-write { background-color:#ff5349 !important; }  
+	              
+	/* 블로그 */
+	.blog-info { background-color:#ff5349 !important; }/* 블로그 모바일 메인 색상 */
+	.blog-wrap .info-navi .calendar-area table td .ui-state-active { background-color:#ff5349 !important; } /* 우측 달력 선택 박스 배경색 */
+	
+	/* 결재 */  
+	.approval-view { border-top-color:#ff5349 !important; }/* 결재 상세 뷰 본문 상단 라인 색상 */  
+	     
+	/* 내부회계 */  
+	.accounting-area .sorting-area .btn-close em { background-color:#ff5349 !important; } /* 접기 버튼 아이콘 */
+	       
+	/* 로그인화면 로딩바 */   
+	.progress-success.progress-striped .bar, .progress-striped .bar-success { background-color:#ff5349 !important; }  
+	
+	/*jstree 선택시 */
+	.jstree .jstree-clicked { font-weight:bold; color:#ff5349 !important;}
+	
+	/* 탭메뉴 포인트 */  
+	.ui-tabs-active span.text { font-weight:bold; color:#ff5349 !important;  }
+	                 
+
+	/* 포틀릿 라인색상적용 - 웹버전 */
+   	.content .line { border-color:#ff5349 !important; }
+
+	/* 포틀릿 라인색상적용 - 모바일 버전 */
+	@media only screen and (max-width:800px) {
+   		/* 포틀릿 라인색상적용  - 모바일버전 */
+		.content .cont-inner .title-area {
+			border-bottom:1px solid  #ff5349 !important;
+		}
+	}
+
+
+</style>     
+	
+<style type="text/css" id="vakata-stylesheet">#vakata-dragged { display:block; margin:0 0 0 0; padding:4px 4px 4px 24px; position:absolute; top:-2000px; line-height:16px; z-index:10000; } #vakata-contextmenu { display:block; visibility:hidden; left:0; top:-200px; position:absolute; margin:0; padding:0; min-width:180px; background:#ebebeb; border:1px solid silver; z-index:10000; *width:180px; } #vakata-contextmenu ul { min-width:180px; *width:180px; } #vakata-contextmenu ul, #vakata-contextmenu li { margin:0; padding:0; list-style-type:none; display:block; } #vakata-contextmenu li { line-height:20px; min-height:20px; position:relative; padding:0px; } #vakata-contextmenu li a { padding:1px 6px; line-height:17px; display:block; text-decoration:none; margin:1px 1px 0 1px; } #vakata-contextmenu li ins { float:left; width:16px; height:16px; text-decoration:none; margin-right:2px; } #vakata-contextmenu li a:hover, #vakata-contextmenu li.vakata-hover > a { background:gray; color:white; } #vakata-contextmenu li ul { display:none; position:absolute; top:-2px; left:100%; background:#ebebeb; border:1px solid gray; } #vakata-contextmenu .right { right:100%; left:auto; } #vakata-contextmenu .bottom { bottom:-1px; top:auto; } #vakata-contextmenu li.vakata-separator { min-height:0; height:1px; line-height:1px; font-size:1px; overflow:hidden; margin:0 2px; background:silver; /* border-top:1px solid #fefefe; */ padding:0; } </style></head>
+<body>
+	
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+ 
+ <script type="text/javascript" src="/base/js/jquery/jquery.validate-1.8.min.js"></script>
+
+	
+		
+	
+
+
+<script type="text/javascript">
+var curRowIndex = 0; 
+var moreCnt = 1; 
+var startDate = "2025.11.24";
+var endDate = "2025.11.24";
+
+<!--
+
+//시작일과 종료일 체크하는 메써드 jQuery에 추가
+jQuery.validator.addMethod("greaterThan", function(value, element, params) {
+	var val_Date = new Date(value.substring(0,4), value.substring(5,7), value.substring(8,10) );
+	var par_Date = new Date(jQuery(params).val().substring(0,4), jQuery(params).val().substring(5,7), jQuery(params).val().substring(8,10) );
+    if (!/Invalid|NaN/.test(val_Date)) {return val_Date >= par_Date;}
+    return isNaN(value) && isNaN(jQuery(params).val()) || (parseFloat(value) >= parseFloat(jQuery(params).val()));
+});
+jQuery.validator.addMethod("lesserThan", function(value, element, params) {
+	var val_Date = new Date(value.substring(0,4), value.substring(5,7), value.substring(8,10) );
+	var par_Date = new Date(jQuery(params).val().substring(0,4), jQuery(params).val().substring(5,7), jQuery(params).val().substring(8,10) );
+    if (!/Invalid|NaN/.test(val_Date)) {return val_Date <= par_Date;}
+    return isNaN(value) && isNaN(jQuery(params).val()) || (parseFloat(value) <= parseFloat(jQuery(params).val()));
+});
+
+(function($) {
+
+	//주의 : 글로벌 함수는 아래와 같이 글로벌 변수에 무명 함수를 assign해서 생성한다.
+
+	/**
+	 * 정렬 조건 변경 함수
+	 *
+	 * @param {Object} sortColumn
+	 * @param {Object} sortType
+	 */
+
+	 f_Sort = function(sortColumn, sortType) {
+		$("input[name=sortColumn]").val(sortColumn);
+
+		if(sortType == '') sortType = 'ASC';
+
+		if( sortType == 'ASC') {
+			$("input[name=sortType]").val('DESC');
+		} else {
+			$("input[name=sortType]").val('ASC');
+		}
+
+		$("#searchApListButton").click();
+	};
+
+	//문서 상세 정보
+	getApprDetail = function(apprId, entrustUserId, appUrl ) {
+
+		if (appUrl == null || appUrl == "" ) {
+		    $("#searchForm").ajaxLoadStart();
+			$("#searchForm input[name=apprId]:hidden").val(apprId);
+			$("#searchForm input[name=entrustUserId]:hidden").val(entrustUserId);
+			$("#searchForm").attr("action","/approval/work/apprWorkDoc/viewApprDoc.do");
+			$("#searchForm").submit();
+		} else {
+
+			window.open(appUrl,"Approval","width=860,height=700,left="+0+",top="+0+",location=no,toolbar=no,status=no,scrollbars=yes,menubar=no,resizable");
+		}
+	};
+
+	//문서 결재 정보 조회
+	getViewApprLine = function(apprId) {
+
+		var $divContext = $jq("#"+apprId+"_180509_P227"),
+			$trRow = $jq("#apprLineTr"+apprId+"_180509_P227");
+
+		if($divContext.is(":hidden")) {
+
+			$jq("#listTable").ajaxLoadStart("button");
+
+			$jq("tr[id^=apprLineTr]").each(function() {
+				var rowApprid = $(this).find("div").attr("id");
+
+				$jq("#"+rowApprid).empty();
+				$jq("#apprLineTr"+rowApprid).css("display","block");
+				$jq("#"+rowApprid).hide();
+				$jq("#apprLineTr"+rowApprid).hide();
+			});
+			$.post("/approval/work/apprLine/listApprLineInfo.do", {apprId	:	apprId})
+				.success(function(result) {
+					$divContext.append(result);
+					$trRow.css("display","");
+					$divContext.show();
+					$jq("#listTable").ajaxLoadComplete();
+				})
+				.error(function(event, request, settings) {
+					//alert("error");
+					$jq("#listTable").ajaxLoadComplete();
+				});
+		}else {
+			$divContext.empty();
+			$trRow.css("display","block");
+			$divContext.hide();
+			$trRow.hide();
+		}
+
+	};
+
+	setInitExcelDownBtnVisible = function(){
+		if ( navigator.userAgent.toLowerCase().indexOf("chrome") != -1 ) { // Chrome
+			if(new URLSearchParams(document.location.search).get('auth') == 'all'){
+				$("#exceldownload_btn_div").show();
+			}
+		}
+	};
+	/**
+	 * onload시 수행할 코드
+	 */
+	$(document).ready(function() {
+		
+		setInitExcelDownBtnVisible();
+		
+		$("#searchStartDate").val(startDate);
+		$("#searchEndDate").val(endDate);
+		
+		//네비게이션 추가. 2012.09.14 이재원
+		/*var curNavText = '&nbsp;&gt;&nbsp;'+
+						 '완료문서함';
+		callLocation(document.URL,curNavText);
+
+		//left 메뉴
+		leftSelect('#apprIntegrateOfLeft');*/
+
+		$("#searchStartDate").closest('.date-text').find('.datepicker').datepicker({
+			yearRange: "c-80:c+0",  
+			yearSuffix:"",    
+			maxDate : $("#searchEndDate").closest('.date-text').find('.btn-calendar input').val(),
+			altField: $("#searchStartDate")  ,
+			onSelect : function(date, inst) {
+				$("#searchEndDate").closest('.date-text').find('.datepicker').datepicker("option", "minDate", $(this).val());
+				$('.dimmed').remove();  
+				$('.btn-calendar input').removeClass('bdColor')
+					.closest('.date-text').css({'z-index':'1'}).removeClass('on')  
+					.find('.calendar-layer').hide();
+			}
+		});
+		
+		$("#searchEndDate").closest('.date-text').find('.datepicker').datepicker({
+			yearRange: "c-80:c+0",  
+			yearSuffix:"",    
+			altField: $("#searchEndDate")  ,
+			onSelect : function(date, inst) {
+				$("#searchStartDate").closest('.date-text').find('.datepicker').datepicker("option", "maxDate", $(this).val());
+				$('.dimmed').remove();  
+				$('.btn-calendar input').removeClass('bdColor')
+					.closest('.date-text').css({'z-index':'1'}).removeClass('on')  
+					.find('.calendar-layer').hide();
+			}
+		});
+		
+		$("#searchStartDate").val(startDate);
+		$("#searchEndDate").val(endDate);
+		
+		
+			$jq("#searchStartDate").closest('.date-text').find('.datepicker').datepicker('setDate', stringToDate(startDate));
+		
+		
+		
+			$jq("#searchEndDate").closest('.date-text').find('.datepicker').datepicker('setDate', stringToDate(endDate));
+		
+		
+		$("#searchApListButton").click(function() {
+		    $("#searchForm").ajaxLoadStart();
+			$("input[name=pageIndex]").val('1');
+			$("input[name=curRowIndex]").val(curRowIndex);
+			$("#searchForm").submit();
+			return false;
+		});
+
+		//전체 선택
+		$("#allCheck").click(function() {
+			if ($("#allCheck").is(":checked")) {
+				$(this).closest('.board-list1').find('input[type="checkbox"]').each(function(){
+					$(this).closest('.checkWrap').addClass('checked');
+					$(this).attr('checked',true);
+				});
+			}else{
+				$(this).closest('.board-list1').find('input[type="checkbox"]').each(function(){
+					$(this).closest('.checkWrap').removeClass('checked');
+					$(this).attr('checked',false);
+				});
+		    }
+	    });
+
+		$("#allHidden").click(function() {
+			var apprIds = new Array();
+
+			$("#searchForm input[name=chkApprId]:checked").each(function(index) {
+				apprIds.push($(this).val());
+			});
+
+			if(apprIds == "") {
+				alert("삭제할 항목을 선택하세요.");
+				return;
+			}
+
+			if(confirm("삭제하시겠습니까?")) {
+				$.post("/approval/work/apprlist/hiddenApprList.do", {"apprIds" : apprIds.toString()})
+				.success(function(result) {
+					if(result == "OK") {
+						alert("삭제 되었습니다.");
+						location.href="/approval/work/apprlist/readApprAllList.do";
+					}
+				})
+			}
+		});
+		
+		//열람권한 일괄 저장 (완료된 문서만 가능)
+	     $jq("#allReadAdd").click(function(){
+	     	if(!iKEP.sessionLoginCheck()) {
+	    		iKEP.loginPopup(iFC.user.id);
+	      	} else {
+	        	var apprIds = new Array();
+
+	    		$("#searchForm input[name=chkApprId]:checked").each(function(index) {
+	     			apprIds.push($(this).val());
+	    		});
+
+	    		if(apprIds == "") {
+	     			alert("열람권한 추가할 항목을 선택하세요.");
+	     			return;
+	    		}
+
+	   		 	iKEP.showAddressBook(setReadAddressSave, null, {selectType:"ALL", isAppend:false, selectMaxCnt:100, pType:"Duty", isGlobal:"Y"});
+	      	}
+
+	     });
+		//개인보관함에 저장 
+		$jq("#addApprUserDoc").click(function(){
+			var apprIds = "";
+
+			$("#searchForm input[name=chkApprId]").each(function(index) { 
+				if($(this).is(":checked")) {
+					apprIds += $(this).val() +";";
+				}
+			});		
+ 
+			if(apprIds == "") {
+				alert("개인보관할 항목을 선택하세요.");
+				return;
+			}
+			  
+			 dialog = new iKEP.showDialog({     
+					title 		: "개인보관함",
+					url 		: "/approval/work/userdoc/apprUserDocMenu.do?usePop=Y&apprId="+apprIds,
+					modal 		: true,
+					width 		: 250,
+					height 		: 350,
+					params 		: {apprId:apprIds},
+					callback : function(result) {
+						if(result == "OK") {  
+							alert("처리 되었습니다.");
+							location.href="/approval/work/apprlist/readApprAllList.do";
+						}
+					}
+				});	
+			
+		});
+		
+		
+		/**
+		 * 페이징 버튼
+		 */
+		$("#pageIndex").click(function() {
+			//모바일 페이징값 초기화 
+		 	$("#curRowIndex").val(0);
+			$("#searchForm").submit();
+			return false;
+		});
+
+		$("select[name=pagePerRecord]").change(function(){
+            $("#pageIndex").click();
+        });
+
+		//$("#BEG_DA").datepicker({dateFormat: 'yy.mm.dd'}).next().eq(0).click(function() { $("#BEG_DA").datepicker("show"); });
+		//$("#END_DA").datepicker({dateFormat: 'yy.mm.dd'}).next().eq(0).click(function() { $("#END_DA").datepicker("show"); });
+
+		$("#BEG_DA").closest('.date-text').find('.datepicker').datepicker({
+			yearRange: "c-80:c+0",  
+			yearSuffix:"",    
+			altField: $("#BEG_DA")  ,
+			onSelect : function(date, inst) {
+				$("#END_DA").closest('.date-text').find('.datepicker').datepicker("option", "minDate", $(this).val());
+				$('.dimmed').remove();  
+				$('.btn-calendar input').removeClass('bdColor')
+					.closest('.date-text').css({'z-index':'1'}).removeClass('on')  
+					.find('.calendar-layer').hide();
+			}
+		});
+
+		$("#END_DA").closest('.date-text').find('.datepicker').datepicker({
+			yearRange: "c-80:c+0",  
+			yearSuffix:"",    
+			altField: $("#END_DA")  ,
+			onSelect : function(date, inst) {
+				$("#BEG_DA").closest('.date-text').find('.datepicker').datepicker("option", "maxDate", $(this).val());
+				$('.dimmed').remove();  
+				$('.btn-calendar input').removeClass('bdColor')
+					.closest('.date-text').css({'z-index':'1'}).removeClass('on')  
+					.find('.calendar-layer').hide();
+			}
+		});
+		
+		// 팝업 레이어 Hide
+		$jq("#ly_close").click(function() {
+			$jq(".dim").remove();
+			$jq(this).parent().parent().css("display", "none");
+			// $jq("#ly_contents").html("");
+			// $jq("#ly_buttons").html("");
+		});
+
+		$("#BEG_DA").val(getDateFullFormat(new Date()));
+
+		$("input[name='RAD_PERIOD']").click(function(){
+			var begStr = $("#BEG_DA").val().replace(/[.]/gi, "-");
+			var begDate = new Date(begStr);
+			if($(this).val() == "1W"){
+				begDate.setDate(begDate.getDate()+7);
+				$("#END_DA").val(getDateFullFormat(begDate));
+			}else if($(this).val() == "1M"){
+				begDate.setMonth(begDate.getMonth()+1);
+				$("#END_DA").val(getDateFullFormat(begDate));
+			}else if($(this).val() == "3M"){
+				begDate.setMonth(begDate.getMonth()+3);
+				$("#END_DA").val(getDateFullFormat(begDate));
+			}else if($(this).val() == "6M"){
+				begDate.setMonth(begDate.getMonth()+6);
+				$("#END_DA").val(getDateFullFormat(begDate));
+			}else if($(this).val() == "1Y"){
+				begDate.setFullYear(begDate.getFullYear()+1);
+				$("#END_DA").val(getDateFullFormat(begDate));
+			}
+		});
+		
+		//더보기(모바일)
+		$("#more").click(function() {
+			curRowIndex = 10;
+			moreCnt = moreCnt + 1;
+			$("#curRowIndex").val(curRowIndex*moreCnt);
+
+			$.ajax({     
+				url : $("#searchForm").attr("action"),     
+				data :  $("#searchForm").serialize(),     
+				type : "post",
+				loadingElement : {button:"#more"},
+				success : function(result) {  
+					$("body").ajaxLoadComplete();
+					$("#mobileContent").html($(jQuery.parseHTML(result)).find('#mobileContent').html());
+					
+					$("#mobileContent input[name=chkApprId]").closest('.checkWrap').removeClass("checkWrap");
+
+					$("#mobileContent input[name=chkApprId]").closest('span').each(function(){
+						$(this).addClass("checkWrap");
+
+					});
+					parent.iKEP.iFrameResize2('#contentIframe');
+					//console.log($(jQuery.parseHTML(result)).find('#mobileContent').html());
+				}, error:function(request,status,error){
+
+					//console.log("code:"+request.status+"\n"+"message:"+request.responseText+"\n"+"error:"+error);
+
+	           }
+			});
+		});
+
+		//엑셀다운
+		$jq("#btnExcelDown").click(function(){
+			f_excelDown();
+		});
+
+	});
+
+	apprSecrchKeyevent = function(event){
+		if (event.keyCode == '13'){
+			$("#searchApListButton").click();
+		}
+	};
+
+	showLayer = function(layerTitle, layerWidth, layerHeight) {
+		//var top = ($jq(window).height() - layerHeight) / 2;
+		//var left = ($jq(window).width() - layerWidth) / 2;
+
+		$("#mainContents").append('<div class="dim"></div>');
+		$(".dim").css("height", $(document).height());
+		$("#ly_form_title").html(layerTitle);
+		$("#ly_form").css("display", "block");
+		$("#ly_form").css("top", "100px");
+		$("#ly_form").css("left", "150px");
+		$("#ly_form").css("width",  layerWidth);
+		$("#ly_form > .ly_contents").css("height", layerHeight);
+	};
+
+	f_excelDown = function(){
+		showLayer("상세검색", 750, 350);
+	};
+
+	ly_excelDown = function(){
+		if($("#SEL_EXCEL_LIST option:selected").val() == ""){
+			alert("양식을 선택해 주세요.");
+			return false;
+		}
+
+		$("#excelFormId").val($("#SEL_EXCEL_LIST option:selected").val());
+		$("#excelBegDate").val($("#BEG_DA").val());
+		$("#excelEndDate").val($("#END_DA").val());
+
+		iKEP.ajaxFileDownloadStart();
+		$jq("#apprExcelForm").attr({
+			action:"/approval/work/apprlist/getApprExcelData.do",
+			method:'POST'
+		}).submit();
+
+		return false;
+		/*
+		if($("#excelFormId").val() == "FORM00000063"){
+			itemFORM00000063Excel();
+		}
+		else{
+			ajaxCall("/approval/form/formCommon/chkApprList.do",
+					{
+						excelFormId : $("#excelFormId").val(),
+						excelBegDate : $("#excelBegDate").val(),
+						excelEndDate : $("#excelEndDate").val()
+					}, re_excelDown);
+		}
+		*/
+	};
+
+	re_excelDown = function(json){
+		if(json.result.length < 1){
+			alert("해당날짜에 대한 데이터가 없습니다.");
+			return false;
+		}
+		iKEP.ajaxFileDownloadStart();
+		$jq("#apprExcelForm").attr({
+			action:"/approval/form/formCommon/changeFormDataToExcel.do",
+			method:'POST'
+		}).submit();
+		return false;
+	}
+
+	itemConditionExcel = function(){
+		iKEP.ajaxFileDownloadStart();
+		$("#excelBegDate").val($("#searchStartDate").val());  // searchStartDate
+		$("#excelEndDate").val($("#searchEndDate").val());  //searchEndDate
+
+
+		$jq("#apprExcelForm").attr({
+
+			action:"/approval/form/formCommon/itemsConditionExcel.do",
+			method:'POST'
+		}).submit();
+		return false;
+	}
+
+	itemFORM00000063Excel = function(){
+		iKEP.ajaxFileDownloadStart();
+		$jq("#apprExcelForm").attr({
+			action:"/approval/form/formCommon/itemFORM00000063Excel.do",
+			method:'POST'
+		}).submit();
+		return false;
+	}
+
+	getDateFullFormat = function(mDate){
+		var retDate = mDate.getFullYear()+"."+
+					  dateMake(mDate.getMonth() + 1, 2) + "." +
+					  dateMake(mDate.getDate(), 2);
+		return retDate;
+	}
+
+	dateMake = function(n, dit){
+		var zero = "";
+		n = n.toString();
+		if(n.length < dit){
+			for(var i = 0; i < dit - n.length; i++){
+				zero += 0;
+			}
+			return zero + n;
+		}else{
+			return n;
+		}
+
+	}
+
+	ajaxCall = function(url, data, callback){
+		$.ajax({
+			url : url,
+			type : "POST",
+			data : data,
+			success : function(data) {
+				callback(data);
+			},
+			error : function(request, status, error) {
+				alert("실패 : \n code : " + request.status+"\nMessage : " + request.responseText+"\nError : "+error);
+			}
+
+		});
+	}
+	
+	
+	//지정된 열람자 일괄로 저장하기
+	setReadAddressSave = function(data){
+		/* if(!confirm("열람권한을 일괄로 등록 하시겠습니까?")) return; */
+
+	  	var result="";
+
+	    $.each(data, function() {
+           if(result!="") result += ";";
+
+           if(this.type=="user")
+               result +=  "0" + "," + this.id + "," + this.group;
+           else
+               result +=  "1" + "," + this.code + "," + this.code;
+       	});
+
+       	var apprIds = new Array();
+
+ 		$("#searchForm input[name=chkApprId]:checked").each(function(index) {
+  			apprIds.push($(this).val());
+ 		});
+
+       	$.post("/approval/work/apprlist/readAddApprList.do", {"readId":result,"apprIds" : apprIds.toString()})
+ 		.success(function(result) {
+  			if(result == "OK") {
+   				alert("열람권한 일괄로 등록 되었습니다.");
+   				//location.href="/approval/work/apprlist/listApprDocAllUser.do";
+
+   				$("#searchForm").attr("action", iKEP.getContextRoot()+"/approval/work/apprlist/readApprAllList.do");
+                $("#searchForm").submit();
+
+  			}
+ 		})
+
+	};
+	
+	/**
+	 * 초기화 버튼
+	 */
+	initSearchBox = function(){
+		//검색조건 초기화
+		$("#searchFormName").val("");
+		$("#searchUserName").val("");
+		$("#searchApprTitle").val("");
+		$("#searchFormEditorData").val("");
+		$("#searchApprDocNo").val("");
+		$("#searchGroupId option:eq(0)").attr("selected", "selected");
+		$("#searchGroupId").closest('.selectWrap').find('.selTitle').text($("#searchGroupId").find('option:selected').text());
+		$("#searchStartDate").val(startDate);
+		$("#searchEndDate").val(endDate);
+	};
+
+})(jQuery);
+//-->
+</script>
+
+<div class="content app-request">
+	<div class="title-wrap">
+		<h2 class="title">완료문서함</h2>
+	</div>
+
+	<!--blockSearch Start-->
+	<form id="searchForm" method="post" action="/approval/work/apprlist/readApprAllList.do">
+		
+			<input name="apprId" type="hidden" value="" title="hidden">
+		
+		
+			<input name="listType" type="hidden" value="listApprIntegrate" title="hidden">
+		
+			<input name="apprIds" type="hidden" value="" title="hidden">
+		
+			<input name="sortColumn" type="hidden" value="apprEndDate" title="정렬 컬럼">
+		
+		
+			<input name="sortType" type="hidden" value="DESC" title="정렬 타입 ">
+		
+		
+			<input name="entrustUserId" type="hidden" value="" title="hidden">
+		
+		
+		<input name="curRowIndex" id="curRowIndex" type="hidden" value="0" title="curRowIndex"> <!--모바일 조회 처리용-->
+		
+		
+		<div class="top-search-box">
+			<dl class="list-item">
+				
+					<dt><label for="searchFormName">양식명</label></dt>
+					<dd><input type="text" id="searchFormName" style="width:100%;max-width:300px;" title="양식명" name="searchFormName" value="자재" onkeypress="apprSecrchKeyevent(event);"></dd>
+				
+			</dl>
+			<dl class="list-item">
+				
+					<dt><label for="searchUserName">기안자</label></dt>
+					<dd><input type="text" id="searchUserName" style="width:100%;max-width:300px;" title="기안자" name="searchUserName" value="" onkeypress="apprSecrchKeyevent(event);"></dd>
+				
+			</dl>
+			<dl class="list-item">
+				<dt>완료일</dt>
+				<dd class="period-area">
+					<div class="box-item">
+						<div class="date-text">
+							
+								<div class="btn-calendar"><input type="text" id="searchStartDate" name="searchStartDate" title="시작일" value="2025.11.24" readonly="readonly"></div>
+								<div class="calendar-layer bdColor" style="">
+									<div class="datepicker hasDatepicker" id="dp1763954971120"><div class="ui-datepicker-inline ui-datepicker ui-widget ui-widget-content ui-helper-clearfix ui-corner-all" style="display: block;"><div class="ui-datepicker-header ui-widget-header ui-helper-clearfix ui-corner-all"><a class="ui-datepicker-prev ui-corner-all" data-handler="prev" data-event="click" title="Prev"><span class="ui-icon ui-icon-circle-triangle-w">Prev</span></a><a class="ui-datepicker-next ui-corner-all ui-state-disabled" title="Next"><span class="ui-icon ui-icon-circle-triangle-e">Next</span></a><div class="ui-datepicker-title"><select class="ui-datepicker-month" data-handler="selectMonth" data-event="change"><option value="0">1</option><option value="1">2</option><option value="2">3</option><option value="3">4</option><option value="4">5</option><option value="5">6</option><option value="6">7</option><option value="7">8</option><option value="8">9</option><option value="9">10</option><option value="10" selected="selected">11</option></select><select class="ui-datepicker-year" data-handler="selectYear" data-event="change"><option value="1945">1945</option><option value="1946">1946</option><option value="1947">1947</option><option value="1948">1948</option><option value="1949">1949</option><option value="1950">1950</option><option value="1951">1951</option><option value="1952">1952</option><option value="1953">1953</option><option value="1954">1954</option><option value="1955">1955</option><option value="1956">1956</option><option value="1957">1957</option><option value="1958">1958</option><option value="1959">1959</option><option value="1960">1960</option><option value="1961">1961</option><option value="1962">1962</option><option value="1963">1963</option><option value="1964">1964</option><option value="1965">1965</option><option value="1966">1966</option><option value="1967">1967</option><option value="1968">1968</option><option value="1969">1969</option><option value="1970">1970</option><option value="1971">1971</option><option value="1972">1972</option><option value="1973">1973</option><option value="1974">1974</option><option value="1975">1975</option><option value="1976">1976</option><option value="1977">1977</option><option value="1978">1978</option><option value="1979">1979</option><option value="1980">1980</option><option value="1981">1981</option><option value="1982">1982</option><option value="1983">1983</option><option value="1984">1984</option><option value="1985">1985</option><option value="1986">1986</option><option value="1987">1987</option><option value="1988">1988</option><option value="1989">1989</option><option value="1990">1990</option><option value="1991">1991</option><option value="1992">1992</option><option value="1993">1993</option><option value="1994">1994</option><option value="1995">1995</option><option value="1996">1996</option><option value="1997">1997</option><option value="1998">1998</option><option value="1999">1999</option><option value="2000">2000</option><option value="2001">2001</option><option value="2002">2002</option><option value="2003">2003</option><option value="2004">2004</option><option value="2005">2005</option><option value="2006">2006</option><option value="2007">2007</option><option value="2008">2008</option><option value="2009">2009</option><option value="2010">2010</option><option value="2011">2011</option><option value="2012">2012</option><option value="2013">2013</option><option value="2014">2014</option><option value="2015">2015</option><option value="2016">2016</option><option value="2017">2017</option><option value="2018">2018</option><option value="2019">2019</option><option value="2020">2020</option><option value="2021">2021</option><option value="2022">2022</option><option value="2023">2023</option><option value="2024">2024</option><option value="2025" selected="selected">2025</option></select></div></div><table class="ui-datepicker-calendar"><thead><tr><th scope="col" class="ui-datepicker-week-end"><span title="Sunday">Sun</span></th><th scope="col"><span title="Monday">Mon</span></th><th scope="col"><span title="Tuesday">Tue</span></th><th scope="col"><span title="Wednesday">Wed</span></th><th scope="col"><span title="Thursday">Thu</span></th><th scope="col"><span title="Friday">Fri</span></th><th scope="col" class="ui-datepicker-week-end"><span title="Saturday">Sat</span></th></tr></thead><tbody><tr><td class=" ui-datepicker-week-end ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">1</a></td></tr><tr><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">2</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">3</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">4</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">5</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">6</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">7</a></td><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">8</a></td></tr><tr><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">9</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">10</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">11</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">12</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">13</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">14</a></td><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">15</a></td></tr><tr><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">16</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">17</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">18</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">19</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">20</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">21</a></td><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">22</a></td></tr><tr><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">23</a></td><td class=" ui-datepicker-days-cell-over  ui-datepicker-current-day ui-datepicker-today" data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default ui-state-highlight ui-state-active ui-state-hover" href="#">24</a></td><td class=" ui-datepicker-unselectable ui-state-disabled "><span class="ui-state-default">25</span></td><td class=" ui-datepicker-unselectable ui-state-disabled "><span class="ui-state-default">26</span></td><td class=" ui-datepicker-unselectable ui-state-disabled "><span class="ui-state-default">27</span></td><td class=" ui-datepicker-unselectable ui-state-disabled "><span class="ui-state-default">28</span></td><td class=" ui-datepicker-week-end ui-datepicker-unselectable ui-state-disabled "><span class="ui-state-default">29</span></td></tr><tr><td class=" ui-datepicker-week-end ui-datepicker-unselectable ui-state-disabled "><span class="ui-state-default">30</span></td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-week-end ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td></tr></tbody></table></div></div>
+								</div>
+							
+						</div>
+					</div>
+					<span class="swung-dash">~</span>
+					<div class="box-item">
+						<div class="date-text">
+							 
+								<div class="btn-calendar"><input type="text" id="searchEndDate" name="searchEndDate" title="종료일" value="2025.11.24" readonly="readonly"></div>
+								<div class="calendar-layer bdColor" style="">
+									<div class="datepicker hasDatepicker" id="dp1763954971121"><div class="ui-datepicker-inline ui-datepicker ui-widget ui-widget-content ui-helper-clearfix ui-corner-all" style="display: block;"><div class="ui-datepicker-header ui-widget-header ui-helper-clearfix ui-corner-all"><a class="ui-datepicker-prev ui-corner-all" data-handler="prev" data-event="click" title="Prev"><span class="ui-icon ui-icon-circle-triangle-w">Prev</span></a><a class="ui-datepicker-next ui-corner-all" data-handler="next" data-event="click" title="Next"><span class="ui-icon ui-icon-circle-triangle-e">Next</span></a><div class="ui-datepicker-title"><select class="ui-datepicker-month" data-handler="selectMonth" data-event="change"><option value="0">1</option><option value="1">2</option><option value="2">3</option><option value="3">4</option><option value="4">5</option><option value="5">6</option><option value="6">7</option><option value="7">8</option><option value="8">9</option><option value="9">10</option><option value="10" selected="selected">11</option><option value="11">12</option></select><select class="ui-datepicker-year" data-handler="selectYear" data-event="change"><option value="1945">1945</option><option value="1946">1946</option><option value="1947">1947</option><option value="1948">1948</option><option value="1949">1949</option><option value="1950">1950</option><option value="1951">1951</option><option value="1952">1952</option><option value="1953">1953</option><option value="1954">1954</option><option value="1955">1955</option><option value="1956">1956</option><option value="1957">1957</option><option value="1958">1958</option><option value="1959">1959</option><option value="1960">1960</option><option value="1961">1961</option><option value="1962">1962</option><option value="1963">1963</option><option value="1964">1964</option><option value="1965">1965</option><option value="1966">1966</option><option value="1967">1967</option><option value="1968">1968</option><option value="1969">1969</option><option value="1970">1970</option><option value="1971">1971</option><option value="1972">1972</option><option value="1973">1973</option><option value="1974">1974</option><option value="1975">1975</option><option value="1976">1976</option><option value="1977">1977</option><option value="1978">1978</option><option value="1979">1979</option><option value="1980">1980</option><option value="1981">1981</option><option value="1982">1982</option><option value="1983">1983</option><option value="1984">1984</option><option value="1985">1985</option><option value="1986">1986</option><option value="1987">1987</option><option value="1988">1988</option><option value="1989">1989</option><option value="1990">1990</option><option value="1991">1991</option><option value="1992">1992</option><option value="1993">1993</option><option value="1994">1994</option><option value="1995">1995</option><option value="1996">1996</option><option value="1997">1997</option><option value="1998">1998</option><option value="1999">1999</option><option value="2000">2000</option><option value="2001">2001</option><option value="2002">2002</option><option value="2003">2003</option><option value="2004">2004</option><option value="2005">2005</option><option value="2006">2006</option><option value="2007">2007</option><option value="2008">2008</option><option value="2009">2009</option><option value="2010">2010</option><option value="2011">2011</option><option value="2012">2012</option><option value="2013">2013</option><option value="2014">2014</option><option value="2015">2015</option><option value="2016">2016</option><option value="2017">2017</option><option value="2018">2018</option><option value="2019">2019</option><option value="2020">2020</option><option value="2021">2021</option><option value="2022">2022</option><option value="2023">2023</option><option value="2024">2024</option><option value="2025" selected="selected">2025</option></select></div></div><table class="ui-datepicker-calendar"><thead><tr><th scope="col" class="ui-datepicker-week-end"><span title="Sunday">Sun</span></th><th scope="col"><span title="Monday">Mon</span></th><th scope="col"><span title="Tuesday">Tue</span></th><th scope="col"><span title="Wednesday">Wed</span></th><th scope="col"><span title="Thursday">Thu</span></th><th scope="col"><span title="Friday">Fri</span></th><th scope="col" class="ui-datepicker-week-end"><span title="Saturday">Sat</span></th></tr></thead><tbody><tr><td class=" ui-datepicker-week-end ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">1</a></td></tr><tr><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">2</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">3</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">4</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">5</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">6</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">7</a></td><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">8</a></td></tr><tr><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">9</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">10</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">11</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">12</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">13</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">14</a></td><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">15</a></td></tr><tr><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">16</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">17</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">18</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">19</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">20</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">21</a></td><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">22</a></td></tr><tr><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">23</a></td><td class=" ui-datepicker-days-cell-over  ui-datepicker-current-day ui-datepicker-today" data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default ui-state-highlight ui-state-active ui-state-hover" href="#">24</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">25</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">26</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">27</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">28</a></td><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">29</a></td></tr><tr><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">30</a></td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-week-end ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td></tr></tbody></table></div></div>
+								</div>
+							
+						</div>
+					</div>
+				</dd>
+			</dl>
+			<dl class="list-item">
+				<dt><label for="searchApprTitle">문서 제목</label></dt>
+				
+					<dd><input type="text" id="searchApprTitle" style="width:100%;max-width:300px;" title="문서 제목" name="searchApprTitle" value="" onkeypress="apprSecrchKeyevent(event);"></dd>
+				
+			</dl>
+			<dl class="list-item">
+				<dt><label for="searchApprTitle">문서번호</label></dt>
+				
+					<dd><input type="text" id="searchApprDocNo" style="width:100%;max-width:300px;" title="문서번호" name="searchApprDocNo" value="" onkeypress="apprSecrchKeyevent(event);"></dd>
+				
+			</dl>
+			<dl class="list-item">
+				
+					<dt><label for="searchGroupId">기안부서</label></dt>
+					<dd>
+						<span class="selectWrap" style="width:140px;"><span class="selTitle">전체</span><select class="styled1" style="width:140px;" title="기안부서" id="searchGroupId" name="searchGroupId">
+							<option value="">전체</option>
+							
+								<option value="45280_P227">원료생산팀</option>
+							
+						</select></span>
+					</dd>
+				
+			</dl>
+			
+		
+			<div class="btn-wrap center">
+				<div class="btn-align">
+					<div class="btn-item"><button type="button" class="btn-text mid" onclick="initSearchBox()">초기화</button></div>
+					<div class="btn-item"><a id="searchApListButton" name="searchApListButton" href="#a" class="btn-text mid bgColor">검색</a></div>
+				</div>
+			</div>
+		</div>
+		<button type="button" class="btn-search-toggle close wHide"><span class="text">Collapse</span></button>
+	
+		<!--listHeader Start-->
+		<div class="sorting-area">
+			<div class="left-box">
+				<p class="all-len">전체 <span class="len fColor">0</span> 건</p>
+			</div>
+			
+			<div class="right-box mHide">
+				
+					<span class="selectWrap" style="width:120px;"><span class="selTitle">10</span><select class="styled1 mHide" style="width:120px;" name="pagePerRecord" title="페이지당 게시글 수">
+						
+							<option value="10" selected="selected">10</option>
+						
+							<option value="15">15</option>
+						
+							<option value="20">20</option>
+						
+							<option value="30">30</option>
+						
+							<option value="40">40</option>
+						
+							<option value="50">50</option>
+						
+					</select></span>
+				
+			</div>
+		</div>
+		
+		<!--blockListTable Start-->
+		<div class="list-view">
+			<!-- web 리스트 -->
+			<div class="list-type mHide">
+				<div class="board-list1">
+					<table summary="완료문서함" id="listTable">
+						<caption></caption>
+						<colgroup>							
+							<col width="5%">							
+							<col width="13%">
+							<col width="16%">
+							<col width="*">
+							<col width="10%">
+							<col width="13%">
+							<col width="16%">
+						</colgroup>
+						<thead>
+							<tr>
+								<th scope="col">
+									<span class="checkWrap"><input name="allCheck" id="allCheck" class="styled1" title="" type="checkbox" value=""></span>
+								</th>
+								<th scope="col">문서번호</th>
+								<th scope="col">양식명</th>
+								<th scope="col">
+									<a onclick="f_Sort('apprTitle', '');" href="#a">
+										문서 제목&nbsp;&nbsp;
+									
+										
+										
+											<button type="button" class="btn-sorting">
+												<span class="icon"></span>
+											</button>	<!-- down -->
+										
+									
+									</a>
+								</th>
+								<th scope="col">기안자</th>
+								<th scope="col">기안부서</th>
+								<th scope="col">
+									<a onclick="f_Sort('apprEndDate', 'DESC');" href="#a">
+										완료일&nbsp;&nbsp;
+										
+											
+												
+													<button type="button" class="btn-sorting up fColor">
+														<span class="icon bgColor"></span>
+													</button> <!-- up -->
+												
+												
+											
+											
+											
+										
+									</a>
+								</th>
+							</tr>	
+						</thead>
+						<tbody>
+							
+								
+									<tr class="btn-type">
+										
+											
+												
+												<td colspan="6">검색 결과가 존재하지 않습니다.</td>
+											
+										
+									</tr>
+								
+								
+							
+						</tbody>
+					</table>
+				</div>
+			</div>
+			<!--// web 리스트 -->
+			<!-- Mobile 컨텐츠  -->
+			<div id="mobileContent" class="board-list2 wHide">
+				<ul class="type2">
+					
+				</ul>
+			</div>
+			<div class="btn-more wHide">
+				<button id="more" type="button"><span>더보기</span></button>
+			</div>
+			<!--// Mobile 컨텐츠  -->
+		</div>
+		<!--Page Numbur Start-->
+		
+		
+		<input id="pageIndex" name="pageIndex" type="hidden" value="0" title="현재 페이지">
+		
+		<!--//Page Numbur End-->
+	</form>
+	
+	<!--blockButton Start-->
+		<div class="btn-wrap right">
+				<div class="btn-align">
+				<div class="btn-item"><a href="#a" id="btnExcelDown" class="button"><span class="btn-text" style="display:none;" id="exceldownload_btn_div">엑셀다운</span></a></div>
+
+				<div class="btn-item"><a id="addApprUserDoc" href="#a"><span class="btn-text">개인보관</span></a></div>
+				<div class="btn-item"><a id="allReadAdd" href="#a"><span class="btn-text">열람권한 추가</span></a></div>
+				
+					
+				
+			</div>
+		</div>
+	<!--//blockButton End-->
+	
+</div>
+
+<!--//blockListTable End-->
+
+
+
+
+<!-- excelDownForm -->
+<form id="apprExcelForm" name="apprExcelForm" method="post">
+	<input type="hidden" id="excelFormId" name="excelFormId" value="">
+	<input type="hidden" id="excelBegDate" name="excelBegDate" value="">
+	<input type="hidden" id="excelEndDate" name="excelEndDate" value="">
+</form>
+<!-- excelDownForm -->
+
+<!-- excelDownForm -->
+<form id="apprItemConditionForm" name="apprItemConditionForm" method="post">
+	<input type="hidden" id="excelSDate" name="excelBegDate" value="">
+	<input type="hidden" id="excelEDate" name="excelEndDate" value="">
+</form>
+<!-- excelDownForm -->
+
+<!-- layer_pop_form -->
+<div id="ly_form" class="ly_pop" style="display: none;">
+	<div class="ly_header">
+		<span class="title" id="ly_form_title"></span>
+		<a href="#a" id="ly_close" class="ly_close"><span>Close</span></a>
+	</div>
+	<!-- blockDetail Start -->
+	<div class="ly_contents">
+		<div id="ly_contents">
+			<table id="ly_table" cellpadding="3" cellspacing="1" width="100%">
+				<tbody>
+					<tr>
+						<td>
+							<input type="radio" id="RAD_1WEEK" name="RAD_PERIOD" value="1W"> 1주
+							<input type="radio" id="RAD_1MONTH" name="RAD_PERIOD" value="1M"> 1개월
+							<input type="radio" id="RAD_3MONTH" name="RAD_PERIOD" value="3M"> 3개월
+							<input type="radio" id="RAD_6MONTH" name="RAD_PERIOD" value="6M"> 6개월
+							
+						</td>
+					</tr>
+					<tr>
+						<td>
+							<div class="date-text">
+								<div class="btn-calendar"><input type="text" id="BEG_DA" name="BEG_DA"></div>
+								<div class="calendar-layer bdColor" style="">
+									<div class="datepicker hasDatepicker" id="dp1763954971122"><div class="ui-datepicker-inline ui-datepicker ui-widget ui-widget-content ui-helper-clearfix ui-corner-all" style="display: block;"><div class="ui-datepicker-header ui-widget-header ui-helper-clearfix ui-corner-all"><a class="ui-datepicker-prev ui-corner-all" data-handler="prev" data-event="click" title="Prev"><span class="ui-icon ui-icon-circle-triangle-w">Prev</span></a><a class="ui-datepicker-next ui-corner-all" data-handler="next" data-event="click" title="Next"><span class="ui-icon ui-icon-circle-triangle-e">Next</span></a><div class="ui-datepicker-title"><select class="ui-datepicker-month" data-handler="selectMonth" data-event="change"><option value="0">1</option><option value="1">2</option><option value="2">3</option><option value="3">4</option><option value="4">5</option><option value="5">6</option><option value="6">7</option><option value="7">8</option><option value="8">9</option><option value="9">10</option><option value="10" selected="selected">11</option><option value="11">12</option></select><select class="ui-datepicker-year" data-handler="selectYear" data-event="change"><option value="1945">1945</option><option value="1946">1946</option><option value="1947">1947</option><option value="1948">1948</option><option value="1949">1949</option><option value="1950">1950</option><option value="1951">1951</option><option value="1952">1952</option><option value="1953">1953</option><option value="1954">1954</option><option value="1955">1955</option><option value="1956">1956</option><option value="1957">1957</option><option value="1958">1958</option><option value="1959">1959</option><option value="1960">1960</option><option value="1961">1961</option><option value="1962">1962</option><option value="1963">1963</option><option value="1964">1964</option><option value="1965">1965</option><option value="1966">1966</option><option value="1967">1967</option><option value="1968">1968</option><option value="1969">1969</option><option value="1970">1970</option><option value="1971">1971</option><option value="1972">1972</option><option value="1973">1973</option><option value="1974">1974</option><option value="1975">1975</option><option value="1976">1976</option><option value="1977">1977</option><option value="1978">1978</option><option value="1979">1979</option><option value="1980">1980</option><option value="1981">1981</option><option value="1982">1982</option><option value="1983">1983</option><option value="1984">1984</option><option value="1985">1985</option><option value="1986">1986</option><option value="1987">1987</option><option value="1988">1988</option><option value="1989">1989</option><option value="1990">1990</option><option value="1991">1991</option><option value="1992">1992</option><option value="1993">1993</option><option value="1994">1994</option><option value="1995">1995</option><option value="1996">1996</option><option value="1997">1997</option><option value="1998">1998</option><option value="1999">1999</option><option value="2000">2000</option><option value="2001">2001</option><option value="2002">2002</option><option value="2003">2003</option><option value="2004">2004</option><option value="2005">2005</option><option value="2006">2006</option><option value="2007">2007</option><option value="2008">2008</option><option value="2009">2009</option><option value="2010">2010</option><option value="2011">2011</option><option value="2012">2012</option><option value="2013">2013</option><option value="2014">2014</option><option value="2015">2015</option><option value="2016">2016</option><option value="2017">2017</option><option value="2018">2018</option><option value="2019">2019</option><option value="2020">2020</option><option value="2021">2021</option><option value="2022">2022</option><option value="2023">2023</option><option value="2024">2024</option><option value="2025" selected="selected">2025</option></select></div></div><table class="ui-datepicker-calendar"><thead><tr><th scope="col" class="ui-datepicker-week-end"><span title="Sunday">Sun</span></th><th scope="col"><span title="Monday">Mon</span></th><th scope="col"><span title="Tuesday">Tue</span></th><th scope="col"><span title="Wednesday">Wed</span></th><th scope="col"><span title="Thursday">Thu</span></th><th scope="col"><span title="Friday">Fri</span></th><th scope="col" class="ui-datepicker-week-end"><span title="Saturday">Sat</span></th></tr></thead><tbody><tr><td class=" ui-datepicker-week-end ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">1</a></td></tr><tr><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">2</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">3</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">4</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">5</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">6</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">7</a></td><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">8</a></td></tr><tr><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">9</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">10</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">11</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">12</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">13</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">14</a></td><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">15</a></td></tr><tr><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">16</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">17</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">18</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">19</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">20</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">21</a></td><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">22</a></td></tr><tr><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">23</a></td><td class=" ui-datepicker-days-cell-over  ui-datepicker-current-day ui-datepicker-today" data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default ui-state-highlight ui-state-active ui-state-hover" href="#">24</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">25</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">26</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">27</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">28</a></td><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">29</a></td></tr><tr><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">30</a></td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-week-end ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td></tr></tbody></table></div></div>
+								</div>
+							</div>
+
+							<div class="date-text">
+								<div class="btn-calendar"><input type="text" id="END_DA" name="BEG_DA"></div>
+								<div class="calendar-layer bdColor" style="">
+									<div class="datepicker hasDatepicker" id="dp1763954971123"><div class="ui-datepicker-inline ui-datepicker ui-widget ui-widget-content ui-helper-clearfix ui-corner-all" style="display: block;"><div class="ui-datepicker-header ui-widget-header ui-helper-clearfix ui-corner-all"><a class="ui-datepicker-prev ui-corner-all" data-handler="prev" data-event="click" title="Prev"><span class="ui-icon ui-icon-circle-triangle-w">Prev</span></a><a class="ui-datepicker-next ui-corner-all" data-handler="next" data-event="click" title="Next"><span class="ui-icon ui-icon-circle-triangle-e">Next</span></a><div class="ui-datepicker-title"><select class="ui-datepicker-month" data-handler="selectMonth" data-event="change"><option value="0">1</option><option value="1">2</option><option value="2">3</option><option value="3">4</option><option value="4">5</option><option value="5">6</option><option value="6">7</option><option value="7">8</option><option value="8">9</option><option value="9">10</option><option value="10" selected="selected">11</option><option value="11">12</option></select><select class="ui-datepicker-year" data-handler="selectYear" data-event="change"><option value="1945">1945</option><option value="1946">1946</option><option value="1947">1947</option><option value="1948">1948</option><option value="1949">1949</option><option value="1950">1950</option><option value="1951">1951</option><option value="1952">1952</option><option value="1953">1953</option><option value="1954">1954</option><option value="1955">1955</option><option value="1956">1956</option><option value="1957">1957</option><option value="1958">1958</option><option value="1959">1959</option><option value="1960">1960</option><option value="1961">1961</option><option value="1962">1962</option><option value="1963">1963</option><option value="1964">1964</option><option value="1965">1965</option><option value="1966">1966</option><option value="1967">1967</option><option value="1968">1968</option><option value="1969">1969</option><option value="1970">1970</option><option value="1971">1971</option><option value="1972">1972</option><option value="1973">1973</option><option value="1974">1974</option><option value="1975">1975</option><option value="1976">1976</option><option value="1977">1977</option><option value="1978">1978</option><option value="1979">1979</option><option value="1980">1980</option><option value="1981">1981</option><option value="1982">1982</option><option value="1983">1983</option><option value="1984">1984</option><option value="1985">1985</option><option value="1986">1986</option><option value="1987">1987</option><option value="1988">1988</option><option value="1989">1989</option><option value="1990">1990</option><option value="1991">1991</option><option value="1992">1992</option><option value="1993">1993</option><option value="1994">1994</option><option value="1995">1995</option><option value="1996">1996</option><option value="1997">1997</option><option value="1998">1998</option><option value="1999">1999</option><option value="2000">2000</option><option value="2001">2001</option><option value="2002">2002</option><option value="2003">2003</option><option value="2004">2004</option><option value="2005">2005</option><option value="2006">2006</option><option value="2007">2007</option><option value="2008">2008</option><option value="2009">2009</option><option value="2010">2010</option><option value="2011">2011</option><option value="2012">2012</option><option value="2013">2013</option><option value="2014">2014</option><option value="2015">2015</option><option value="2016">2016</option><option value="2017">2017</option><option value="2018">2018</option><option value="2019">2019</option><option value="2020">2020</option><option value="2021">2021</option><option value="2022">2022</option><option value="2023">2023</option><option value="2024">2024</option><option value="2025" selected="selected">2025</option></select></div></div><table class="ui-datepicker-calendar"><thead><tr><th scope="col" class="ui-datepicker-week-end"><span title="Sunday">Sun</span></th><th scope="col"><span title="Monday">Mon</span></th><th scope="col"><span title="Tuesday">Tue</span></th><th scope="col"><span title="Wednesday">Wed</span></th><th scope="col"><span title="Thursday">Thu</span></th><th scope="col"><span title="Friday">Fri</span></th><th scope="col" class="ui-datepicker-week-end"><span title="Saturday">Sat</span></th></tr></thead><tbody><tr><td class=" ui-datepicker-week-end ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">1</a></td></tr><tr><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">2</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">3</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">4</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">5</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">6</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">7</a></td><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">8</a></td></tr><tr><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">9</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">10</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">11</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">12</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">13</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">14</a></td><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">15</a></td></tr><tr><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">16</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">17</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">18</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">19</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">20</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">21</a></td><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">22</a></td></tr><tr><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">23</a></td><td class=" ui-datepicker-days-cell-over  ui-datepicker-current-day ui-datepicker-today" data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default ui-state-highlight ui-state-active ui-state-hover" href="#">24</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">25</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">26</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">27</a></td><td class=" " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">28</a></td><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">29</a></td></tr><tr><td class=" ui-datepicker-week-end " data-handler="selectDay" data-event="click" data-month="10" data-year="2025"><a class="ui-state-default" href="#">30</a></td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td><td class=" ui-datepicker-week-end ui-datepicker-other-month ui-datepicker-unselectable ui-state-disabled">&nbsp;</td></tr></tbody></table></div></div>
+								</div>
+							</div>
+							&nbsp;&nbsp;&nbsp;
+							<select id="SEL_EXCEL_LIST" name="SEL_EXCEL_LIST">
+								<option value="">-선택-</option>
+								
+									<option value="FORM250117001_P227">변경신청서(품질영향)</option>
+								
+									<option value="FORM250117002_P227">변경관리 분과 위원회 협의서</option>
+								
+									<option value="DS20200001">[국내영업] 거래종결 요청서</option>
+								
+									<option value="FORM240207_001">[국내영업] 환불 품의서</option>
+								
+									<option value="FORM_200928001">[국내영업] 신규 거래처 신청서</option>
+								
+									<option value="FORM250917001_P227">[국내영업] I/O 대량수주 품의서</option>
+								
+									<option value="FORM20250930001_P227">검수(완료)보고서</option>
+								
+									<option value="FORM250926001_P227">[국내영업] 클라렌 패밀리샵 품의서 (신규/추가약정/변경)</option>
+								
+									<option value="FORM250905002_P227">설계요청서 (패키지)</option>
+								
+									<option value="FORM250905001_P227">설계요청서 (컬러렌즈)</option>
+								
+									<option value="FORM250905003_P227">설계이관보고서 (패키지)</option>
+								
+									<option value="FORM240412002_P227">시차출퇴근제 신청서</option>
+								
+									<option value="FORM_202204180001">시차출퇴근제 신청서(old)</option>
+								
+									<option value="101208720039">샘플 출하 요청서(업무용)</option>
+								
+									<option value="FORM240412001_P227">샘플 출하 요청서(개인용)</option>
+								
+									<option value="FORM20220318_002">ERP 데이터 변경 요청서</option>
+								
+									<option value="101209140594">BOM 등록 기안 내용</option>
+								
+									<option value="FORM_202305230001">[국내영업] 할증/포인트 지급 요청서</option>
+								
+									<option value="101208614909">근태허가원(ERP연동양식)</option>
+								
+									<option value="FORM241113001_P227">자재출고요청서</option>
+								
+									<option value="FORM20250418001_P227">외장형 저장매체 반출 요청서</option>
+								
+									<option value="FORM_20211228002">[국내영업] 프로모션특판 신청서</option>
+								
+									<option value="FORM_20211228001">[국내영업] 출하정지해제 요청서</option>
+								
+									<option value="FORM_2205160001">[국내영업] 체인가맹점 프로모션특판 신청서</option>
+								
+									<option value="FORM_202201140002">[국내영업] 예외처리 요청서</option>
+								
+									<option value="FORM_202201140001">[국내영업] 반품 승인서</option>
+								
+									<option value="FORM_202203300001">투자발의서</option>
+								
+									<option value="FORM20250306001_P227">투자발의서(NEW)</option>
+								
+									<option value="101208655208">구매발주서(ERP연동)</option>
+								
+									<option value="FORM20200519_009">명함 신청서</option>
+								
+									<option value="FORM250106002_P227">설비투자 잔금품의서(KSystem연동)</option>
+								
+									<option value="FORM250106003_P227">설비투자 중도금 품의서(KSystem연동)</option>
+								
+									<option value="FORM250106004_P227">설비투자 품의서(KSystem연동)</option>
+								
+									<option value="FORM250210001_P227">PC 구매의뢰서</option>
+								
+									<option value="FORM250106001_P227">설비투자 계약금 품의서(KSystem연동)</option>
+								
+									<option value="FORM20200520_006">출퇴근확인서</option>
+								
+									<option value="FORM200918_002">근태(지각, 조기퇴근, 결근, 무단결근 등) 사유서</option>
+								
+									<option value="FORM_220530001">경조휴가 및 경조금 신청서</option>
+								
+									<option value="FORM20200520_009">휴일근무계획서(Excel)</option>
+								
+									<option value="FORM202401020001_P227">휴일/가정의날 근무계획서(NEW)</option>
+								
+									<option value="FORM200918_001">근태정정 신청서</option>
+								
+									<option value="FORM20230612002_P227">근태허가원(신규)</option>
+								
+									<option value="FORM20220324_002">DBMS 권한 요청서</option>
+								
+									<option value="FORM20240723_002">ERP 비밀번호 초기화 요청서</option>
+								
+									<option value="FORM20220321_001">ERP 외부접속파일 요청서</option>
+								
+									<option value="FORM_230110001">DRM 권한변경요청서</option>
+								
+									<option value="FORM20241014001_P227">신규 금융기관 추가 신청서</option>
+								
+									<option value="101208684455">구매의뢰서(전산)</option>
+								
+									<option value="FORM20240723_001">ERP 외부업체 계정 신청서</option>
+								
+									<option value="F202406250001_P227">[해외] 신규/기존 거래처정보 등록 품의서</option>
+								
+									<option value="FORM20200519_004">근태허가원</option>
+								
+									<option value="FORM20200520_015">휴일/가정의날 근무계획서</option>
+								
+									<option value="FOR_2108260001">매입 신규거래처 등록신청서</option>
+								
+									<option value="FORM20230511_001">SAMPLE 렌즈 피팅 평가 의뢰 요청서</option>
+								
+									<option value="FORM20200519_008">샘플 출하 요청서</option>
+								
+									<option value="FORM_202203210001">ERP 권한 회수 요청서</option>
+								
+									<option value="FORM240214_001">[품질경영실] 외부출처문서 배포서</option>
+								
+									<option value="101251861170">품의서(계약서)</option>
+								
+									<option value="202301302222">설비투자 중도금 품의서(ERP연동)</option>
+								
+									<option value="202301301111">설비투자 계약금 품의서(ERP연동)</option>
+								
+									<option value="202301303333">설비투자 잔금 품의서(ERP연동)</option>
+								
+									<option value="202304210001">구매의뢰서(포장재)(ERP연동)</option>
+								
+									<option value="FORM_2211080001">설계 변경 요청서</option>
+								
+									<option value="FORM_2211080006">설계이관 보고서</option>
+								
+									<option value="FORM_2211080005">설계 유효성 확인서</option>
+								
+									<option value="FORM_2211080004">설계 검증서</option>
+								
+									<option value="FORM_202208120002">[정보전략팀] 프로그램 이관 요청서</option>
+								
+									<option value="FORM_202208120001">[정보전략팀] 프로그램 개발자 테스트 확인서</option>
+								
+									<option value="FORM_210104">[정보전략] 개발 완료 보고서</option>
+								
+									<option value="FORM_2211080002">설계 입력서</option>
+								
+									<option value="FORM_2211080003">설계 출력서</option>
+								
+									<option value="FORM20200520_016">구매 시방서</option>
+								
+									<option value="202301130123">설비투자품의서(ERP연동)</option>
+								
+									<option value="FORM_221129_0001">공급업체 평가요청서</option>
+								
+									<option value="FORM_221215001">투자계획서</option>
+								
+									<option value="FORM20200519_002">업무협조전</option>
+								
+									<option value="FORM_20220822">[정보전략팀외 요청부서] 프로그램 사용자 테스트 확인서</option>
+								
+									<option value="FORM_202208110001">콘도 이용 신청서</option>
+								
+									<option value="FORM20200519_005">결산 수정 사유서</option>
+								
+									<option value="FORM_220324001">[정보전략팀] 프로그램 개발/수정 확인보고서</option>
+								
+									<option value="101213851727">품의서(내부결재)</option>
+								
+									<option value="101208683828">구매 결의서</option>
+								
+									<option value="FORM_20220524001">생산요청서</option>
+								
+									<option value="101219499663">품의서(공통)</option>
+								
+									<option value="FORM20200520_018">설비 부품구매 업무협조전</option>
+								
+									<option value="101208652790">구매의뢰서(구매)</option>
+								
+									<option value="101208339189">기안서</option>
+								
+									<option value="FORM20200520_012">채용요청서</option>
+								
+									<option value="FORM_2205040002">Internal Legal Report</option>
+								
+									<option value="FORM_2205040001">회의록</option>
+								
+									<option value="101219499796">협조문(공통)</option>
+								
+									<option value="FORM20200519_001">교육보고서</option>
+								
+									<option value="FORM20200519_003">교육훈련품의서</option>
+								
+									<option value="101219538889">기안서(공통)</option>
+								
+									<option value="FORM20220427_003">데이터 이관 보고서</option>
+								
+									<option value="FORM20220427_002">테스트 결과서</option>
+								
+									<option value="FORM20220427_001">데이터 모니터링 보고서</option>
+								
+									<option value="FORM20220408_001">프로그램 도입/개발 전산화 요청서</option>
+								
+									<option value="FORM20200520_013">프로그램 수정 요청서(전산 업무협조문)</option>
+								
+									<option value="FORM20220324_003">ERP, DB, OS 반기 보고서</option>
+								
+							</select>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+	</div>
+	<!-- blockDetail End -->
+	<!-- blockButton Start-->
+
+	<!-- blockButton End -->
+	
+</div>
+<!--// layer_pop_form -->
+
+
+
+	
+	
+	<script type="text/javascript">
+	  
+		(function($) {  
+			$(document).ready(function() {          
+				
+				//에디터 넓이 자동 조절 로직
+				$( window ).resize(function() {  
+					    
+					if ( $("#editorDiv > iframe").length > 0 ) {  
+						  
+						$editorIframe = $("#editorDiv > iframe").contents();  
+						$editorIframe.find( "#smart_editor2" ).css( "width" , "100%" );
+						
+					}  
+					
+				});          
+				  
+			});    	
+		})(jQuery);
+
+	</script>
+
+
+<div id="jstree-marker" style="display: none;">»</div><div id="jstree-marker-line" style="display: none;"></div><div id="vakata-contextmenu"></div><div id="ui-datepicker-div" class="ui-datepicker ui-widget ui-widget-content ui-helper-clearfix ui-corner-all"></div></body></html>

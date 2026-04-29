@@ -1,0 +1,81 @@
+{
+  "portal": {
+    "url": "http://portal.interojo.com/portal/main/portalMain.do",
+    "approval_url": "http://portal.interojo.com/approval/main/approvalMain.do",
+    "timeout": 30,
+    "retry_count": 3
+  },
+  "worksmobile": {
+    "url": "https://talk.worksmobile.com/",
+    "timeout": 20
+  },
+  "search": {
+    "start_date": "2025.06.20",
+    "keywords": ["자재", "접수"],
+    "document_types": ["자재"]
+  },
+  "output": {
+    "excel_file": "data/excel/Material_Release_Request.xlsx",
+    "pdf_directory": "data/PDF",
+    "backup_directory": "data/excel/backup"
+  },
+  "automation": {
+    "scroll_delay": 2,
+    "click_delay": 1,
+    "page_load_timeout": 30,
+    "implicit_wait": 10,
+    "headless": false
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "automation.log",
+    "format": "%(asctime)s - %(levelname)s - %(message)s"
+  },
+  "excel": {
+    "auto_save_interval": 300,
+    "auto_save_interval_comment": "자동 저장 간격 (초 단위, 기본값: 300 = 5분)",
+    "columns": [
+      "순번",
+      "자재코드",
+      "품명",
+      "요청수량(g단위)",
+      "사유",
+      "요청부서",
+      "기안자",
+      "문서번호",
+      "처리일시"
+    ]
+  },
+  "google_sheets": {
+    "min_backup_interval": 60,
+    "min_backup_interval_comment": "최소 백업 간격 (초 단위, Rate Limiting)",
+    "batch_processing": true,
+    "batch_processing_comment": "배치 처리 활성화 (자동화 종료 시 1회만 백업)"
+  },
+  "pagination": {
+    "max_pages": 100,
+    "max_pages_comment": "최대 처리 페이지 수 (무한 루프 방지)",
+    "max_consecutive_errors": 3,
+    "max_consecutive_errors_comment": "최대 연속 오류 허용 횟수",
+    "page_size": 50,
+    "page_size_comment": "페이지당 표시 문서 수"
+  },
+  "notification": {
+    "enabled": false,
+    "enabled_comment": "true로 설정하여 이메일 알림 활성화",
+    "smtp_server": "smtp.gmail.com",
+    "smtp_port": 587,
+    "sender_email": "",
+    "sender_email_comment": "발신자 이메일 주소 (예: your-email@gmail.com)",
+    "sender_password": "",
+    "sender_password_comment": "Gmail 앱 비밀번호 (16자리)",
+    "recipient_emails": [],
+    "recipient_emails_comment": "수신자 이메일 목록 (예: ['email1@example.com', 'email2@example.com'])",
+    "notify_on_success": true,
+    "notify_on_success_comment": "자동화 성공 시 알림 발송",
+    "notify_on_failure": true,
+    "notify_on_failure_comment": "자동화 실패 시 알림 발송",
+    "min_failure_count": 1,
+    "min_failure_count_comment": "최소 실패 건수 (이 이상일 때만 알림)"
+  }
+}
