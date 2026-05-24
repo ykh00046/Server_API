@@ -21,7 +21,7 @@ from shared.logging_config import set_request_id
 from shared.config import CORS_ORIGINS
 
 from . import chat
-from .routers import system, records, summary
+from .routers import system, records, summary, notifications
 
 # Backward-compatible re-exports — tests/test_input_validation.py imports
 # these names directly from api.main.
@@ -62,6 +62,7 @@ app.include_router(chat.router)
 app.include_router(system.router)
 app.include_router(records.router)
 app.include_router(summary.router)
+app.include_router(notifications.router)
 
 
 # ==========================================================

@@ -112,6 +112,14 @@ CORS_ORIGINS: list[str] = [
 # ==========================================================
 CUSTOM_QUERY_TIMEOUT_SEC = float(os.getenv("CUSTOM_QUERY_TIMEOUT_SEC", 10.0))
 
+# ==========================================================
+# Webhook Notifications (webhook-notifications-v1)
+# ==========================================================
+NOTIFICATIONS_DB_FILE = DATABASE_DIR / "notifications.db"
+WEBHOOK_TIMEOUT_SEC = float(os.getenv("WEBHOOK_TIMEOUT_SEC", 5.0))
+WEBHOOK_USER_AGENT = os.getenv("WEBHOOK_USER_AGENT", "Server_API-Webhook/1.0")
+WEBHOOK_MAX_PAYLOAD_BYTES = int(os.getenv("WEBHOOK_MAX_PAYLOAD_BYTES", 65536))
+
 
 def _load_archive_whitelist() -> tuple[Path, ...]:
     raw = os.getenv("ARCHIVE_DB_WHITELIST", "").strip()
