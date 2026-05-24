@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 from shared import get_logger
 
@@ -23,6 +24,17 @@ from ..notifications.schemas import (
     WebhookPublic,
     WebhookUpdate,
 )
+
+
+class QueueStats(BaseModel):
+    """Queue health snapshot returned by /notifications/queue/stats."""
+
+    queued: int
+    in_flight: int
+    retrying: int
+    success_24h: int
+    failure_24h: int
+    dead: int
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
@@ -138,6 +150,24 @@ def list_events():
         EventTypeInfo(name=name, description=desc)
         for name, desc in sorted(KNOWN_EVENT_TYPES.items())
     ]
+
+
+# ==========================================================
+# Async dispatch queue (webhook-async-dispatch-v2)
+# ==========================================================
+@router.get("/queue/stats", response_model=QueueStats)
+def queue_stats():
+    return QueueStats(**store.queue_stats())
+
+
+@router.post("/deliveries/{delivery_id}/retry", response_model=DeliveryPublic)
+def retry_delivery(delivery_id: int):
+    if not store.requeue_delivery(delivery_id):
+        raise HTTPException(status_code=404, detail=f"delivery {delivery_id} not found")
+    d = store.get_delivery(delivery_id)
+    if d is None:  # pragma: no cover (requeue just succeeded)
+        raise HTTPException(status_code=500, detail="delivery vanished after requeue")
+    return d
 
 
 # Re-export for callers that prefer `from api.routers.notifications import emit_event`.
