@@ -89,6 +89,9 @@ def truncate(text: str, limit: int) -> str:
 
 def parse_event_types_input(raw: str) -> list[str]:
     """Comma/newline-separated UI input → sanitized list."""
+
+def is_retryable_status(status: Any) -> bool:
+    """True for failed/dead/permanent_failure — controls retry button visibility."""
 ```
 
 규칙:
@@ -101,6 +104,8 @@ def parse_event_types_input(raw: str) -> list[str]:
 
 ```python
 def render_queue_stats_section(client) -> None: ...
+def render_secret_banner_if_any() -> None:
+    """§7의 secret 1회 노출 정책을 캡슐화 — session_state 기반"""
 def render_webhook_list_section(client) -> int | None:
     """선택된 webhook_id 반환 (없으면 None)"""
 def render_register_form(client, event_catalog: list[dict]) -> None: ...
