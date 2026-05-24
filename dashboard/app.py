@@ -65,6 +65,9 @@ pages = {
         st.Page("pages/batches.py", title="배치 내역", icon="📋"),
         st.Page("pages/products.py", title="제품별 분석", icon="📦"),
     ],
+    "운영": [
+        st.Page("pages/webhooks.py", title="Webhook 관리", icon="🔔"),
+    ],
 }
 
 nav = st.navigation(pages)
