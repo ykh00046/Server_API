@@ -1,12 +1,78 @@
 {
-  "sessionCount": 28,
+  "sessionCount": 33,
   "lastSession": {
-    "startedAt": "2026-04-23T02:42:46.715Z",
+    "startedAt": "2026-05-22T09:57:54.038Z",
     "platform": "claude",
     "level": "Dynamic"
   },
   "activeFeature": null,
   "completedFeatures": [
+    {
+      "name": "api-router-split",
+      "pdcaPhase": "completed",
+      "matchRate": 98,
+      "completedAt": "2026-05-22"
+    },
+    {
+      "name": "custom-query-thread-safety",
+      "pdcaPhase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-04-24"
+    },
+    {
+      "name": "docs-sync-v2",
+      "pdcaPhase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-04-24"
+    },
+    {
+      "name": "manager-orphan-prevention-v1",
+      "pdcaPhase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-04-24"
+    },
+    {
+      "name": "tool-schema-smoke-test",
+      "pdcaPhase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-04-24"
+    },
+    {
+      "name": "custom-query-bind-params-v1",
+      "pdcaPhase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-04-24"
+    },
+    {
+      "name": "dashboard-pages-refactor",
+      "pdcaPhase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-04-24"
+    },
+    {
+      "name": "security-hardening-v3",
+      "pdcaPhase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-04-23"
+    },
+    {
+      "name": "products-refactor",
+      "pdcaPhase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-04-23"
+    },
+    {
+      "name": "docs-sync",
+      "pdcaPhase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-04-23"
+    },
+    {
+      "name": "critical-fixes",
+      "pdcaPhase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-04-23"
+    },
     {
       "name": "sse-streaming-optimization",
       "pdcaPhase": "archived",

@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-02-13T00:00:00.000Z",
+  "lastUpdated": "2026-05-22T10:30:00.000Z",
   "activeFeatures": [],
   "primaryFeature": null,
   "features": {},
@@ -11,8 +11,8 @@
   },
   "session": {
     "startedAt": "2026-02-12T02:49:17.087Z",
-    "onboardingCompleted": false,
-    "lastActivity": "2026-02-13T00:00:00.000Z"
+    "onboardingCompleted": true,
+    "lastActivity": "2026-05-19T00:00:00.000Z"
   },
   "history": [
     {
@@ -32,6 +32,72 @@
       "phase": "completed",
       "matchRate": 97,
       "completedAt": "2026-02-13"
+    },
+    {
+      "feature": "critical-fixes",
+      "phase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-04-23"
+    },
+    {
+      "feature": "docs-sync",
+      "phase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-04-23"
+    },
+    {
+      "feature": "products-refactor",
+      "phase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-04-23"
+    },
+    {
+      "feature": "security-hardening-v3",
+      "phase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-04-23"
+    },
+    {
+      "feature": "dashboard-pages-refactor",
+      "phase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-04-24"
+    },
+    {
+      "feature": "custom-query-bind-params-v1",
+      "phase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-04-24"
+    },
+    {
+      "feature": "tool-schema-smoke-test",
+      "phase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-04-24"
+    },
+    {
+      "feature": "manager-orphan-prevention-v1",
+      "phase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-04-24"
+    },
+    {
+      "feature": "docs-sync-v2",
+      "phase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-04-24"
+    },
+    {
+      "feature": "custom-query-thread-safety",
+      "phase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-04-24"
+    },
+    {
+      "feature": "api-router-split",
+      "phase": "completed",
+      "matchRate": 98,
+      "completedAt": "2026-05-22"
     }
   ]
 }

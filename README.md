@@ -283,7 +283,7 @@ python tools/backup_db.py --cleanup
 - [문서 정합성 및 스모크 (archive)](docs/archive/2026-04/server-api-consistency-and-smoke/)
 - [WSL 스모크 검증 리포트](docs/04-report/server-api-smoke-2026-03-31.report.md)
 - [2026-04 PDCA 아카이브 인덱스](docs/archive/2026-04/_INDEX.md)
-- [v8 통합 로드맵(기존)](docs/plans/v8_consolidated_roadmap.md)
+- [v8 통합 로드맵(레거시 아카이브)](docs/archive/legacy/plans/v8_consolidated_roadmap.md)
 - [API 통합 가이드](docs/api_integration_guide.md)
 - [운영 매뉴얼](docs/specs/operations_manual.md)
 - [변경 로그](docs/04-report/changelog.md)

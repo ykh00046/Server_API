@@ -16,10 +16,8 @@ from __future__ import annotations
 
 import asyncio
 import random
-import sys
 import time
 from datetime import date
-from pathlib import Path
 from typing import List
 
 from fastapi import APIRouter, HTTPException, Request
@@ -27,9 +25,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from google.genai import types
 from google.genai.errors import ClientError, ServerError
-# Add parent directory to path for shared module import
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# Import path bootstrap is handled by the entry point (api/main.py) or
+# tests/conftest.py — this module is always imported, never run directly.
 from shared import get_logger
 from shared.config import GEMINI_MODEL, GEMINI_FALLBACK_MODEL, GEMINI_FALLBACK_ENABLED
 from shared.logging_config import get_request_id

@@ -100,8 +100,8 @@ _DEFAULT_CORS_ORIGINS = (
     "http://localhost:3000,"
     "http://localhost:5173,"
     "http://localhost:8502,"
-    "http://192.168.11.147:8502,"
-    "http://192.168.11.147:3000"
+    "http://192.168.200.107:8502,"
+    "http://192.168.200.107:3000"
 )
 CORS_ORIGINS: list[str] = [
     o.strip() for o in os.getenv("CORS_ORIGINS", _DEFAULT_CORS_ORIGINS).split(",") if o.strip()
