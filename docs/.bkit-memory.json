@@ -8,6 +8,12 @@
   "activeFeature": null,
   "completedFeatures": [
     {
+      "name": "webhook-async-dispatch-v2",
+      "pdcaPhase": "completed",
+      "matchRate": 100,
+      "completedAt": "2026-05-25"
+    },
+    {
       "name": "webhook-notifications-v1",
       "pdcaPhase": "completed",
       "matchRate": 100,
