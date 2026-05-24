@@ -40,6 +40,7 @@ def emit_event(
     event_type: str,
     payload: Mapping[str, Any],
     *,
+    sync: bool = False,
     transport: httpx.BaseTransport | None = None,
 ) -> list[DeliveryPublic]:
     """Dispatch event to all active, subscribed webhooks.
@@ -47,13 +48,27 @@ def emit_event(
     Args:
         event_type: namespaced event name, e.g. 'production.record.created'.
         payload: JSON-serializable mapping; sent as the request body.
-        transport: optional httpx transport (test seam — injected by tests).
+        sync: when True, dispatch in-process and return final delivery rows
+            (v1 behavior, used by /test and tests). When False (default),
+            enqueue and return immediately — the background worker will
+            attempt delivery on its next tick.
+        transport: optional httpx transport (test seam, sync path only).
 
     Returns:
-        List of DeliveryPublic, one per webhook that matched. Empty list if
-        no matching webhooks (or all are inactive).
+        List of DeliveryPublic, one per webhook that matched. In async mode
+        each entry has status='queued'.
     """
     register_event_type(event_type)
+    if sync:
+        return _emit_sync(event_type, payload, transport)
+    return _emit_async(event_type, payload)
+
+
+def _emit_sync(
+    event_type: str,
+    payload: Mapping[str, Any],
+    transport: httpx.BaseTransport | None,
+) -> list[DeliveryPublic]:
     results: list[DeliveryPublic] = []
     for rec in store.list_records(active_only=True):
         if event_type not in rec.event_types:
@@ -79,6 +94,31 @@ def emit_event(
         if d is not None:
             results.append(d)
     logger.info(
-        "[webhook.emit] event=%s matched=%d", event_type, len(results)
+        "[webhook.emit.sync] event=%s matched=%d", event_type, len(results)
+    )
+    return results
+
+
+def _emit_async(
+    event_type: str,
+    payload: Mapping[str, Any],
+) -> list[DeliveryPublic]:
+    results: list[DeliveryPublic] = []
+    for rec in store.list_records(active_only=True):
+        if event_type not in rec.event_types:
+            continue
+        try:
+            delivery_id = store.enqueue_delivery(rec.id, event_type, payload)
+        except Exception as e:
+            logger.warning(
+                "[webhook.emit.async] enqueue failed webhook=%d event=%s: %s",
+                rec.id, event_type, e,
+            )
+            continue
+        d = store.get_delivery(delivery_id)
+        if d is not None:
+            results.append(d)
+    logger.info(
+        "[webhook.emit.async] event=%s queued=%d", event_type, len(results)
     )
     return results

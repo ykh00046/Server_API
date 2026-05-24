@@ -35,11 +35,23 @@ class DispatchResult:
     response_body: str | None
     error: str | None
     duration_ms: int
+    retry_after_sec: float | None = None  # webhook-async-dispatch-v2
 
 
 def compute_signature(secret: str, body: bytes) -> str:
     mac = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
     return f"sha256={mac}"
+
+
+def _parse_retry_after_header(raw: str | None) -> float | None:
+    """Accept integer-seconds form of Retry-After only (HTTP-date OOS in v2)."""
+    if not raw:
+        return None
+    try:
+        v = float(raw)
+    except ValueError:
+        return None
+    return v if v > 0 else None
 
 
 def send(
@@ -79,6 +91,7 @@ def send(
             response_body=captured,
             error=None,
             duration_ms=int((time.perf_counter() - started) * 1000),
+            retry_after_sec=_parse_retry_after_header(resp.headers.get("Retry-After")),
         )
     except Exception as e:
         msg = f"{type(e).__name__}: {e}"[:1024]
