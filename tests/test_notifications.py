@@ -286,8 +286,11 @@ def test_emit_event_dispatches_to_matching_active_webhook(
             "event_types": ["production.record.created"],
         },
     )
+    # webhook-async-dispatch-v2: emit_event now async-by-default. This case
+    # asserts the synchronous in-process dispatch path explicitly.
     results = events.emit_event(
-        "production.record.created", {"id": 42}, transport=ok_transport
+        "production.record.created", {"id": 42},
+        sync=True, transport=ok_transport,
     )
     assert len(results) == 1
     assert results[0].status == "success"

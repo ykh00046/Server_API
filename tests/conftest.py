@@ -3,11 +3,17 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 # Ensure project root is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# webhook-async-dispatch-v2: disable the background dispatch worker for the
+# entire test process. Tests that exercise the async path drive worker.tick_once()
+# directly via their own WebhookDispatchWorker instance.
+os.environ.setdefault("WEBHOOK_WORKER_ENABLED", "0")
 
 import pytest
 from fastapi.testclient import TestClient
