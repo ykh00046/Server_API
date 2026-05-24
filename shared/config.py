@@ -120,6 +120,16 @@ WEBHOOK_TIMEOUT_SEC = float(os.getenv("WEBHOOK_TIMEOUT_SEC", 5.0))
 WEBHOOK_USER_AGENT = os.getenv("WEBHOOK_USER_AGENT", "Server_API-Webhook/1.0")
 WEBHOOK_MAX_PAYLOAD_BYTES = int(os.getenv("WEBHOOK_MAX_PAYLOAD_BYTES", 65536))
 
+# ==========================================================
+# Webhook Async Dispatch (webhook-async-dispatch-v2)
+# ==========================================================
+WEBHOOK_MAX_ATTEMPTS = int(os.getenv("WEBHOOK_MAX_ATTEMPTS", 5))
+WEBHOOK_WORKER_TICK_SEC = float(os.getenv("WEBHOOK_WORKER_TICK_SEC", 0.5))
+WEBHOOK_WORKER_BATCH = int(os.getenv("WEBHOOK_WORKER_BATCH", 16))
+WEBHOOK_WORKER_ENABLED = os.getenv("WEBHOOK_WORKER_ENABLED", "1") not in {
+    "0", "false", "False", "no", "off"
+}
+
 
 def _load_archive_whitelist() -> tuple[Path, ...]:
     raw = os.getenv("ARCHIVE_DB_WHITELIST", "").strip()

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import itertools
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -18,9 +19,10 @@ from shared import (
     api_rate_limiter,
 )
 from shared.logging_config import set_request_id
-from shared.config import CORS_ORIGINS
+from shared.config import CORS_ORIGINS, WEBHOOK_WORKER_ENABLED
 
 from . import chat
+from .notifications.worker import WebhookDispatchWorker
 from .routers import system, records, summary, notifications
 
 # Backward-compatible re-exports — tests/test_input_validation.py imports
@@ -38,12 +40,21 @@ from ._http_helpers import (  # noqa: F401
 setup_logging()
 logger = get_logger(__name__)
 
+_webhook_worker = WebhookDispatchWorker()  # webhook-async-dispatch-v2
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    if WEBHOOK_WORKER_ENABLED: _webhook_worker.start()
+    try: yield
+    finally: _webhook_worker.stop()
+
 # ==========================================================
 # FastAPI App (v7: ORJSONResponse + GZip + CORS)
 # ==========================================================
 app = FastAPI(
     title="Production Data API",
     default_response_class=ORJSONResponse,  # Faster JSON serialization
+    lifespan=_lifespan,
 )
 app.add_middleware(GZipMiddleware, minimum_size=500)  # Compress responses > 500 bytes
 
