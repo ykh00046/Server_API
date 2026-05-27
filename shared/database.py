@@ -6,153 +6,40 @@ Provides:
 - DBTargets: Dataclass indicating which DBs to query
 - DBRouter: Unified DB connection, routing, and query utilities
 
-Key Design (Section 6.1, 6.2):
+Connection pooling, PRAGMA tuning, and the safe ATTACH helper live in
+``shared._db_connection`` and ``shared._db_attach`` respectively
+(structure-cleanup, 2026-05-27). They are re-exported here so existing
+imports keep working.
+
+Key Design:
 - pick_targets() returns explicit DBTargets(use_archive, use_live)
 - UNION queries include 'source' column for debugging and cursor pagination
 - Cutoff date passed as parameter where possible
-
-v8 Performance Optimizations:
-- WAL mode for better concurrency
-- Optimized PRAGMA settings
-- Connection pooling with smart caching
 """
 
 from __future__ import annotations
 
-import atexit
-import os
-import sqlite3
 import logging
-import threading
+import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
 from .config import (
-    DB_FILE,
-    ARCHIVE_DB_FILE,
     ARCHIVE_CUTOFF_DATE,
-    ARCHIVE_DB_WHITELIST,
+    ARCHIVE_DB_FILE,
+    DB_FILE,
     DB_TIMEOUT,
 )
-from .validators import resolve_archive_db
+from ._db_attach import attach_archive_safe  # noqa: F401 (back-compat)
+from ._db_connection import (  # noqa: F401 (back-compat)
+    _all_connections,
+    _apply_pragma_settings,
+    _connection_lock,
+    _get_db_mtime,
+    _local,
+)
 
 logger = logging.getLogger(__name__)
-
-
-# ==========================================================
-# Shared ATTACH helper (security-hardening-v3)
-# ==========================================================
-def attach_archive_safe(
-    conn: sqlite3.Connection,
-    archive_path: "str | os.PathLike | None" = None,
-    *,
-    alias: str = "archive",
-    whitelist: "tuple | None" = None,
-):
-    """ATTACH archive DB safely (whitelist + bind-first + ro mode).
-
-    Used by both `DBRouter.get_connection()` and `api/tools.execute_custom_query`
-    to keep the path-validation + ATTACH pattern in one place.
-
-    Args:
-        conn: Active sqlite3 connection (any mode).
-        archive_path: Requested archive DB path. Defaults to ARCHIVE_DB_FILE.
-        alias: Schema alias used in `ATTACH ... AS <alias>`. Internal constant only.
-        whitelist: Allowed paths. Defaults to ARCHIVE_DB_WHITELIST from config.
-
-    Returns:
-        Resolved Path of the attached archive DB.
-
-    Raises:
-        ValueError: Path not in whitelist.
-        FileNotFoundError: Archive file does not exist.
-        sqlite3.OperationalError: Both bind and string ATTACH variants failed.
-    """
-    target = archive_path if archive_path is not None else ARCHIVE_DB_FILE
-    wl = whitelist if whitelist is not None else ARCHIVE_DB_WHITELIST
-    resolved = resolve_archive_db(target, wl)
-    archive_uri = f"file:{resolved.as_posix()}?mode=ro"
-    try:
-        conn.execute(f"ATTACH DATABASE ? AS {alias}", (archive_uri,))
-    except sqlite3.OperationalError:
-        # Some sqlite builds do not accept parameter binding for ATTACH.
-        # Safe because archive_uri came from resolve_archive_db (whitelist-validated)
-        # and `alias` is an internal constant, never user input.
-        conn.execute(f"ATTACH DATABASE '{archive_uri}' AS {alias}")
-    return resolved
-
-# ==========================================================
-# v7: Thread-local Connection Cache with mtime invalidation
-# ==========================================================
-_local = threading.local()
-_all_connections: list[sqlite3.Connection] = []
-_connection_lock = threading.Lock()
-
-
-def _cleanup_all_connections() -> None:
-    """Cleanup all cached connections on program exit."""
-    with _connection_lock:
-        for conn in _all_connections:
-            try:
-                conn.close()
-            except Exception:
-                pass
-        _all_connections.clear()
-    logger.debug("All database connections cleaned up")
-
-
-# Register cleanup on exit
-atexit.register(_cleanup_all_connections)
-
-
-# ==========================================================
-# v8: PRAGMA Optimization & WAL Mode
-# ==========================================================
-_wal_enabled_dbs: set[str] = set()  # Track which DBs have WAL enabled
-_wal_lock = threading.Lock()
-
-
-def _apply_pragma_settings(conn: sqlite3.Connection) -> None:
-    """
-    Apply optimized SQLite PRAGMA settings.
-
-    v8 Enhancement:
-    - WAL mode for better concurrency
-    - Larger cache for performance
-    - Memory-mapped I/O for reads
-    """
-    try:
-        # Enable WAL mode for better concurrency
-        result = conn.execute("PRAGMA journal_mode=WAL").fetchone()
-        if result and result[0] == "wal":
-            with _wal_lock:
-                _wal_enabled_dbs.add(str(id(conn)))
-
-        # Larger cache size (negative = KB, positive = pages)
-        conn.execute("PRAGMA cache_size=-64000")  # 64MB
-
-        # Memory-mapped I/O for read performance
-        conn.execute("PRAGMA mmap_size=268435456")  # 256MB
-
-        # Busy timeout for write conflicts
-        conn.execute(f"PRAGMA busy_timeout={DB_TIMEOUT * 1000}")
-
-        # Synchronous mode (NORMAL is safe with WAL)
-        conn.execute("PRAGMA synchronous=NORMAL")
-
-        # Temp store in memory
-        conn.execute("PRAGMA temp_store=MEMORY")
-
-        logger.debug("SQLite PRAGMA settings applied (WAL, 64MB cache, 256MB mmap)")
-    except Exception as e:
-        logger.warning(f"Failed to apply PRAGMA settings: {e}")
-
-
-def _get_db_mtime() -> tuple[float, float]:
-    """Get mtime of Live and Archive DBs."""
-    live_mtime = os.path.getmtime(DB_FILE) if DB_FILE.exists() else 0
-    archive_mtime = os.path.getmtime(ARCHIVE_DB_FILE) if ARCHIVE_DB_FILE.exists() else 0
-    return live_mtime, archive_mtime
 
 
 @dataclass(frozen=True)
@@ -212,31 +99,21 @@ class DBRouter:
         """
         cutoff = ARCHIVE_CUTOFF_DATE
 
-        # Case 1: No date range specified -> query both
         if date_from is None and date_to is None:
             return DBTargets(use_archive=True, use_live=True)
 
-        # Case 2: Only date_to specified
         if date_from is None:
-            # Archive needed (no lower bound means could include old data)
-            # Live needed only if date_to reaches into live period
             return DBTargets(
                 use_archive=True,
                 use_live=(date_to >= cutoff)
             )
 
-        # Case 3: Only date_from specified
         if date_to is None:
-            # Archive needed if date_from is before cutoff
-            # Live needed (no upper bound means could include recent data)
             return DBTargets(
                 use_archive=(date_from < cutoff),
                 use_live=True
             )
 
-        # Case 4: Both date_from and date_to specified
-        # Archive needed if range starts before cutoff
-        # Live needed if range extends to/past cutoff
         return DBTargets(
             use_archive=(date_from < cutoff),
             use_live=(date_to >= cutoff)
@@ -247,9 +124,8 @@ class DBRouter:
         """
         Create or reuse a database connection with mtime-based invalidation.
 
-        v7 Enhancement:
-        - Thread-local connection caching
-        - Auto-reconnect when DB file mtime changes (ERP file replacement scenario)
+        Thread-local connection caching with auto-reconnect when the DB file
+        mtime changes (ERP file replacement scenario).
 
         Args:
             use_archive: Whether to ATTACH archive DB
@@ -265,35 +141,31 @@ class DBRouter:
         cached_conn = getattr(_local, cache_key, None)
         cached_mtime = getattr(_local, mtime_key, None)
 
-        # Check if cached connection is valid
         if cached_conn is not None and cached_mtime == current_mtime:
             try:
-                # Verify connection is still alive
                 cached_conn.execute("SELECT 1")
                 return cached_conn
             except sqlite3.Error:
-                # Connection broken, will create new one
                 try:
                     cached_conn.close()
-                except Exception:
+                except sqlite3.Error:
                     pass
 
-        # Close old connection if mtime changed
         if cached_conn is not None and cached_mtime != current_mtime:
-            logger.debug(f"DB mtime changed, reconnecting... (old={cached_mtime}, new={current_mtime})")
+            logger.debug(
+                f"DB mtime changed, reconnecting... (old={cached_mtime}, new={current_mtime})"
+            )
             try:
                 cached_conn.close()
-            except Exception:
+            except sqlite3.Error:
                 pass
 
-        # Create new connection
         mode = "ro" if read_only else "rw"
         db_uri = f"file:{DB_FILE.absolute()}?mode={mode}"
 
         conn = sqlite3.connect(db_uri, uri=True, timeout=DB_TIMEOUT)
         conn.row_factory = sqlite3.Row
 
-        # v8: Apply PRAGMA optimizations
         _apply_pragma_settings(conn)
 
         if use_archive and ARCHIVE_DB_FILE.exists():
@@ -304,11 +176,9 @@ class DBRouter:
                 logger.error(f"Invalid archive database path: {e}")
                 raise
 
-        # Cache the connection
         setattr(_local, cache_key, conn)
         setattr(_local, mtime_key, current_mtime)
 
-        # Track for cleanup
         with _connection_lock:
             _all_connections.append(conn)
 
@@ -362,11 +232,8 @@ class DBRouter:
         Note:
             The 'source' column is included by default for:
             - Debugging (know which DB a row came from)
-            - Stable cursor pagination (6.2, 6.3)
+            - Stable cursor pagination
         """
-        cutoff = ARCHIVE_CUTOFF_DATE
-
-        # Build source column if requested
         source_col_archive = "'archive' AS source, " if include_source else ""
         source_col_live = "'live' AS source, " if include_source else ""
 
@@ -374,11 +241,19 @@ class DBRouter:
         params_doubled = False
 
         if targets.use_archive and ARCHIVE_DB_FILE.exists():
-            archive_sql = f"SELECT {source_col_archive}{select_columns} FROM archive.production_records WHERE {where_clause} AND production_date < ?"
+            archive_sql = (
+                f"SELECT {source_col_archive}{select_columns} "
+                f"FROM archive.production_records "
+                f"WHERE {where_clause} AND production_date < ?"
+            )
             parts.append(archive_sql)
 
         if targets.use_live:
-            live_sql = f"SELECT {source_col_live}{select_columns} FROM production_records WHERE {where_clause} AND production_date >= ?"
+            live_sql = (
+                f"SELECT {source_col_live}{select_columns} "
+                f"FROM production_records "
+                f"WHERE {where_clause} AND production_date >= ?"
+            )
             parts.append(live_sql)
 
         if len(parts) == 2:
@@ -387,9 +262,11 @@ class DBRouter:
         elif len(parts) == 1:
             final_sql = parts[0]
         else:
-            # Edge case: neither DB selected (shouldn't happen normally)
             logger.warning("build_union_sql called with no target DBs")
-            final_sql = f"SELECT {source_col_live}{select_columns} FROM production_records WHERE 1=0"
+            final_sql = (
+                f"SELECT {source_col_live}{select_columns} "
+                f"FROM production_records WHERE 1=0"
+            )
 
         if order_by:
             final_sql = f"SELECT * FROM ({final_sql}) ORDER BY {order_by}"
@@ -416,15 +293,15 @@ class DBRouter:
         Returns:
             Complete parameter list with cutoff dates appended
         """
-        params = []
+        params: list[Any] = []
 
         if targets.use_archive and ARCHIVE_DB_FILE.exists():
             params.extend(base_params)
-            params.append(cutoff)  # For production_date < ?
+            params.append(cutoff)
 
         if targets.use_live:
             params.extend(base_params)
-            params.append(cutoff)  # For production_date >= ?
+            params.append(cutoff)
 
         return params
 
@@ -441,7 +318,6 @@ class DBRouter:
         """
         Build a "pre-aggregate then merge" query for better performance.
 
-        This follows the optimization from section B.1:
         Instead of UNION ALL then aggregate, we aggregate in each DB first.
 
         Args:
@@ -456,18 +332,23 @@ class DBRouter:
         Returns:
             (sql_string, params_doubled)
         """
-        cutoff = ARCHIVE_CUTOFF_DATE
         parts = []
         params_doubled = False
 
         group_clause = f" GROUP BY {outer_group_by}" if outer_group_by else ""
 
         if targets.use_archive and ARCHIVE_DB_FILE.exists():
-            archive_sql = f"SELECT {inner_select} FROM archive.production_records WHERE {inner_where} AND production_date < ?{group_clause}"
+            archive_sql = (
+                f"SELECT {inner_select} FROM archive.production_records "
+                f"WHERE {inner_where} AND production_date < ?{group_clause}"
+            )
             parts.append(archive_sql)
 
         if targets.use_live:
-            live_sql = f"SELECT {inner_select} FROM production_records WHERE {inner_where} AND production_date >= ?{group_clause}"
+            live_sql = (
+                f"SELECT {inner_select} FROM production_records "
+                f"WHERE {inner_where} AND production_date >= ?{group_clause}"
+            )
             parts.append(live_sql)
 
         if len(parts) == 2:
@@ -476,7 +357,10 @@ class DBRouter:
         elif len(parts) == 1:
             union_sql = parts[0]
         else:
-            union_sql = f"SELECT {inner_select} FROM production_records WHERE 1=0{group_clause}"
+            union_sql = (
+                f"SELECT {inner_select} FROM production_records "
+                f"WHERE 1=0{group_clause}"
+            )
 
         final_sql = f"SELECT {outer_select} FROM ({union_sql}){group_clause}"
 

@@ -1,12 +1,24 @@
 {
-  "sessionCount": 40,
+  "sessionCount": 46,
   "lastSession": {
-    "startedAt": "2026-05-24T18:44:43.500Z",
+    "startedAt": "2026-05-27T10:07:21.304Z",
     "platform": "claude",
     "level": "Dynamic"
   },
   "activeFeature": null,
   "completedFeatures": [
+    {
+      "name": "structure-cleanup",
+      "pdcaPhase": "completed",
+      "matchRate": 98,
+      "completedAt": "2026-05-27"
+    },
+    {
+      "name": "except-exception-refactor-r2",
+      "pdcaPhase": "completed",
+      "matchRate": 94,
+      "completedAt": "2026-05-27"
+    },
     {
       "name": "webhook-admin-ui-v1",
       "pdcaPhase": "completed",

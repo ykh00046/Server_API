@@ -1,19 +1,29 @@
 # tests/conftest.py
-"""Shared pytest fixtures — sys.path, TestClient, rate-limiter reset."""
+"""Shared pytest fixtures — sys.path, TestClient, rate-limiter reset, DB cleanup."""
 
 from __future__ import annotations
 
 import os
+import sqlite3
 import sys
 from pathlib import Path
 
 # Ensure project root is importable
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_PROJECT_ROOT))
 
 # webhook-async-dispatch-v2: disable the background dispatch worker for the
 # entire test process. Tests that exercise the async path drive worker.tick_once()
 # directly via their own WebhookDispatchWorker instance.
 os.environ.setdefault("WEBHOOK_WORKER_ENABLED", "0")
+
+# Route pytest tmp_path under the project so it survives system %TEMP%
+# permission corruption (Windows: pytest-of-USER can get ACL-locked by stuck
+# processes). retention_count in pyproject.toml rotates old runs.
+os.environ.setdefault(
+    "PYTEST_DEBUG_TEMPROOT", str(_PROJECT_ROOT / ".pytest_tmp")
+)
+(_PROJECT_ROOT / ".pytest_tmp").mkdir(exist_ok=True)
 
 import pytest
 from fastapi.testclient import TestClient
@@ -41,3 +51,32 @@ def _reset_rate_limiters():
     except AttributeError:
         pass
     yield
+
+
+@pytest.fixture(autouse=True)
+def _close_db_connections():
+    """Force-close thread-local SQLite connections after each test so that
+    Windows can delete the pytest tmp_path without PermissionError.
+
+    The notifications store and shared.database both cache sqlite3.Connection
+    objects in threading.local() keyed by db path. When a test monkeypatches
+    NOTIFICATIONS_DB_FILE to a tmp file the connection survives the test and
+    its open handle blocks rmtree on Windows.
+    """
+    yield
+    try:
+        from api.notifications import store as _store
+        _store.reset_for_tests()
+    except ImportError:
+        pass
+    try:
+        from shared import database as _db
+        for attr in list(vars(_db._local)):
+            if attr.startswith("conn_"):
+                try:
+                    getattr(_db._local, attr).close()
+                except (sqlite3.Error, AttributeError):
+                    pass
+                setattr(_db._local, attr, None)
+    except (ImportError, AttributeError):
+        pass

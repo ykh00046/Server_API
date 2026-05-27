@@ -109,7 +109,7 @@ def _emit_async(
             continue
         try:
             delivery_id = store.enqueue_delivery(rec.id, event_type, payload)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — emit_event는 호출자에게 절대 예외를 전파하지 않는다
             logger.warning(
                 "[webhook.emit.async] enqueue failed webhook=%d event=%s: %s",
                 rec.id, event_type, e,

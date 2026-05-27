@@ -17,7 +17,7 @@ from . import formatters
 # wrapper around st.toast, but a direct call works just as well.
 try:
     from components.notifications import toast_error, toast_success, toast_info
-except Exception:  # pragma: no cover (defensive — toasts are a UX nicety)
+except ImportError:  # pragma: no cover (defensive — toasts are a UX nicety)
     def toast_error(msg: str) -> None: st.error(msg)
     def toast_success(msg: str) -> None: st.success(msg)
     def toast_info(msg: str) -> None: st.info(msg)

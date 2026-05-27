@@ -277,7 +277,7 @@ async def _generate_with_retry(client_obj, contents, system_instruction, request
                 await asyncio.sleep(delay)
                 continue
             break
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — provider별 SDK 예외가 제각각이므로 fallback을 위해 광범위 catch
             last_error = e
             break
 
@@ -298,7 +298,7 @@ async def _generate_with_retry(client_obj, contents, system_instruction, request
                 ),
             )
             return response, GEMINI_FALLBACK_MODEL
-        except Exception as fb_err:
+        except Exception as fb_err:  # noqa: BLE001 — fallback 모델도 실패한 경우 사용자에게 에러 응답
             logger.error(
                 f"[Chat Fallback Failed] request_id={request_id} | error={fb_err}"
             )
@@ -330,7 +330,7 @@ async def chat_with_data(request: ChatRequest, http_request: Request):
         response, model_used = await _generate_with_retry(
             client_obj, contents, _build_system_instruction(), request_id, query_preview
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — top-level chat handler: 모든 예외를 user-friendly 응답으로 변환
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.exception(
             f"[Chat Error] request_id={request_id} | query='{query_preview}' | "

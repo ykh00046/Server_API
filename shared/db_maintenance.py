@@ -59,7 +59,7 @@ def get_file_state(path: Path) -> tuple[float, int]:
         return 0, 0
     try:
         return os.path.getmtime(path), os.path.getsize(path)
-    except Exception:
+    except OSError:
         return 0, 0
 
 
@@ -178,7 +178,7 @@ def check_and_heal_indexes(
         result["error"] = str(e)
         logger.error("SQLite error on %s: %s", db_path.name, e)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — sqlite3.Error 외 경로(IO 등) 마지막 안전망
         result["error"] = str(e)
         logger.error("Error checking %s: %s", db_path.name, e)
 
@@ -227,7 +227,7 @@ def run_analyze(db_path: Path) -> dict:
         result["error"] = str(e)
         logger.error("ANALYZE failed on %s: %s", db_path.name, e)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — sqlite3.Error 외 경로(IO 등) 마지막 안전망
         result["error"] = str(e)
         logger.error("ANALYZE error on %s: %s", db_path.name, e)
 
@@ -273,7 +273,7 @@ def run_vacuum(db_path: Path) -> dict:
         result["error"] = str(e)
         logger.error("VACUUM failed on %s: %s", db_path.name, e)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — sqlite3.Error 외 경로(IO 등) 마지막 안전망
         result["error"] = str(e)
         logger.error("VACUUM error on %s: %s", db_path.name, e)
 

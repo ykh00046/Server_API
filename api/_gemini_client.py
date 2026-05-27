@@ -35,7 +35,7 @@ def get_client() -> genai.Client | None:
     try:
         _client = genai.Client(api_key=api_key)
         logger.info("GenAI client initialized successfully")
-    except Exception as e:
+    except (ImportError, ValueError, RuntimeError) as e:
         logger.error(f"Failed to initialize GenAI client: {e}")
         _client = None
 

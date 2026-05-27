@@ -93,7 +93,7 @@ def send(
             duration_ms=int((time.perf_counter() - started) * 1000),
             retry_after_sec=_parse_retry_after_header(resp.headers.get("Retry-After")),
         )
-    except Exception as e:
+    except (httpx.HTTPError, OSError, ValueError) as e:
         msg = f"{type(e).__name__}: {e}"[:1024]
         logger.warning(
             "[webhook.dispatch] delivery_id=%s event=%s url=%s failed: %s",

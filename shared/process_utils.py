@@ -68,5 +68,5 @@ def kill_process_tree(pid: int, timeout: float = 3.0) -> None:
             check=False,
             timeout=5.0,
         )
-    except Exception:
-        pass
+    except (OSError, subprocess.SubprocessError) as e:
+        logger.debug("taskkill fallback failed (pid=%s): %s", pid, e)

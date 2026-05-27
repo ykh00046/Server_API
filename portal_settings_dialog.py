@@ -11,6 +11,7 @@ Security Note:
 """
 
 import base64
+import binascii
 import customtkinter as ctk
 from pathlib import Path
 from tkinter import messagebox
@@ -57,7 +58,7 @@ def _deobfuscate_password(obfuscated: str) -> str:
             key_char = _OBFUSCATION_KEY[i % len(_OBFUSCATION_KEY)]
             result.append(chr(ord(char) ^ ord(key_char)))
         return "".join(result)
-    except Exception:
+    except (binascii.Error, ValueError, UnicodeDecodeError):
         # If deobfuscation fails, return as-is (backward compatibility)
         return obfuscated
 

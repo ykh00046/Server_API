@@ -13,6 +13,7 @@ v8 Thread Safety:
 from __future__ import annotations
 
 import os
+import sqlite3
 import time
 import threading
 from functools import wraps
@@ -64,7 +65,7 @@ def get_db_version() -> str:
             _db_version_timestamp = current_time
             _db_version_cache_sources = current_sources
             return combined
-        except Exception:
+        except (OSError, sqlite3.Error):
             _db_version_cache = "0_0"
             _db_version_timestamp = current_time
             _db_version_cache_sources = current_sources

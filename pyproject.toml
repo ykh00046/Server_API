@@ -1,0 +1,17 @@
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+]
+# tmp_path base is controlled via PYTEST_DEBUG_TEMPROOT env var set in
+# tests/conftest.py so that locked dirs from prior runs do not block startup
+# (which is what --basetemp would attempt to wipe).
+tmp_path_retention_policy = "all"
+tmp_path_retention_count = 3
+filterwarnings = [
+    "ignore::DeprecationWarning:google.*",
+    "ignore::DeprecationWarning:httpx.*",
+    "ignore::PendingDeprecationWarning",
+]

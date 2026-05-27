@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as dt
 import os
+import sqlite3
 import threading
 import time
 
@@ -80,7 +81,7 @@ def health_check():
 
         if DB_FILE.exists():
             status["db_size_mb"] = round(DB_FILE.stat().st_size / (1024 * 1024), 2)
-    except Exception as e:
+    except (sqlite3.Error, OSError) as e:
         status["status"] = "degraded"
         status["database"] = f"error: {e}"
 
@@ -108,14 +109,14 @@ def health_check():
         if disk_stat:
             free_gb = (disk_stat.f_frsize * disk_stat.f_bavail) / (1024**3)
             status["disk_free_gb"] = round(free_gb, 2)
-    except Exception:
+    except (AttributeError, OSError):
         # Windows doesn't have statvfs, use shutil
         try:
             import shutil
             total, used, free = shutil.disk_usage(str(DATABASE_DIR))
             status["disk_free_gb"] = round(free / (1024**3), 2)
-        except Exception:
-            pass
+        except (OSError, ValueError) as e:
+            logger.debug("disk_usage fallback failed: %s", e)
 
     return status
 
@@ -211,7 +212,7 @@ async def ai_health_check():
             "sessions": _sstore.stats(),
         }
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — health 캐시는 어떤 외부 호출 오류에서도 degraded/error 상태를 기록해야 한다
         with _ai_health_cache_lock:
             _ai_health_cache.update({
                 "status": "error",

@@ -8,6 +8,7 @@ All data loading, parsing, and caching functions live here.
 import io
 import os
 import re
+import sqlite3
 from datetime import date, timedelta
 from typing import Optional, List, Tuple
 
@@ -35,7 +36,7 @@ def get_db_mtime() -> float:
             archive_mtime = os.path.getmtime(ARCHIVE_DB_FILE)
             mtime = max(mtime, archive_mtime)
         return mtime
-    except Exception:
+    except OSError:
         return 0
 
 
@@ -65,7 +66,7 @@ def run_self_check() -> Tuple[bool, str]:
                 return False, "Required columns are missing."
         if not ARCHIVE_DB_FILE.exists():
             return True, "Warning: Archive DB (2025) not found."
-    except Exception as e:
+    except (sqlite3.Error, OSError) as e:
         return False, f"DB connection check error: {e}"
     return True, ""
 

@@ -101,7 +101,7 @@ class WebhookDispatchWorker:
                     payload=cd.payload,
                     transport=self._transport,
                 )
-            except Exception as e:  # dispatcher already guards, belt-and-suspenders
+            except Exception as e:  # noqa: BLE001 — belt-and-suspenders: dispatcher가 raise하더라도 worker는 죽지 않는다
                 logger.exception("[webhook.worker] dispatcher raised: %s", e)
                 outcome = DispatchResult(
                     status="failure",
@@ -166,7 +166,7 @@ class WebhookDispatchWorker:
         while not self._shutdown.is_set():
             try:
                 self.tick_once()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — worker tick은 어떤 예외에서도 살아남아야 한다
                 # Never let the worker die — log and continue.
                 logger.exception("[webhook.worker] tick error: %s", e)
             self._shutdown.wait(self.tick_sec)

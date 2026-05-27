@@ -44,3 +44,4 @@ Thumbs.db
 .streamlit/secrets.toml
 .pytest-tmp/
 .pytest_tmp/
+.tmp-tests/

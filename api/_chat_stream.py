@@ -138,7 +138,7 @@ async def run_stream(
                 stream = await client_obj.aio.models.generate_content_stream(
                     model=model_to_use, contents=contents, config=config,
                 )
-            except Exception as fb_err:
+            except Exception as fb_err:  # noqa: BLE001 — SSE stream 내 fallback 실패 시 에러 이벤트 송출 후 종료
                 duration_ms = (time.perf_counter() - start) * 1000
                 logger.error(
                     f"[ChatStream Fallback Failed] request_id={request_id} | error={fb_err} | "
@@ -234,7 +234,7 @@ async def run_stream(
         )
         yield _sse("error", {"code": ERR_TIMEOUT, "message": f"스트리밍 시간 초과 ({int(STREAM_TIMEOUT_SEC)}초)"})
         return
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — SSE top-level: 어떤 예외도 stream을 죽이지 않고 error 이벤트로 송출
         duration_ms = (time.perf_counter() - start) * 1000
         logger.exception(
             f"[ChatStream Error] request_id={request_id} | "

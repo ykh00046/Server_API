@@ -7,6 +7,7 @@ plug in `httpx.MockTransport`.
 """
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import httpx
@@ -34,7 +35,7 @@ class WebhookAdminError(Exception):
 def _extract_detail(resp: httpx.Response) -> str:
     try:
         payload = resp.json()
-    except Exception:
+    except (ValueError, json.JSONDecodeError):
         return resp.text[:200] or f"HTTP {resp.status_code}"
     if isinstance(payload, dict) and "detail" in payload:
         d = payload["detail"]
@@ -103,7 +104,7 @@ class WebhookAdminClient:
             return None
         try:
             return resp.json()
-        except Exception as e:
+        except (ValueError, json.JSONDecodeError) as e:
             raise WebhookAdminError(
                 f"invalid JSON in 2xx response: {e}",
                 status=resp.status_code,

@@ -6,6 +6,7 @@ helpers live with the routes that use them.
 from __future__ import annotations
 
 import base64
+import binascii
 import json
 from typing import Any
 
@@ -41,7 +42,7 @@ def _decode_cursor(cursor: str) -> dict | None:
     try:
         decoded = base64.urlsafe_b64decode(cursor.encode()).decode()
         return json.loads(decoded)
-    except Exception:
+    except (binascii.Error, ValueError, UnicodeDecodeError, json.JSONDecodeError):
         return None
 
 

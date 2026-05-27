@@ -22,7 +22,7 @@ from shared.config import API_BASE_URL, GEMINI_MODEL
 try:
     import streamlit_shadcn_ui as sui
     _HAS_SHADCN = True
-except Exception:
+except ImportError:
     sui = None  # type: ignore[assignment]
     _HAS_SHADCN = False
 
@@ -82,7 +82,7 @@ def _stream_chat_tokens_once(stream_url: str, payload: dict) -> Iterator[str]:
         if r.status_code != 200:
             try:
                 detail = r.read().decode("utf-8", "replace")
-            except Exception:
+            except (httpx.HTTPError, UnicodeDecodeError, OSError):
                 detail = ""
             st.error(f"스트리밍 요청 실패: HTTP {r.status_code} {detail[:200]}")
             return
@@ -137,7 +137,7 @@ def _stream_chat_tokens(stream_url: str, payload: dict) -> Iterator[str]:
                 time.sleep(_RETRY_DELAY_SEC)
                 continue
             st.error("AI 응답 시간이 초과되었습니다. 다시 시도해 주세요.")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — UI safety: 어떤 SSE 파싱/네트워크 오류도 사용자에게 토스트로 전달
             st.error(f"스트리밍 오류: {e}")
             return  # Don't retry unknown errors
 
@@ -171,7 +171,7 @@ def _render_table_download(content: str, key_prefix: str, index: int) -> None:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key=f"{key_prefix}_{index}",
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 — download button은 부수적 UX, 실패해도 메인 흐름 영향 없음
         pass
 
 
