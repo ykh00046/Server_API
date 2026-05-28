@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from shared import get_logger
 
@@ -35,6 +35,26 @@ class QueueStats(BaseModel):
     success_24h: int
     failure_24h: int
     dead: int
+
+
+class BulkRetryRequest(BaseModel):
+    """Filter for POST /notifications/deliveries/bulk-retry."""
+
+    statuses: list[str] = Field(default_factory=lambda: ["dead"])
+    webhook_id: int | None = None
+    limit: int = Field(default=500, ge=1, le=5000)
+    dry_run: bool = False
+
+
+class BulkRetryResult(BaseModel):
+    """Outcome of a bulk dead-letter retry request."""
+
+    requeued: int
+    ids: list[int]
+    dry_run: bool
+    statuses: list[str]
+    webhook_id: int | None = None
+
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
@@ -158,6 +178,46 @@ def list_events():
 @router.get("/queue/stats", response_model=QueueStats)
 def queue_stats():
     return QueueStats(**store.queue_stats())
+
+
+_ALLOWED_BULK_STATUSES = set(store.RETRYABLE_TERMINAL_STATUSES)  # {"dead", "failure"}
+
+
+@router.post("/deliveries/bulk-retry", response_model=BulkRetryResult)
+def bulk_retry_deliveries(req: BulkRetryRequest):
+    """Re-queue every terminal-failure delivery (dead/failure) matching the
+    filter. Built for post-outage recovery when many deliveries pile up in
+    the dead-letter state. ``dry_run`` reports what would be re-queued
+    without mutating anything."""
+    requested = [str(s).strip().lower() for s in req.statuses if str(s).strip()]
+    if not requested:
+        raise HTTPException(
+            status_code=400,
+            detail="statuses must contain at least one of: "
+            + ", ".join(sorted(_ALLOWED_BULK_STATUSES)),
+        )
+    invalid = [s for s in requested if s not in _ALLOWED_BULK_STATUSES]
+    if invalid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"unsupported statuses {invalid}; allowed: "
+            + ", ".join(sorted(_ALLOWED_BULK_STATUSES)),
+        )
+    if req.dry_run:
+        ids = store.list_retryable_delivery_ids(
+            statuses=requested, webhook_id=req.webhook_id, limit=req.limit
+        )
+    else:
+        ids = store.requeue_deliveries(
+            statuses=requested, webhook_id=req.webhook_id, limit=req.limit
+        )
+    return BulkRetryResult(
+        requeued=len(ids),
+        ids=ids,
+        dry_run=req.dry_run,
+        statuses=requested,
+        webhook_id=req.webhook_id,
+    )
 
 
 @router.post("/deliveries/{delivery_id}/retry", response_model=DeliveryPublic)

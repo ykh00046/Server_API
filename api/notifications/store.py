@@ -44,19 +44,23 @@ from .webhooks_repo import (  # noqa: F401
     update_webhook,
 )
 from .deliveries_repo import (  # noqa: F401
+    RETRYABLE_TERMINAL_STATUSES,
     claim_due_deliveries,
     create_pending_delivery,
     enqueue_delivery,
     finalize_delivery,
     get_delivery,
     list_deliveries,
+    list_retryable_delivery_ids,
     queue_stats,
     record_attempt,
+    requeue_deliveries,
     requeue_delivery,
 )
 
 __all__ = [
     "ClaimedDelivery",
+    "RETRYABLE_TERMINAL_STATUSES",
     "WebhookRecord",
     "claim_due_deliveries",
     "create_pending_delivery",
@@ -70,8 +74,10 @@ __all__ = [
     "list_deliveries",
     "list_public",
     "list_records",
+    "list_retryable_delivery_ids",
     "queue_stats",
     "record_attempt",
+    "requeue_deliveries",
     "requeue_delivery",
     "reset_for_tests",
     "update_webhook",

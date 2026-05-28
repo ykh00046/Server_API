@@ -24,6 +24,16 @@ from ._store_models import (
 logger = get_logger(__name__)
 
 
+# Terminal-failure statuses eligible for bulk re-queue (webhook-bulk-retry-v1).
+#   dead    : 5xx/network retries exhausted (attempt >= MAX)
+#   failure : 4xx permanent failure or v1 sync single-shot failure
+# queued/in_flight/retrying/success/skipped are deliberately excluded —
+# re-queuing in_flight risks double-dispatch and success risks re-sending.
+RETRYABLE_TERMINAL_STATUSES: tuple[str, ...] = ("dead", "failure")
+
+_BULK_LIMIT_MAX = 5000
+
+
 # ----- v1 sync path -------------------------------------------------------
 def create_pending_delivery(
     webhook_id: int, event_type: str, payload: Mapping[str, Any]
@@ -255,6 +265,116 @@ def requeue_delivery(delivery_id: int) -> bool:
     )
     conn.commit()
     return True
+
+
+# ----- bulk dead-letter retry (webhook-bulk-retry-v1) ---------------------
+def _effective_statuses(
+    statuses: list[str] | tuple[str, ...] | None,
+) -> list[str]:
+    """Intersect requested statuses with RETRYABLE_TERMINAL_STATUSES,
+    preserving order and de-duplicating. Forbidden/unknown values are
+    silently dropped (the router enforces 400; this is defense-in-depth)."""
+    if not statuses:
+        return []
+    seen: set[str] = set()
+    out: list[str] = []
+    for s in statuses:
+        s2 = str(s).strip().lower()
+        if s2 in RETRYABLE_TERMINAL_STATUSES and s2 not in seen:
+            seen.add(s2)
+            out.append(s2)
+    return out
+
+
+def list_retryable_delivery_ids(
+    *,
+    statuses: list[str] | tuple[str, ...],
+    webhook_id: int | None = None,
+    limit: int,
+) -> list[int]:
+    """Ids of deliveries in the given terminal-failure statuses, capped at
+    ``limit`` and ordered by id ASC (oldest first). Read-only — used for the
+    bulk-retry dry-run path. Returns [] if the effective status set is empty."""
+    eff = _effective_statuses(statuses)
+    if not eff:
+        return []
+    limit = max(1, min(int(limit), _BULK_LIMIT_MAX))
+    placeholders = ",".join("?" for _ in eff)
+    params: list[Any] = list(eff)
+    where_wh = ""
+    if webhook_id is not None:
+        where_wh = " AND webhook_id = ?"
+        params.append(int(webhook_id))
+    params.append(limit)
+    rows = _get_conn().execute(
+        f"""
+        SELECT id FROM webhook_deliveries
+        WHERE status IN ({placeholders}){where_wh}
+        ORDER BY id ASC
+        LIMIT ?
+        """,
+        params,
+    ).fetchall()
+    return [int(r["id"]) for r in rows]
+
+
+def requeue_deliveries(
+    *,
+    statuses: list[str] | tuple[str, ...],
+    webhook_id: int | None = None,
+    limit: int,
+) -> list[int]:
+    """Bulk-reset terminal-failure deliveries back to status='queued'
+    (attempt=1, next_attempt_at=now, response fields NULL) inside a single
+    IMMEDIATE transaction. Returns the list of requeued ids.
+
+    The SELECT and UPDATE share one BEGIN IMMEDIATE so the returned ids
+    reflect exactly the rows that changed; rows that become dead between
+    select and update are handled by a later call. Column set mirrors the
+    single-row ``requeue_delivery`` for behavioural parity."""
+    eff = _effective_statuses(statuses)
+    if not eff:
+        return []
+    limit = max(1, min(int(limit), _BULK_LIMIT_MAX))
+    conn = _get_conn()
+    now = _now_iso()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        placeholders = ",".join("?" for _ in eff)
+        params: list[Any] = list(eff)
+        where_wh = ""
+        if webhook_id is not None:
+            where_wh = " AND webhook_id = ?"
+            params.append(int(webhook_id))
+        params.append(limit)
+        rows = conn.execute(
+            f"""
+            SELECT id FROM webhook_deliveries
+            WHERE status IN ({placeholders}){where_wh}
+            ORDER BY id ASC
+            LIMIT ?
+            """,
+            params,
+        ).fetchall()
+        ids = [int(r["id"]) for r in rows]
+        if ids:
+            id_ph = ",".join("?" for _ in ids)
+            conn.execute(
+                f"""
+                UPDATE webhook_deliveries
+                SET status='queued', attempt=1, next_attempt_at=?,
+                    response_status=NULL, response_body=NULL, error=NULL,
+                    duration_ms=0
+                WHERE id IN ({id_ph})
+                """,
+                [now, *ids],
+            )
+        conn.commit()
+        return ids
+    except sqlite3.Error as e:
+        conn.rollback()
+        logger.warning("[notifications.store] bulk requeue failed: %s", e)
+        return []
 
 
 def list_deliveries(
