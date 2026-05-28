@@ -72,7 +72,7 @@ def log(level: str, msg: str):
         LOGS_DIR.mkdir(parents=True, exist_ok=True)
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(log_line + "\n")
-    except Exception:
+    except (OSError, IOError):
         pass  # Don't fail if logging fails
 
 
@@ -85,7 +85,7 @@ def load_state() -> dict:
         try:
             with open(STATE_FILE, "r") as f:
                 return json.load(f)
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
     return {"live_mtime": 0, "live_size": 0, "archive_mtime": 0, "archive_size": 0, "last_analyze_ts": 0}
 
@@ -96,7 +96,7 @@ def save_state(state: dict):
         DATABASE_DIR.mkdir(parents=True, exist_ok=True)
         with open(STATE_FILE, "w") as f:
             json.dump(state, f)
-    except Exception as e:
+    except (OSError, json.JSONDecodeError) as e:
         log("WARN", f"Failed to save state: {e}")
 
 
@@ -106,7 +106,7 @@ def get_file_state(path: Path) -> tuple[float, int]:
         return 0, 0
     try:
         return os.path.getmtime(path), os.path.getsize(path)
-    except Exception:
+    except OSError:
         return 0, 0
 
 

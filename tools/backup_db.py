@@ -88,11 +88,11 @@ def backup_database(source_path: Path, backup_path: Path) -> bool:
         if backup_path.exists():
             try:
                 backup_path.unlink()
-            except Exception:
+            except OSError:
                 pass
         return False
 
-    except Exception as e:
+    except (OSError, IOError) as e:
         log("ERROR", f"Unexpected error during backup: {e}")
         return False
 
@@ -122,7 +122,7 @@ def verify_backup(backup_path: Path) -> bool:
             log("ERROR", f"Backup verification failed: {result}")
             return False
 
-    except Exception as e:
+    except sqlite3.Error as e:
         log("ERROR", f"Error verifying backup: {e}")
         return False
 
@@ -152,7 +152,7 @@ def cleanup_old_backups(prefix: str, retention: int):
         try:
             backup.unlink()
             log("INFO", f"Removed old backup: {backup.name}")
-        except Exception as e:
+        except OSError as e:
             log("WARN", f"Failed to remove {backup.name}: {e}")
 
     log("INFO", f"Cleanup complete: removed {len(to_remove)} old backups")
@@ -185,7 +185,7 @@ def run_backup(db_path: Path, prefix: str, retention: int) -> bool:
         log("ERROR", f"Backup verification failed. Removing corrupted backup.")
         try:
             backup_path.unlink()
-        except Exception:
+        except OSError:
             pass
         return False
 

@@ -111,7 +111,7 @@ def create_indexes(db_path: Path, dry_run: bool = False, force: bool = False) ->
     # Enable dbstat for size calculation
     try:
         conn.execute("PRAGMA stats = ON")
-    except Exception:
+    except sqlite3.Error:
         pass  # Not all SQLite versions support this
 
     # Get stats
@@ -144,7 +144,7 @@ def create_indexes(db_path: Path, dry_run: bool = False, force: bool = False) ->
                 elapsed = time.time() - start
                 logger.info(f"[OK] {index_name} created in {elapsed:.2f}s - {description}")
                 created += 1
-            except Exception as e:
+            except sqlite3.Error as e:
                 logger.error(f"[FAIL] {index_name}: {e}")
 
     # Update statistics

@@ -194,7 +194,7 @@ def execute_custom_query(
                     rows = cursor.fetchall()
                     result["rows"] = [dict(r) for r in rows]
                     result["columns"] = [desc[0] for desc in cursor.description] if cursor.description else []
-                except Exception as e:  # noqa: BLE001 — Gemini tool boundary: 모든 예외를 error로 변환 (LLM 계약)
+                except sqlite3.Error as e:  # noqa: BLE001 — Gemini tool boundary: 모든 예외를 error로 변환 (LLM 계약)
                     result["error"] = str(e)
                     logger.exception("[custom_query] run_query failed")
 

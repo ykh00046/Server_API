@@ -1,3 +1,53 @@
+# ==========================================================
+# Ruff — R3-ruff-ble001-coverage
+# Baseline gate: high-signal rules only (F = real errors, BLE001 = blind-except).
+# Future ramp (R4): I (imports), UP (pyupgrade), B904, SIM.
+# ==========================================================
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [
+    "webcloring-pdf",
+    ".venv",
+    ".smoke-venv",
+    ".smoke-venv2",
+    "dist",
+    "build",
+    "docs",
+    "logs",
+    ".pytest_tmp",
+    "__pycache__",
+]
+
+[tool.ruff.lint]
+select = ["F", "BLE001"]
+
+[tool.ruff.lint.per-file-ignores]
+# Test code: unused imports (fixtures/registration) and broad catch are often
+# intentional. Real bugs (F821/F841/F811) stay enforced.
+"tests/**" = ["F401", "BLE001"]
+
+# ==========================================================
+# Coverage — R3-ruff-ble001-coverage
+# Baseline over core backend (api, shared). --cov-fail-under is intentionally
+# NOT in pytest addopts: the full suite has known flaky tests (tmpdir race,
+# rate-limit 60s timing). Apply the floor in CI only.
+# ==========================================================
+[tool.coverage.run]
+source = ["api", "shared"]
+branch = true
+omit = ["*/__pycache__/*", "tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
+
 [tool.pytest.ini_options]
 minversion = "7.0"
 testpaths = ["tests"]

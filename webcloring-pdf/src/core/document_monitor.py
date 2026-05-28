@@ -440,7 +440,7 @@ class DocumentMonitor:
                 
                 logger.info(f"📂 이전 상태 로드: {len(self.processed_documents)}개 문서 기록")
                 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             logger.warning(f"상태 파일 로드 실패: {e}")
     
     def _save_state(self):
@@ -455,7 +455,7 @@ class DocumentMonitor:
             with open(self.state_file, 'w', encoding='utf-8') as f:
                 json.dump(state, f, indent=2, ensure_ascii=False)
                 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             logger.error(f"상태 저장 실패: {e}")
     
     def get_status(self) -> Dict[str, Any]:

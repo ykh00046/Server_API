@@ -9,6 +9,7 @@ Extracted from manager.py for separation of concerns.
 """
 
 import os
+import sqlite3
 import time
 import threading
 from pathlib import Path
@@ -53,7 +54,7 @@ class DBWatcher(threading.Thread):
                     break
                 self._check_and_heal()
 
-            except Exception as e:
+            except sqlite3.Error as e:
                 self.log_queue.put(("ERROR", f"Watcher Error: {e}"))
                 time.sleep(60)
 

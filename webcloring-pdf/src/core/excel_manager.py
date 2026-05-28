@@ -264,7 +264,7 @@ class ExcelManager:
                     old_file.unlink()
                     logger.debug(f"오래된 백업 삭제: {old_file}")
                 
-        except Exception as e:
+        except OSError as e:
             logger.warning(f"백업 정리 실패: {e}")
     
     def get_existing_data(self) -> List[Dict[str, str]]:

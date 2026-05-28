@@ -4,6 +4,7 @@ Note: Do NOT use 'from __future__ import annotations' here.
 Gemini SDK requires actual type hints, not stringified ones.
 """
 
+import sqlite3
 from typing import Optional, Dict, Any
 
 from shared import (
@@ -98,7 +99,7 @@ def search_production_items(
         logger.info(f"[Tool] search_production_items: keyword='{keyword}' include_archive={include_archive} found={len(items)}")
         return result
 
-    except Exception as e:  # noqa: BLE001 — Gemini tool boundary: 모든 예외를 error dict로 변환 (LLM 계약)
+    except (sqlite3.Error, KeyError) as e:  # noqa: BLE001 — Gemini tool boundary: 모든 예외를 error dict로 변환 (LLM 계약)
         logger.exception(f"[Tool Error] search_production_items failed: keyword='{keyword}'")
         return {"status": "error", "message": str(e)}
 
@@ -163,6 +164,6 @@ def get_item_history(
         logger.info(f"[Tool] get_item_history: item_code={item_code} limit={limit} found={len(records)}")
         return result
 
-    except Exception as e:  # noqa: BLE001 — Gemini tool boundary: 모든 예외를 error dict로 변환 (LLM 계약)
+    except sqlite3.Error as e:  # noqa: BLE001 — Gemini tool boundary: 모든 예외를 error dict로 변환 (LLM 계약)
         logger.exception(f"[Tool Error] get_item_history failed: item_code={item_code}")
         return {"status": "error", "message": str(e)}

@@ -5,6 +5,7 @@ Gemini SDK requires actual type hints, not stringified ones.
 """
 
 import concurrent.futures
+import sqlite3
 from typing import Optional, Dict, Any
 
 from shared import (
@@ -160,7 +161,7 @@ def get_monthly_trend(
         logger.info(f"[Tool] get_monthly_trend: period={date_from}~{date_to} item={item_code or 'all'} months={len(trend)}")
         return result
 
-    except Exception as e:  # noqa: BLE001 — Gemini tool boundary: 모든 예외를 error dict로 변환 (LLM 계약)
+    except sqlite3.Error as e:  # noqa: BLE001 — Gemini tool boundary: 모든 예외를 error dict로 변환 (LLM 계약)
         logger.exception(f"[Tool Error] get_monthly_trend failed: {str(e)}")
         return {"status": "error", "message": str(e)}
 
@@ -221,7 +222,7 @@ def get_top_items(
         logger.info(f"[Tool] get_top_items: period={date_from}~{date_to} limit={limit} found={len(items)}")
         return result
 
-    except Exception as e:  # noqa: BLE001 — Gemini tool boundary: 모든 예외를 error dict로 변환 (LLM 계약)
+    except sqlite3.Error as e:  # noqa: BLE001 — Gemini tool boundary: 모든 예외를 error dict로 변환 (LLM 계약)
         logger.exception(f"[Tool Error] get_top_items failed: {str(e)}")
         return {"status": "error", "message": str(e)}
 

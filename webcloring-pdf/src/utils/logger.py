@@ -51,7 +51,7 @@ class AutomationLogger:
                 file_handler.setLevel(logging.DEBUG)
                 file_handler.setFormatter(formatter)
                 self.logger.addHandler(file_handler)
-            except Exception as e:
+            except (OSError, IOError) as e:
                 self.logger.warning(f"파일 로깅 설정 실패: {e}")
     
     def info(self, message: str):

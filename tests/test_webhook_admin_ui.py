@@ -195,6 +195,35 @@ def test_retry_delivery_posts_to_correct_path():
     assert rec.calls[0].url.path == "/notifications/deliveries/42/retry"
 
 
+def test_bulk_retry_dead_defaults_to_dead_status():
+    rec = _Recorder([_json_resp(200, {"requeued": 3, "ids": [1, 2, 3], "dry_run": False, "statuses": ["dead"], "webhook_id": None})])
+    with _client_with(rec.handler) as c:
+        out = c.bulk_retry_dead()
+    assert out["requeued"] == 3
+    req = rec.calls[0]
+    assert req.method == "POST"
+    assert req.url.path == "/notifications/deliveries/bulk-retry"
+    body = json.loads(req.content)
+    assert body == {"statuses": ["dead"], "limit": 500, "dry_run": False}
+
+
+def test_bulk_retry_dead_passes_webhook_id_and_dry_run():
+    rec = _Recorder([_json_resp(200, {"requeued": 0, "ids": [], "dry_run": True, "statuses": ["dead", "failure"], "webhook_id": 7})])
+    with _client_with(rec.handler) as c:
+        c.bulk_retry_dead(statuses=["dead", "failure"], webhook_id=7, limit=100, dry_run=True)
+    body = json.loads(rec.calls[0].content)
+    assert body == {"statuses": ["dead", "failure"], "limit": 100, "dry_run": True, "webhook_id": 7}
+
+
+def test_bulk_retry_dead_surfaces_400():
+    rec = _Recorder([_json_resp(400, {"detail": "unsupported statuses ['success']; allowed: dead, failure"})])
+    with _client_with(rec.handler) as c:
+        with pytest.raises(WebhookAdminError) as ei:
+            c.bulk_retry_dead(statuses=["success"])
+    assert ei.value.status == 400
+    assert "unsupported statuses" in str(ei.value)
+
+
 # =====================================================================
 # api_client — error normalization
 # =====================================================================
@@ -361,3 +390,19 @@ def test_views_module_does_not_call_api_client_at_import_time():
         if ln.startswith("client.") or ln.startswith("WebhookAdminClient(")
     ]
     assert module_level_calls == [], f"unexpected module-level api calls: {module_level_calls}"
+
+
+def test_views_wires_bulk_retry_button_in_queue_stats():
+    """webhook-bulk-retry-v1: the dead-letter bulk retry button must be wired
+    into the queue-stats section, calling bulk_retry_dead via a helper, and
+    still perform no module-level api calls."""
+    src = (_PKG_DIR / "views.py").read_text(encoding="utf-8")
+    assert "bulk_retry_dead" in src
+    assert "_do_bulk_retry_dead" in src
+    assert "webhook_bulk_retry_dead" in src  # button key
+    # the helper call must be inside a function, never at module level
+    module_level_calls = [
+        ln for ln in src.splitlines()
+        if ln.startswith("client.") or ln.startswith("WebhookAdminClient(")
+    ]
+    assert module_level_calls == []

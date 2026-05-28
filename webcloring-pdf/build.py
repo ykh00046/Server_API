@@ -151,7 +151,7 @@ def clean_build_directories(full_clean=False):
             try:
                 shutil.rmtree(dir_path)
                 print_success(f"{dir_path.name}/ 삭제 완료")
-            except Exception as e:
+            except OSError as e:
                 print_warning(f"{dir_path.name}/ 삭제 실패: {e}")
         else:
             print(f"  {dir_path.name}/ 이미 없음")
@@ -327,7 +327,7 @@ interojo_automation/
             f.write(guide_content)
         print_success(f"사용자 가이드 생성: {guide_path.name}")
         return True
-    except Exception as e:
+    except (OSError, IOError) as e:
         print_warning(f"사용자 가이드 생성 실패: {e}")
         return False
 
@@ -379,7 +379,7 @@ def test_executable():
         print_success("실행 파일 정상 시작 확인 (타임아웃)")
         return True
 
-    except Exception as e:
+    except (subprocess.SubprocessError, OSError) as e:
         print_error(f"실행 파일 테스트 실패: {e}")
         return False
 

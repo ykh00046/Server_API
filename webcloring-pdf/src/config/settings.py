@@ -64,7 +64,7 @@ class Settings:
             if self.config_file.exists():
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             print(f"설정 파일 로드 실패: {e}")
         
         return self._get_default_config()

@@ -29,7 +29,7 @@ def create_index(db_path: Path, label: str):
                 print(f"  - Executing: {sql}")
                 conn.execute(sql)
             print(f"[{label}] Done.")
-    except Exception as e:
+    except sqlite3.Error as e:
         print(f"[{label}] Error: {e}")
 
 if __name__ == "__main__":

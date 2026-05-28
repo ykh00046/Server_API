@@ -40,7 +40,7 @@ def run(url: str, path: str, n: int) -> dict:
                 r = client.get(path)
                 bucket = f"{r.status_code // 100}xx"
                 counts[bucket] = counts.get(bucket, 0) + 1
-            except Exception:
+            except httpx.HTTPError:
                 counts["error"] += 1
     elapsed = time.perf_counter() - start
 

@@ -41,6 +41,27 @@ def render_queue_stats_section(client: WebhookAdminClient) -> None:
     for col, (label, value, _hint) in zip(cols, cards):
         col.metric(label, value)
 
+    try:
+        dead_n = int(stats.get("dead", 0) or 0)
+    except (TypeError, ValueError):
+        dead_n = 0
+    if dead_n > 0:
+        st.caption(f"포기됨(dead) {dead_n}건이 재시도 큐로 복귀 가능합니다.")
+        if st.button(f"💀 dead {dead_n}건 전체 재시도", key="webhook_bulk_retry_dead"):
+            _do_bulk_retry_dead(client)
+
+
+def _do_bulk_retry_dead(client: WebhookAdminClient) -> None:
+    try:
+        with st.spinner("재시도 큐로 복귀 중…"):
+            out = client.bulk_retry_dead(statuses=["dead"])
+    except WebhookAdminError as e:
+        toast_error(f"일괄 재시도 실패: {e}")
+        return
+    n = out.get("requeued", 0)
+    toast_success(f"dead delivery {n}건을 재시도 큐로 복귀시켰습니다.")
+    st.rerun()
+
 
 # =====================================================================
 # Section: register form

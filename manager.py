@@ -269,7 +269,7 @@ def _get_local_ip():
         ip = s.getsockname()[0]
         s.close()
         return ip
-    except Exception:
+    except OSError:
         return "127.0.0.1"
 
 def _is_port_in_use(port: int):

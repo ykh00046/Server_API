@@ -244,7 +244,7 @@ class AutomationGUI:
                 try:
                     msg = self.log_queue.get_nowait()
                     self._append_log(msg + '\n')
-                except:
+                except Exception:
                     pass
             # 100ms마다 큐 체크
             if not hasattr(self, '_log_queue_stopped') or not self._log_queue_stopped:

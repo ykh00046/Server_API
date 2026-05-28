@@ -9,6 +9,7 @@ API layer wraps these to return HTTPException as needed.
 from __future__ import annotations
 
 import datetime as dt
+from pathlib import Path
 
 
 def validate_date_format(date_str: str, field_name: str = "date") -> dt.date:

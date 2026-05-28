@@ -206,5 +206,26 @@ class WebhookAdminClient:
             f"/notifications/deliveries/{delivery_id}/retry",
         )
 
+    def bulk_retry_dead(
+        self,
+        *,
+        statuses: list[str] | None = None,
+        webhook_id: int | None = None,
+        limit: int = 500,
+        dry_run: bool = False,
+    ) -> dict:
+        body: dict[str, Any] = {
+            "statuses": statuses if statuses is not None else ["dead"],
+            "limit": limit,
+            "dry_run": dry_run,
+        }
+        if webhook_id is not None:
+            body["webhook_id"] = webhook_id
+        return self._request(
+            "POST",
+            "/notifications/deliveries/bulk-retry",
+            json=body,
+        )
+
 
 __all__ = ["WebhookAdminClient", "WebhookAdminError"]

@@ -77,7 +77,7 @@ class GoogleSheetsManager:
             # 첫 번째 워크시트 선택 (또는 생성)
             try:
                 self.worksheet = self.spreadsheet.sheet1
-            except:
+            except Exception as e:
                 # 워크시트가 없으면 생성
                 self.worksheet = self.spreadsheet.add_worksheet(
                     title="자재내역",
@@ -263,7 +263,7 @@ class GoogleSheetsManager:
             with open(log_file, 'a', encoding='utf-8') as f:
                 timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 f.write(f"[{timestamp}] 백업 실패: {str(error)}\n")
-        except Exception as e:
+        except (OSError, IOError) as e:
             logger.error(f"백업 실패 로그 기록 오류: {e}")
 
     def test_connection(self) -> Dict[str, Any]:

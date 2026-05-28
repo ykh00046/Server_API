@@ -178,7 +178,7 @@ def check_and_heal_indexes(
         result["error"] = str(e)
         logger.error("SQLite error on %s: %s", db_path.name, e)
 
-    except Exception as e:  # noqa: BLE001 — sqlite3.Error 외 경로(IO 등) 마지막 안전망
+    except sqlite3.Error as e:  # noqa: BLE001 — sqlite3.Error 외 경로(IO 등) 마지막 안전망
         result["error"] = str(e)
         logger.error("Error checking %s: %s", db_path.name, e)
 
@@ -227,7 +227,7 @@ def run_analyze(db_path: Path) -> dict:
         result["error"] = str(e)
         logger.error("ANALYZE failed on %s: %s", db_path.name, e)
 
-    except Exception as e:  # noqa: BLE001 — sqlite3.Error 외 경로(IO 등) 마지막 안전망
+    except sqlite3.Error as e:  # noqa: BLE001 — sqlite3.Error 외 경로(IO 등) 마지막 안전망
         result["error"] = str(e)
         logger.error("ANALYZE error on %s: %s", db_path.name, e)
 

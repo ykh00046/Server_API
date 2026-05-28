@@ -196,7 +196,7 @@ class ProcessedDocumentManager:
             
             logger.debug(f"문서 {doc_id} 처리 기록 완료 (상태: {status})")
             
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error(f"문서 {doc_id} 처리 기록 실패: {e}")
             raise
     

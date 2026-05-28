@@ -89,7 +89,7 @@ class HealthChecker:
                 'response_time': None,
                 'timestamp': datetime.now().isoformat()
             }
-        except Exception as e:
+        except (requests.RequestException) as e:
             logger.error(f"포털 접속 점검 오류: {e}")
             return {
                 'status': False,
@@ -226,7 +226,7 @@ class HealthChecker:
                         'message': '디렉토리 쓰기 가능',
                         'timestamp': datetime.now().isoformat()
                     }
-                except Exception as e:
+                except (OSError, IOError) as e:
                     logger.warning(f"Excel 디렉토리 쓰기 불가: {e}")
                     return {
                         'status': False,

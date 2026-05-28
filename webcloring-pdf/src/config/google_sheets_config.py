@@ -40,7 +40,7 @@ class GoogleSheetsConfig:
                     logger.debug("구글 시트 설정 로드 완료")
             else:
                 logger.debug("구글 시트 설정 파일이 없습니다. 기본 설정을 사용합니다.")
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             logger.error(f"구글 시트 설정 로드 실패: {e}")
 
         return default_config
@@ -55,7 +55,7 @@ class GoogleSheetsConfig:
                 json.dump(self.config, f, ensure_ascii=False, indent=2)
             logger.debug("구글 시트 설정 저장 완료")
             return True
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             logger.error(f"구글 시트 설정 저장 실패: {e}")
             return False
 
