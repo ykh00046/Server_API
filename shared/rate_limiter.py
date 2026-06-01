@@ -16,8 +16,9 @@ from __future__ import annotations
 
 import threading
 import time
+import math
 from collections import defaultdict, deque
-from typing import Dict, Tuple
+from typing import Dict
 
 from .config import RATE_LIMIT_WINDOW
 
@@ -129,7 +130,7 @@ class RateLimiter:
 
             oldest = timestamps[0]
             retry_at = oldest + self.window_seconds
-            wait_seconds = max(1, int(retry_at - current_time) + 1)
+            wait_seconds = max(1, min(self.window_seconds, math.ceil(retry_at - current_time)))
 
             return wait_seconds
 
