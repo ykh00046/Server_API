@@ -1,9 +1,18 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-06-01T13:44:38.007Z",
+  "lastUpdated": "2026-06-02T00:00:00.000Z",
   "activeFeatures": [],
-  "primaryFeature": null,
-  "features": {},
+  "primaryFeature": "auth-audit-v1",
+  "features": {
+    "auth-audit-v1": {
+      "phase": "report",
+      "status": "completed",
+      "startedAt": "2026-06-02",
+      "completedAt": "2026-06-02",
+      "matchRate": 100,
+      "iterations": 0
+    }
+  },
   "pipeline": {
     "currentPhase": 1,
     "level": "Dynamic",
