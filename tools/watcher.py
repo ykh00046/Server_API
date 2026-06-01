@@ -34,15 +34,14 @@ from pathlib import Path
 # Add parent directory for shared imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shared import DB_FILE, ARCHIVE_DB_FILE, DATABASE_DIR
+from shared import ARCHIVE_DB_FILE, DATABASE_DIR, DB_FILE
 from shared.config import LOGS_DIR
 from shared.db_maintenance import (
-    wait_for_stabilization,
     check_and_heal_indexes,
-    run_analyze,
     get_file_state,
+    run_analyze,
+    wait_for_stabilization,
 )
-
 
 # ==========================================================
 # Configuration
@@ -69,7 +68,7 @@ def log(level: str, msg: str):
         LOGS_DIR.mkdir(parents=True, exist_ok=True)
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(log_line + "\n")
-    except (OSError, IOError):
+    except OSError:
         pass  # Don't fail if logging fails
 
 
@@ -80,7 +79,7 @@ def load_state() -> dict:
     """Load last known state from file."""
     if STATE_FILE.exists():
         try:
-            with open(STATE_FILE, "r") as f:
+            with open(STATE_FILE) as f:
                 return json.load(f)
         except (OSError, json.JSONDecodeError):
             pass

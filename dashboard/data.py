@@ -10,16 +10,14 @@ import os
 import re
 import sqlite3
 from datetime import date, timedelta
-from typing import Optional, List, Tuple
 
 import pandas as pd
 import streamlit as st
 
 # Note: sys.path is set by app.py entrypoint — no need to repeat here
-
 from shared import (
-    DB_FILE,
     ARCHIVE_DB_FILE,
+    DB_FILE,
     DBRouter,
 )
 from shared.validators import escape_like_wildcards
@@ -40,7 +38,7 @@ def get_db_mtime() -> float:
         return 0
 
 
-def run_self_check() -> Tuple[bool, str]:
+def run_self_check() -> tuple[bool, str]:
     """Run database health check."""
     if not DB_FILE.exists():
         return False, f"Database file not found: {DB_FILE}"
@@ -145,13 +143,13 @@ def load_item_list(db_ver):
 
 @st.cache_data(ttl=60)  # 1 minute - real-time data needed
 def load_records(
-    item_codes: Optional[List[str]],
-    keyword: Optional[str],
-    date_from: Optional[date],
-    date_to: Optional[date],
+    item_codes: list[str] | None,
+    keyword: str | None,
+    date_from: date | None,
+    date_to: date | None,
     limit: int,
     db_ver,
-) -> Tuple[pd.DataFrame, int]:
+) -> tuple[pd.DataFrame, int]:
     where = []
     params = []
 

@@ -16,10 +16,10 @@ from .validators import resolve_archive_db
 
 def attach_archive_safe(
     conn: sqlite3.Connection,
-    archive_path: "str | os.PathLike | None" = None,
+    archive_path: str | os.PathLike | None = None,
     *,
     alias: str = "archive",
-    whitelist: "tuple | None" = None,
+    whitelist: tuple | None = None,
 ):
     """ATTACH archive DB safely (whitelist + bind-first + ro mode).
 

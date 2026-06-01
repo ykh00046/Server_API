@@ -165,7 +165,7 @@ def validate_db_path(path: str) -> bool:
     return True
 
 
-def resolve_archive_db(requested_path, whitelist) -> "Path":
+def resolve_archive_db(requested_path, whitelist) -> Path:
     """
     Resolve an archive DB path against a whitelist.
 

@@ -12,7 +12,7 @@ from __future__ import annotations
 import datetime as dt
 import threading
 import time
-from typing import Callable
+from collections.abc import Callable
 
 import httpx
 

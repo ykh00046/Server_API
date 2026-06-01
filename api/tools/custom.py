@@ -5,7 +5,7 @@ Gemini SDK requires actual type hints, not stringified ones.
 """
 
 import re
-from typing import Dict, Any
+from typing import Any
 
 from shared import (
     DBTargets,
@@ -54,7 +54,7 @@ def execute_custom_query(
     sql: str,
     params: list[str] | None = None,
     description: str = ""
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Execute a custom SQL query for flexible data analysis.
     Use this tool when other tools cannot handle complex filtering conditions
@@ -86,10 +86,11 @@ def execute_custom_query(
     """
     import sqlite3
     import threading
+
     from shared.config import (
+        CUSTOM_QUERY_TIMEOUT_SEC,
         DB_FILE,
         DB_TIMEOUT,
-        CUSTOM_QUERY_TIMEOUT_SEC,
     )
     from shared.database import _apply_pragma_settings
 

@@ -1,7 +1,8 @@
 import os
+from pathlib import Path
+
 import google.generativeai as genai
 from dotenv import load_dotenv
-from pathlib import Path
 
 # Load API Key
 BASE_DIR = Path(__file__).resolve().parent.parent

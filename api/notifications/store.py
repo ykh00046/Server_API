@@ -34,15 +34,6 @@ from ._store_models import (  # noqa: F401
     _row_to_delivery,
     _row_to_record,
 )
-from .webhooks_repo import (  # noqa: F401
-    create_webhook,
-    delete_webhook,
-    get_public,
-    get_record,
-    list_public,
-    list_records,
-    update_webhook,
-)
 from .deliveries_repo import (  # noqa: F401
     RETRYABLE_TERMINAL_STATUSES,
     claim_due_deliveries,
@@ -56,6 +47,15 @@ from .deliveries_repo import (  # noqa: F401
     record_attempt,
     requeue_deliveries,
     requeue_delivery,
+)
+from .webhooks_repo import (  # noqa: F401
+    create_webhook,
+    delete_webhook,
+    get_public,
+    get_record,
+    list_public,
+    list_records,
+    update_webhook,
 )
 
 __all__ = [

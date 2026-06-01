@@ -9,7 +9,7 @@ Public surface:
 """
 from __future__ import annotations
 
-from .api_client import WebhookAdminClient, WebhookAdminError
 from . import formatters
+from .api_client import WebhookAdminClient, WebhookAdminError
 
 __all__ = ["WebhookAdminClient", "WebhookAdminError", "formatters"]

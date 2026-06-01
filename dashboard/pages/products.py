@@ -13,16 +13,16 @@ script (executed top-to-bottom on each rerun) and only orchestrates load +
 classification + section calls.
 """
 
-import streamlit as st
-import plotly.graph_objects as go
 import pandas as pd
-
-from data import get_filter_state, load_records, load_item_list
+import plotly.graph_objects as go
+import streamlit as st
 from components import (
     create_trend_lines,
     get_chart_config,
 )
-from components.layout import render_page_header, get_page_columns, render_ai_column
+from components.layout import get_page_columns, render_ai_column, render_page_header
+from data import get_filter_state, load_item_list, load_records
+
 from shared.ui.theme import get_colors
 
 # ==========================================================

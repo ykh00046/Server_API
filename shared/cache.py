@@ -14,16 +14,15 @@ from __future__ import annotations
 
 import os
 import sqlite3
-import time
 import threading
+import time
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable
 
 from cachetools import TTLCache
 
-from .config import DB_FILE, ARCHIVE_DB_FILE
+from .config import ARCHIVE_DB_FILE, DB_FILE
 from .metrics import performance_monitor
-
 
 # ==========================================================
 # DB Version (mtime-based)

@@ -15,9 +15,9 @@ import time
 from fastapi import APIRouter
 
 from shared import (
-    DB_FILE,
     ARCHIVE_DB_FILE,
     DATABASE_DIR,
+    DB_FILE,
     DBRouter,
     get_cache_stats,
     get_logger,

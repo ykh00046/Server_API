@@ -156,10 +156,10 @@ def test_5xx_response_schedules_retry_with_increased_attempt(client, isolated_db
     assert int(raw["attempt"]) == 2
     assert raw["next_attempt_at"] is not None
     # next_attempt_at must be in the future
-    now = dt.datetime.now(dt.timezone.utc)
+    now = dt.datetime.now(dt.UTC)
     nxt = dt.datetime.fromisoformat(raw["next_attempt_at"])
     if nxt.tzinfo is None:
-        nxt = nxt.replace(tzinfo=dt.timezone.utc)
+        nxt = nxt.replace(tzinfo=dt.UTC)
     assert nxt > now
 
 
@@ -234,9 +234,9 @@ def test_retry_after_header_drives_next_delay(client, isolated_db, captured):
     events.emit_event("evt.async", {"x": 1})
     transport = _make_retry_after_transport(captured, seconds=7)
     worker = WebhookDispatchWorker(transport=transport, random_fn=lambda: 0.5)
-    before = dt.datetime.now(dt.timezone.utc)
+    before = dt.datetime.now(dt.UTC)
     worker.tick_once()
-    after = dt.datetime.now(dt.timezone.utc)
+    after = dt.datetime.now(dt.UTC)
     rows = store.list_deliveries(wh["id"])
     conn = store._get_conn()
     raw = conn.execute(
@@ -244,7 +244,7 @@ def test_retry_after_header_drives_next_delay(client, isolated_db, captured):
     ).fetchone()
     nxt = dt.datetime.fromisoformat(raw["next_attempt_at"])
     if nxt.tzinfo is None:
-        nxt = nxt.replace(tzinfo=dt.timezone.utc)
+        nxt = nxt.replace(tzinfo=dt.UTC)
     delta = (nxt - before).total_seconds()
     # jitter is 0 at random_fn=0.5, so delay should be ~7s. Allow generous bound for clock skew.
     assert 5.5 <= delta <= 8.5, f"unexpected delta={delta}; nxt={nxt} before={before} after={after}"

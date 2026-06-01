@@ -9,17 +9,18 @@ from __future__ import annotations
 import datetime as dt
 import json
 import sqlite3
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from shared import get_logger
 
-from .schemas import DeliveryPublic
 from ._store_connection import _get_conn
 from ._store_models import (
     ClaimedDelivery,
     _now_iso,
     _row_to_delivery,
 )
+from .schemas import DeliveryPublic
 
 logger = get_logger(__name__)
 
@@ -224,7 +225,7 @@ def queue_stats() -> dict[str, int]:
         if s in ("queued", "in_flight", "retrying", "dead"):
             out[s] = int(r["n"])
     cutoff = (
-        dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=24)
+        dt.datetime.now(dt.UTC) - dt.timedelta(hours=24)
     ).isoformat()
     rows2 = conn.execute(
         """

@@ -10,18 +10,18 @@ two `_render_*` helpers. Module top-level handles aggregation selector + data lo
 """
 
 import pandas as pd
-import streamlit as st
-from plotly.subplots import make_subplots
 import plotly.graph_objects as go
-
+import streamlit as st
+from components import get_chart_config
+from components.layout import get_page_columns, render_ai_column, render_page_header
 from data import (
     get_filter_state,
     load_daily_summary,
-    load_weekly_summary,
     load_monthly_summary,
+    load_weekly_summary,
 )
-from components import get_chart_config
-from components.layout import render_page_header, get_page_columns, render_ai_column
+from plotly.subplots import make_subplots
+
 from shared.ui.theme import get_colors
 
 

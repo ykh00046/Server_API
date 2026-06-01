@@ -24,28 +24,25 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 from fastapi.responses import StreamingResponse
 from google.genai import types
-
 from google.genai.errors import ClientError, ServerError
 
 from shared import get_logger
-from ._gemini_client import is_fallbackable
 from shared.config import (
-    GEMINI_MODEL,
-    GEMINI_FALLBACK_MODEL,
     GEMINI_FALLBACK_ENABLED,
+    GEMINI_FALLBACK_MODEL,
+    GEMINI_MODEL,
+    STREAM_BUFFER_FLUSH_MS,
     STREAM_HEARTBEAT_SEC,
     STREAM_TIMEOUT_SEC,
-    STREAM_BUFFER_FLUSH_MS,
 )
 
-from ._gemini_client import get_client
-from ._tool_dispatch import PRODUCTION_TOOLS
-
 from . import _session_store as _sstore
+from ._gemini_client import get_client, is_fallbackable
+from ._tool_dispatch import PRODUCTION_TOOLS
 
 # Structured error codes for SSE error events
 ERR_AI_DISABLED = "ai_disabled"

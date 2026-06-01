@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 """
 Shared Date and Range Utilities for Production Data Hub.
@@ -11,18 +10,18 @@ Provides unified logic for:
 """
 
 from datetime import datetime, timedelta
-from typing import Tuple
+
 import pandas as pd
 
 
-def get_current_week_range() -> Tuple[datetime.date, datetime.date]:
+def get_current_week_range() -> tuple[datetime.date, datetime.date]:
     """Last 7 days (today back to 6 days ago)."""
     today = datetime.today().date()
     start_date = today - timedelta(days=6)
     return start_date, today
 
 
-def get_last_week_range() -> Tuple[datetime.date, datetime.date]:
+def get_last_week_range() -> tuple[datetime.date, datetime.date]:
     """The 7-day period before the current week."""
     today = datetime.today().date()
     last_week_end = today - timedelta(days=7)
@@ -30,7 +29,7 @@ def get_last_week_range() -> Tuple[datetime.date, datetime.date]:
     return last_week_start, last_week_end
 
 
-def get_current_month_range() -> Tuple[datetime.date, datetime.date]:
+def get_current_month_range() -> tuple[datetime.date, datetime.date]:
     """Start and end date of the current calendar month."""
     today = datetime.today().date()
     start_date = today.replace(day=1)
@@ -42,7 +41,7 @@ def get_current_month_range() -> Tuple[datetime.date, datetime.date]:
     return start_date, end_date
 
 
-def get_last_month_range() -> Tuple[datetime.date, datetime.date]:
+def get_last_month_range() -> tuple[datetime.date, datetime.date]:
     """Start and end date of the previous calendar month."""
     today = datetime.today().date()
     first_day_current = today.replace(day=1)
@@ -51,7 +50,7 @@ def get_last_month_range() -> Tuple[datetime.date, datetime.date]:
     return first_day_prev, last_day_prev
 
 
-def get_relative_range(days: int = 30) -> Tuple[datetime.date, datetime.date]:
+def get_relative_range(days: int = 30) -> tuple[datetime.date, datetime.date]:
     """Range for the last N days ending today."""
     end_date = datetime.today().date()
     start_date = end_date - timedelta(days=days - 1)

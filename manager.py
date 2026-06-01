@@ -1,18 +1,19 @@
-import os
-import sys
 import atexit
-import signal
-import threading
-import subprocess
-import socket
-import webbrowser
-import time
+import os
 import queue
-from pathlib import Path
-from dataclasses import dataclass
-from typing import Callable, Optional
+import signal
+import socket
+import subprocess
+import sys
+import threading
+import time
 import tkinter as tk
 import tkinter.messagebox as messagebox
+import webbrowser
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
+
 import customtkinter as ctk
 import pystray
 from PIL import Image, ImageDraw
@@ -23,13 +24,12 @@ from portal_settings_dialog import PortalSettingsDialog
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from shared import (
+    API_PORT,
     BASE_DIR,
     DASHBOARD_PORT,
-    API_PORT,
 )
 from shared.process_utils import kill_process_tree
 from tools.db_watcher import DBWatcher
-
 
 # ==========================================================
 # Process Cleanup on Exit
@@ -145,7 +145,7 @@ class ServicePanel(ctk.CTkFrame):
         super().__init__(master, corner_radius=15, fg_color=COLOR_BG_CARD, **kwargs)
 
         self.config = config
-        self.process: Optional[subprocess.Popen] = None
+        self.process: subprocess.Popen | None = None
 
         # Grid placement
         self.grid(**grid_args)

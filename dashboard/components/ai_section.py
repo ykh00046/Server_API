@@ -11,7 +11,7 @@ Features:
 import io
 import json
 import time
-from typing import Iterator, Optional
+from collections.abc import Iterator
 
 import httpx
 import pandas as pd
@@ -86,7 +86,7 @@ def _stream_chat_tokens_once(stream_url: str, payload: dict) -> Iterator[str]:
                 detail = ""
             st.error(f"스트리밍 요청 실패: HTTP {r.status_code} {detail[:200]}")
             return
-        event_name: Optional[str] = None
+        event_name: str | None = None
         for line in r.iter_lines():
             if not line:
                 event_name = None
@@ -201,7 +201,7 @@ def _process_pending_user_message(chat_container, api_url: str) -> None:
             st.rerun()
 
 
-def _render_starter_card(idx: int, item: dict) -> Optional[str]:
+def _render_starter_card(idx: int, item: dict) -> str | None:
     """Render one starter prompt card. Returns the selected prompt or None."""
     title = f"{item['icon']} {item['title']}"
     if _HAS_SHADCN:
@@ -280,7 +280,7 @@ def render_ai_chat(api_url: str | None = None) -> None:
         # Starter card styling is in theme.py _BASE_RULES (.bkit-starter-cards)
 
         col1, col2 = st.columns(2)
-        prompt_clicked: Optional[str] = None
+        prompt_clicked: str | None = None
         for idx, item in enumerate(STARTER_PROMPTS):
             with (col1 if idx % 2 == 0 else col2):
                 chosen = _render_starter_card(idx, item)

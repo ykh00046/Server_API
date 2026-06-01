@@ -20,8 +20,8 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shared import DB_FILE, ARCHIVE_DB_FILE
-from shared.logging_config import setup_logging, get_logger
+from shared import ARCHIVE_DB_FILE, DB_FILE
+from shared.logging_config import get_logger, setup_logging
 
 setup_logging()
 logger = get_logger(__name__)

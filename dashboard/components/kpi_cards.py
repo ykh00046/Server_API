@@ -8,17 +8,18 @@ Custom HTML cards with:
 - CSS bar sparkline
 """
 
-import streamlit as st
-import pandas as pd
 from datetime import date
-from typing import Dict, Any, Optional, List
+from typing import Any
+
+import pandas as pd
+import streamlit as st
 
 
 def calculate_kpis(
     df: pd.DataFrame,
-    date_from: Optional[date],
-    date_to: Optional[date]
-) -> Dict[str, Any]:
+    date_from: date | None,
+    date_to: date | None
+) -> dict[str, Any]:
     """
     Calculate KPI metrics from dataframe.
 
@@ -91,7 +92,7 @@ def calculate_kpis(
 def get_sparkline_data(
     df: pd.DataFrame,
     days: int = 7
-) -> List[int]:
+) -> list[int]:
     """
     Get daily production trend for sparkline display.
 
@@ -119,7 +120,7 @@ def get_sparkline_for_top_product(
     df: pd.DataFrame,
     top_item: str,
     days: int = 7
-) -> List[int]:
+) -> list[int]:
     """
     Get daily production trend for the top product.
 
@@ -147,7 +148,7 @@ def _format_number(n: int) -> str:
     return str(n)
 
 
-def _render_sparkline_bars(data: List[int], color_light: str, color_dark: str) -> str:
+def _render_sparkline_bars(data: list[int], color_light: str, color_dark: str) -> str:
     """Generate CSS bar sparkline HTML."""
     if not data or max(data) == 0:
         return ""
@@ -161,11 +162,11 @@ def _render_sparkline_bars(data: List[int], color_light: str, color_dark: str) -
 
 
 def render_kpi_cards(
-    kpis: Dict[str, Any],
-    colors: Dict[str, str],
-    sparkline_data: Optional[List[int]] = None,
-    batch_sparkline: Optional[List[int]] = None,
-    top_product_sparkline: Optional[List[int]] = None
+    kpis: dict[str, Any],
+    colors: dict[str, str],
+    sparkline_data: list[int] | None = None,
+    batch_sparkline: list[int] | None = None,
+    top_product_sparkline: list[int] | None = None
 ) -> None:
     """
     Render 4 KPI cards in B3 style with gradient bars, icons, and sparklines.

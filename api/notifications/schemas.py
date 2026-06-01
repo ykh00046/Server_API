@@ -12,7 +12,6 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field
 
-
 ALLOWED_SCHEMES = {"http", "https"}
 
 

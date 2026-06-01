@@ -10,16 +10,16 @@ Extracted from manager.py for separation of concerns.
 
 import os
 import sqlite3
-import time
 import threading
+import time
 from pathlib import Path
 from queue import Queue
 
-from shared import DB_FILE, ARCHIVE_DB_FILE
+from shared import ARCHIVE_DB_FILE, DB_FILE
 from shared.db_maintenance import (
-    wait_for_stabilization,
     check_and_heal_indexes,
     get_file_state,
+    wait_for_stabilization,
 )
 
 

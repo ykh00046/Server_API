@@ -5,9 +5,10 @@ Allows users to save their filter settings as presets for quick access.
 Presets are stored in Streamlit session state.
 """
 
-import streamlit as st
 from datetime import date, datetime
-from typing import Optional, Dict, Any, List
+from typing import Any
+
+import streamlit as st
 
 # Maximum number of presets allowed
 MAX_PRESETS = 10
@@ -23,7 +24,7 @@ def init_presets() -> None:
         st.session_state.filter_presets = {}
 
 
-def get_preset_names() -> List[str]:
+def get_preset_names() -> list[str]:
     """
     Get list of saved preset names.
 
@@ -35,10 +36,10 @@ def get_preset_names() -> List[str]:
 
 def save_preset(
     name: str,
-    item_codes: Optional[List[str]],
-    date_from: Optional[date],
-    date_to: Optional[date],
-    keyword: Optional[str],
+    item_codes: list[str] | None,
+    date_from: date | None,
+    date_to: date | None,
+    keyword: str | None,
     limit: int
 ) -> bool:
     """
@@ -80,7 +81,7 @@ def save_preset(
     return True
 
 
-def load_preset(name: str) -> Optional[Dict[str, Any]]:
+def load_preset(name: str) -> dict[str, Any] | None:
     """
     Load preset by name.
 
@@ -132,12 +133,12 @@ def delete_preset(name: str) -> bool:
 
 
 def render_preset_manager(
-    current_item_codes: Optional[List[str]],
-    current_date_from: Optional[date],
-    current_date_to: Optional[date],
-    current_keyword: Optional[str],
+    current_item_codes: list[str] | None,
+    current_date_from: date | None,
+    current_date_to: date | None,
+    current_keyword: str | None,
     current_limit: int
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """
     Render preset management UI in sidebar.
 

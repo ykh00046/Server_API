@@ -18,28 +18,29 @@ import asyncio
 import random
 import time
 from datetime import date
-from typing import List
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, Field
 from google.genai import types
 from google.genai.errors import ClientError, ServerError
+from pydantic import BaseModel, Field
 
 # Import path bootstrap is handled by the entry point (api/main.py) or
 # tests/conftest.py — this module is always imported, never run directly.
 from shared import get_logger
-from shared.config import GEMINI_MODEL, GEMINI_FALLBACK_MODEL, GEMINI_FALLBACK_ENABLED
+from shared.config import GEMINI_FALLBACK_ENABLED, GEMINI_FALLBACK_MODEL, GEMINI_MODEL
 from shared.logging_config import get_request_id
 from shared.rate_limiter import chat_rate_limiter
 
 logger = get_logger(__name__)
 
 # GenAI client factory extracted to api/_gemini_client.py (Act-1).
-from ._gemini_client import get_client as _get_client, is_fallbackable  # noqa: F401
-# Tool registry extracted to api/_tool_dispatch.py (Act-1).
-from ._tool_dispatch import PRODUCTION_TOOLS
 # SSE streaming helper (ui-modernization-streamlit-extras).
 from ._chat_stream import run_stream, streaming_response
+from ._gemini_client import get_client as _get_client  # noqa: F401
+from ._gemini_client import is_fallbackable
+
+# Tool registry extracted to api/_tool_dispatch.py (Act-1).
+from ._tool_dispatch import PRODUCTION_TOOLS
 
 router = APIRouter(prefix="/chat", tags=["AI Chat"])
 
@@ -57,6 +58,7 @@ RETRYABLE_STATUS_CODES = {429, 500, 503}
 # Multi-turn Session Store (extracted to api/_session_store.py in Act-1)
 # ==========================================================
 from . import _session_store as _sstore
+
 # Re-exports for backward compatibility (tests + call sites).
 _sessions = _sstore._sessions
 SESSION_TTL = _sstore.SESSION_TTL
@@ -92,7 +94,7 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     answer: str
     status: str = "success"
-    tools_used: List[str] = []
+    tools_used: list[str] = []
     request_id: str = ""  # 요청 추적용 ID
     model_used: str = ""  # 실제 응답한 모델명
 
@@ -391,7 +393,7 @@ async def chat_stream(request: ChatRequest, http_request: Request):
     return streaming_response(gen)
 
 
-def _extract_tool_info(response, request_id: str) -> tuple[List[str], List[str]]:
+def _extract_tool_info(response, request_id: str) -> tuple[list[str], list[str]]:
     """Extract tool usage information from response."""
     tools_used = []
     tool_calls_detail = []

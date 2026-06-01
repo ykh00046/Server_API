@@ -28,9 +28,8 @@ from pathlib import Path
 # Add parent directory for shared imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shared import DB_FILE, ARCHIVE_DB_FILE, DATABASE_DIR, DB_TIMEOUT
+from shared import ARCHIVE_DB_FILE, DATABASE_DIR, DB_FILE, DB_TIMEOUT
 from shared.db_maintenance import wait_for_stabilization
-
 
 # ==========================================================
 # Configuration
@@ -90,7 +89,7 @@ def backup_database(source_path: Path, backup_path: Path) -> bool:
                 pass
         return False
 
-    except (OSError, IOError) as e:
+    except OSError as e:
         log("ERROR", f"Unexpected error during backup: {e}")
         return False
 

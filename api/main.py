@@ -8,22 +8,20 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import ORJSONResponse, JSONResponse
+from fastapi.responses import JSONResponse, ORJSONResponse
 
 # Add parent directory to path for shared module import
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from shared import (
-    setup_logging,
-    get_logger,
     api_rate_limiter,
+    get_logger,
+    setup_logging,
 )
-from shared.logging_config import set_request_id
 from shared.config import CORS_ORIGINS, WEBHOOK_WORKER_ENABLED
+from shared.logging_config import set_request_id
 
 from . import chat
-from .notifications.worker import WebhookDispatchWorker
-from .routers import system, records, summary, notifications
 
 # Backward-compatible re-exports — tests/test_input_validation.py imports
 # these names directly from api.main.
@@ -32,7 +30,8 @@ from ._http_helpers import (  # noqa: F401
     _validate_date_range,
     _validate_length,
 )
-
+from .notifications.worker import WebhookDispatchWorker
+from .routers import notifications, records, summary, system
 
 # ==========================================================
 # Logging Setup

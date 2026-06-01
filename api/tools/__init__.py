@@ -11,17 +11,17 @@ Layout (api-router-split, 2026-05-22):
     custom.py  — execute_custom_query (+ helpers)
     _common.py — internal _validate_date_range wrapper
 """
-from .items import search_production_items, get_item_history
-from .summary import (
-    get_production_summary,
-    get_monthly_trend,
-    get_top_items,
-    compare_periods,
-)
 from .custom import (
-    execute_custom_query,
     _strip_sql_comments,
     _validate_custom_query_params,
+    execute_custom_query,
+)
+from .items import get_item_history, search_production_items
+from .summary import (
+    compare_periods,
+    get_monthly_trend,
+    get_production_summary,
+    get_top_items,
 )
 
 __all__ = [

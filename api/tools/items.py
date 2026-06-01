@@ -5,7 +5,7 @@ Gemini SDK requires actual type hints, not stringified ones.
 """
 
 import sqlite3
-from typing import Dict, Any
+from typing import Any
 
 from shared import (
     ARCHIVE_DB_FILE,
@@ -24,7 +24,7 @@ logger = get_logger(__name__)
 def search_production_items(
     keyword: str,
     include_archive: bool = True  # Section 6.5: Default True for accurate answers
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Search for product codes (item_code) matching the given keyword.
     AI should use this tool first when the user mentions a product by name.
@@ -108,7 +108,7 @@ def search_production_items(
 def get_item_history(
     item_code: str,
     limit: int = 10
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get the most recent production records for a specific item.
     Use for questions like "BW0021 최근 생산 이력", "XXX 마지막 10건", "최근에 언제 만들었어".

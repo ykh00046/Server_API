@@ -8,8 +8,8 @@ import time
 
 import pytest
 
-from api import chat as chat_mod
 from api import _session_store as sstore
+from api import chat as chat_mod
 
 
 @pytest.fixture(autouse=True)

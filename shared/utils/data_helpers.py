@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 """
 Shared Data Processing and Formatting Utilities.
@@ -11,15 +10,14 @@ Provides unified logic for:
 - Common Pandas aggregations
 """
 
-import pandas as pd
-from typing import List, Union, Dict, Tuple
 
+import pandas as pd
 
 # ==========================================================
 # Formatting
 # ==========================================================
 
-def format_large_number(num: Union[int, float], suffix: str = '') -> str:
+def format_large_number(num: int | float, suffix: str = '') -> str:
     """Formats a large number into human-readable format (K, M)."""
     if pd.isna(num):
         return f"0{suffix}"
@@ -55,14 +53,14 @@ LEGACY_KR_TO_EN = {
 }
 
 
-def to_korean_category(labels: Union[str, List[str]]) -> Union[str, List[str]]:
+def to_korean_category(labels: str | list[str]) -> str | list[str]:
     """Map English category label(s) to Korean display label(s)."""
     if isinstance(labels, list):
         return [CATEGORY_KR_MAP.get(x, x) for x in labels]
     return CATEGORY_KR_MAP.get(labels, labels)
 
 
-def to_english_category(labels: Union[str, List[str]]) -> Union[str, List[str]]:
+def to_english_category(labels: str | list[str]) -> str | list[str]:
     """Map Korean display category label(s) to English internal label(s)."""
     if isinstance(labels, list):
         return [CATEGORY_EN_MAP.get(x, LEGACY_KR_TO_EN.get(x, x)) for x in labels]
@@ -96,7 +94,7 @@ def calculate_summary_stats(
     data: pd.DataFrame, 
     date_col: str = 'production_date', 
     val_col: str = 'good_quantity'
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Calculate daily avg, max, min stats."""
     if data.empty:
         return {'avg': 0.0, 'max': 0.0, 'min': 0.0}
@@ -134,7 +132,7 @@ def aggregate_hourly_production(
     return hourly
 
 
-def resolve_display_unit(selected_categories: List[str], mode: str = 'auto') -> Tuple[str, bool]:
+def resolve_display_unit(selected_categories: list[str], mode: str = 'auto') -> tuple[str, bool]:
     """Determine unit label (kg/L) based on categories."""
     if mode != 'auto':
         return mode, False

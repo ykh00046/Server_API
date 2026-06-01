@@ -12,10 +12,10 @@ Security Note:
 
 import base64
 import binascii
-import customtkinter as ctk
 from pathlib import Path
 from tkinter import messagebox
 
+import customtkinter as ctk
 
 # ==========================================================
 # Simple Password Obfuscation (NOT encryption)
@@ -70,7 +70,7 @@ def _read_env(env_path: Path) -> dict[str, str]:
     """Parse .env file into a dictionary."""
     result = {}
     if env_path.exists():
-        with open(env_path, "r", encoding="utf-8") as f:
+        with open(env_path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line and not line.startswith("#") and "=" in line:
@@ -86,7 +86,7 @@ def _write_env(env_path: Path, data: dict[str, str]):
 
     # Preserve existing comments and update known keys
     if env_path.exists():
-        with open(env_path, "r", encoding="utf-8") as f:
+        with open(env_path, encoding="utf-8") as f:
             for line in f:
                 stripped = line.strip()
                 if stripped and not stripped.startswith("#") and "=" in stripped:

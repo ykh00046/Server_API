@@ -49,7 +49,7 @@ class _Recorder:
         self._responses = list(responses or [])
         self._default: httpx.Response | None = None
 
-    def default(self, resp: httpx.Response) -> "_Recorder":
+    def default(self, resp: httpx.Response) -> _Recorder:
         self._default = resp
         return self
 

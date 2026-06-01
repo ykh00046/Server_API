@@ -6,16 +6,15 @@ the rest of the page continues to render.
 """
 from __future__ import annotations
 
-
 import streamlit as st
 
-from .api_client import WebhookAdminClient, WebhookAdminError
 from . import formatters
+from .api_client import WebhookAdminClient, WebhookAdminError
 
 # Toast helpers are kept optional — the dashboard already ships a thin
 # wrapper around st.toast, but a direct call works just as well.
 try:
-    from components.notifications import toast_error, toast_success, toast_info
+    from components.notifications import toast_error, toast_info, toast_success
 except ImportError:  # pragma: no cover (defensive — toasts are a UX nicety)
     def toast_error(msg: str) -> None: st.error(msg)
     def toast_success(msg: str) -> None: st.success(msg)

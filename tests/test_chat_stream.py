@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from api import chat as chat_mod
 from api import _chat_stream as stream_mod
+from api import chat as chat_mod
 
 
 # ------------------------------------------------------------------

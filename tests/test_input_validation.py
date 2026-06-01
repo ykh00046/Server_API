@@ -5,10 +5,11 @@ Input Validation Unit Tests
 Tests for date range validation and input length constraints.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi import HTTPException
+
 from api.main import _validate_date_range, _validate_length
 
 

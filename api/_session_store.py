@@ -14,9 +14,13 @@ import time
 
 from shared import get_logger
 from shared.config import (
-    CHAT_SESSION_TTL_SEC as SESSION_TTL,
     CHAT_SESSION_MAX_PER_IP,
+)
+from shared.config import (
     CHAT_SESSION_MAX_TOTAL as SESSION_MAX_COUNT,
+)
+from shared.config import (
+    CHAT_SESSION_TTL_SEC as SESSION_TTL,
 )
 
 logger = get_logger(__name__)

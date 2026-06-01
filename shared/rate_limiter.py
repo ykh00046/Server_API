@@ -14,11 +14,10 @@ Features:
 
 from __future__ import annotations
 
+import math
 import threading
 import time
-import math
 from collections import defaultdict, deque
-from typing import Dict
 
 from .config import RATE_LIMIT_WINDOW
 
@@ -52,7 +51,7 @@ class RateLimiter:
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         # IP -> deque of timestamps (O(1) popleft for sliding window cleanup)
-        self._requests: Dict[str, deque] = defaultdict(deque)
+        self._requests: dict[str, deque] = defaultdict(deque)
         self._lock = threading.RLock()
 
     def is_allowed(self, ip: str) -> bool:

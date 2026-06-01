@@ -7,7 +7,7 @@ deterministic.
 from __future__ import annotations
 
 import random
-from typing import Callable
+from collections.abc import Callable
 
 # attempt → base delay in seconds. Index 0 is used for attempt=1
 # (i.e. "we just finished attempt 1, how long until attempt 2?").

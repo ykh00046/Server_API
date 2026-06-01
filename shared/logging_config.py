@@ -14,16 +14,16 @@ import logging
 import sys
 import time
 import uuid
-from logging.handlers import RotatingFileHandler
 from contextvars import ContextVar
+from logging.handlers import RotatingFileHandler
 from typing import Any
 
 from .config import (
-    LOGS_DIR,
-    LOG_FILE,
-    LOG_MAX_BYTES,
     LOG_BACKUP_COUNT,
     LOG_DATE_FORMAT,
+    LOG_FILE,
+    LOG_MAX_BYTES,
+    LOGS_DIR,
     SLOW_QUERY_THRESHOLD_MS,
 )
 
@@ -142,7 +142,7 @@ class QueryLogger:
         self.row_count: int | None = None
         self.extra_info: dict[str, Any] = {}
 
-    def __enter__(self) -> "QueryLogger":
+    def __enter__(self) -> QueryLogger:
         self.start_time = time.perf_counter()
         return self
 

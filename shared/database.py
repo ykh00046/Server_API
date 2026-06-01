@@ -24,12 +24,6 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from .config import (
-    ARCHIVE_CUTOFF_DATE,
-    ARCHIVE_DB_FILE,
-    DB_FILE,
-    DB_TIMEOUT,
-)
 from ._db_attach import attach_archive_safe  # noqa: F401 (back-compat)
 from ._db_connection import (  # noqa: F401 (back-compat)
     _all_connections,
@@ -37,6 +31,12 @@ from ._db_connection import (  # noqa: F401 (back-compat)
     _connection_lock,
     _get_db_mtime,
     _local,
+)
+from .config import (
+    ARCHIVE_CUTOFF_DATE,
+    ARCHIVE_DB_FILE,
+    DB_FILE,
+    DB_TIMEOUT,
 )
 
 logger = logging.getLogger(__name__)

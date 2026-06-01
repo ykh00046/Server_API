@@ -10,10 +10,10 @@ v8 Enhancement: Initial implementation
 
 from __future__ import annotations
 
-import streamlit as st
-from enum import Enum
-from typing import Optional
 from datetime import datetime
+from enum import Enum
+
+import streamlit as st
 
 
 class ToastType(Enum):
@@ -27,7 +27,7 @@ class ToastType(Enum):
 def show_toast(
     message: str,
     type: ToastType = ToastType.INFO,
-    icon: Optional[str] = None
+    icon: str | None = None
 ) -> None:
     """
     Show a toast notification.
@@ -117,7 +117,7 @@ class NotificationManager:
         self,
         message: str,
         type: ToastType = ToastType.INFO
-    ) -> "NotificationManager":
+    ) -> NotificationManager:
         """
         Add a notification to the queue.
 
@@ -131,19 +131,19 @@ class NotificationManager:
         self._notifications.append((message, type, datetime.now()))
         return self
 
-    def success(self, message: str) -> "NotificationManager":
+    def success(self, message: str) -> NotificationManager:
         """Add success notification."""
         return self.add(message, ToastType.SUCCESS)
 
-    def error(self, message: str) -> "NotificationManager":
+    def error(self, message: str) -> NotificationManager:
         """Add error notification."""
         return self.add(message, ToastType.ERROR)
 
-    def warning(self, message: str) -> "NotificationManager":
+    def warning(self, message: str) -> NotificationManager:
         """Add warning notification."""
         return self.add(message, ToastType.WARNING)
 
-    def info(self, message: str) -> "NotificationManager":
+    def info(self, message: str) -> NotificationManager:
         """Add info notification."""
         return self.add(message, ToastType.INFO)
 
@@ -164,7 +164,7 @@ class NotificationManager:
 
 
 # Global notification manager instance
-_notification_manager: Optional[NotificationManager] = None
+_notification_manager: NotificationManager | None = None
 
 
 def get_notifier() -> NotificationManager:

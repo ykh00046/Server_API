@@ -10,11 +10,10 @@ import json
 from unittest.mock import MagicMock
 
 import pytest
-
 from google.genai.errors import ClientError, ServerError
 
-from api import chat as chat_mod
 from api import _chat_stream as stream_mod
+from api import chat as chat_mod
 
 
 # ------------------------------------------------------------------

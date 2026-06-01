@@ -13,8 +13,7 @@ from pydantic import BaseModel, Field
 
 from shared import get_logger
 
-from ..notifications import KNOWN_EVENT_TYPES, emit_event
-from ..notifications import store
+from ..notifications import KNOWN_EVENT_TYPES, emit_event, store
 from ..notifications.schemas import (
     DeliveryPublic,
     EventTypeInfo,

@@ -3,7 +3,7 @@
 
 import pytest
 
-from shared.validators import validate_db_path, resolve_archive_db
+from shared.validators import resolve_archive_db, validate_db_path
 
 
 def test_validate_db_path_rejects_quotes():

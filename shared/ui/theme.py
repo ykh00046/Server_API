@@ -12,15 +12,16 @@ Dark mode is still driven by Streamlit's config.toml / Settings menu;
 
 from __future__ import annotations
 
+from typing import Literal
+
 import streamlit as st
-from typing import Literal, Dict
 
 ThemeMode = Literal["light", "dark", "high-contrast"]
 
 # --------------------------------------------------------------
 # Chart color palettes (used by plotly templates)
 # --------------------------------------------------------------
-CHART_COLORS: Dict[str, Dict[str, str]] = {
+CHART_COLORS: dict[str, dict[str, str]] = {
     "light": {
         "chart_template": "plotly_white",
         "primary": "#ec4899",
@@ -51,7 +52,7 @@ CHART_SERIES_COLORS = [
 # --------------------------------------------------------------
 # CSS Tokens (injected as :root custom properties)
 # --------------------------------------------------------------
-TOKENS_LIGHT: Dict[str, str] = {
+TOKENS_LIGHT: dict[str, str] = {
     "--color-primary": "#ec4899",
     "--color-primary-hover": "#db2777",
     "--color-accent": "#0ea5e9",
@@ -75,7 +76,7 @@ TOKENS_LIGHT: Dict[str, str] = {
     "--focus-ring": "0 0 0 3px rgba(236,72,153,0.35)",
 }
 
-TOKENS_DARK: Dict[str, str] = {
+TOKENS_DARK: dict[str, str] = {
     "--color-primary": "#f472b6",
     "--color-primary-hover": "#f9a8d4",
     "--color-accent": "#38bdf8",
@@ -100,7 +101,7 @@ TOKENS_DARK: Dict[str, str] = {
 }
 
 # WCAG AA target: ≥ 4.5:1 for normal text, ≥ 7:1 preferred.
-TOKENS_HIGH_CONTRAST: Dict[str, str] = {
+TOKENS_HIGH_CONTRAST: dict[str, str] = {
     "--color-primary": "#be185d",
     "--color-primary-hover": "#9d174d",
     "--color-accent": "#0369a1",
@@ -328,7 +329,7 @@ def get_theme() -> ThemeMode:
     return _resolve_mode()
 
 
-def get_colors() -> Dict[str, str]:
+def get_colors() -> dict[str, str]:
     """Return plotly-friendly color palette for current theme."""
     return CHART_COLORS[_resolve_mode()]
 

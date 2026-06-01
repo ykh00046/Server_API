@@ -10,42 +10,42 @@ This package contains modular components for the Production Data Hub dashboard:
 - layout: Page layout helpers (header, AI toggle, columns)
 """
 
-from .loading import (
-    show_loading_status,
-    render_last_update,
-    render_cache_status,
-)
-from .kpi_cards import (
-    calculate_kpis,
-    render_kpi_cards,
-    get_sparkline_data,
-    get_sparkline_for_top_product,
-)
-from .charts import (
-    create_top10_bar_chart,
-    create_distribution_pie,
-    create_trend_lines,
-    get_chart_config,
-)
-from .presets import (
-    init_presets,
-    get_preset_names,
-    save_preset,
-    load_preset,
-    delete_preset,
-    render_preset_manager,
-)
 from .ai_section import (
+    render_ai_header_with_animation,
     render_ai_section,
     render_ai_section_compact,
     render_ai_status_indicator,
-    render_ai_header_with_animation,
+)
+from .charts import (
+    create_distribution_pie,
+    create_top10_bar_chart,
+    create_trend_lines,
+    get_chart_config,
+)
+from .kpi_cards import (
+    calculate_kpis,
+    get_sparkline_data,
+    get_sparkline_for_top_product,
+    render_kpi_cards,
 )
 from .layout import (
-    init_ai_panel_state,
-    render_page_header,
     get_page_columns,
+    init_ai_panel_state,
     render_ai_column,
+    render_page_header,
+)
+from .loading import (
+    render_cache_status,
+    render_last_update,
+    show_loading_status,
+)
+from .presets import (
+    delete_preset,
+    get_preset_names,
+    init_presets,
+    load_preset,
+    render_preset_manager,
+    save_preset,
 )
 
 __all__ = [

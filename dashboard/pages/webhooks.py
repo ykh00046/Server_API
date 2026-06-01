@@ -8,9 +8,9 @@ Streamlit 페이지는 IO/렌더링이 한 곳에 모이는 진입점이고, 실
 from __future__ import annotations
 
 import streamlit as st
+from components.webhook_admin import WebhookAdminClient, views
 
 from shared.config import API_BASE_URL
-from components.webhook_admin import WebhookAdminClient, views
 
 st.title("🔔 Webhook 관리")
 st.caption(f"API: `{API_BASE_URL}`")

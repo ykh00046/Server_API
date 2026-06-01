@@ -40,8 +40,8 @@ def client():
 @pytest.fixture(autouse=True)
 def _reset_rate_limiters():
     """Clear in-memory rate limiter state between tests."""
-    from shared import api_rate_limiter
     from api.chat import chat_rate_limiter
+    from shared import api_rate_limiter
     try:
         api_rate_limiter._requests.clear()  # type: ignore[attr-defined]
     except AttributeError:

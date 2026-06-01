@@ -68,7 +68,7 @@ class WebhookAdminClient:
     def close(self) -> None:
         self._client.close()
 
-    def __enter__(self) -> "WebhookAdminClient":
+    def __enter__(self) -> WebhookAdminClient:
         return self
 
     def __exit__(self, *_exc) -> None:

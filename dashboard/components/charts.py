@@ -9,9 +9,9 @@ Provides interactive charts:
 - Download button enhancement (U5)
 """
 
-import plotly.graph_objects as go
+
 import pandas as pd
-from typing import List
+import plotly.graph_objects as go
 
 from shared.ui.theme import CHART_SERIES_COLORS
 
@@ -135,7 +135,7 @@ def create_distribution_pie(df: pd.DataFrame, template: str) -> go.Figure:
 
 def create_trend_lines(
     df: pd.DataFrame,
-    item_codes: List[str],
+    item_codes: list[str],
     agg_unit: str,
     template: str
 ) -> go.Figure:

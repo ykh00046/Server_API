@@ -9,6 +9,7 @@ Environment variables can override default values.
 import logging
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 _logger = logging.getLogger(__name__)

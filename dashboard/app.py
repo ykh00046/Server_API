@@ -6,23 +6,24 @@ Pages are loaded from dashboard/pages/ directory.
 """
 
 import sys
-from pathlib import Path
 from datetime import date, timedelta
+from pathlib import Path
 
 import streamlit as st
 
 # Add parent directory for shared imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from data import get_db_mtime, load_item_list, run_self_check
-from shared.ui.theme import (
-    init_theme,
-    render_theme_toggle,
-    apply_custom_css,
-)
-from shared.ui.responsive import apply_responsive_css
 from components import init_presets, render_preset_manager
 from components.layout import init_ai_panel_state
+from data import get_db_mtime, load_item_list, run_self_check
+
+from shared.ui.responsive import apply_responsive_css
+from shared.ui.theme import (
+    apply_custom_css,
+    init_theme,
+    render_theme_toggle,
+)
 
 # ==========================================================
 # Page Configuration

@@ -6,8 +6,9 @@ Tests for mtime-based cache invalidation, api_cache decorator,
 and cache utility functions.
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 
 # ==========================================================
@@ -250,7 +251,7 @@ class TestCacheUtilities:
     @patch("shared.cache.get_db_version", return_value="100_200")
     def test_cache_stats_size_increases(self, mock_ver):
         """캐시 항목 추가 후 size 증가"""
-        from shared.cache import api_cache, get_cache_stats, clear_api_cache
+        from shared.cache import api_cache, clear_api_cache, get_cache_stats
 
         clear_api_cache()
         assert get_cache_stats()["size"] == 0

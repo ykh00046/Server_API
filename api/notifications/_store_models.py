@@ -81,7 +81,7 @@ def _row_to_delivery(row: sqlite3.Row) -> DeliveryPublic:
 
 
 def _now_iso() -> str:
-    return dt.datetime.now(dt.timezone.utc).isoformat()
+    return dt.datetime.now(dt.UTC).isoformat()
 
 
 def _generate_secret() -> str:

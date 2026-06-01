@@ -12,22 +12,22 @@ three `_render_*` helpers. Module top-level remains the Streamlit entry script
 (executed top-to-bottom on each rerun) and only orchestrates load + setup + section calls.
 """
 
-import streamlit as st
-from plotly.subplots import make_subplots
 import plotly.graph_objects as go
-
-from data import get_filter_state, load_records, load_monthly_summary
+import streamlit as st
 from components import (
-    render_kpi_cards,
     calculate_kpis,
-    get_sparkline_data,
-    get_sparkline_for_top_product,
     create_distribution_pie,
     get_chart_config,
+    get_sparkline_data,
+    get_sparkline_for_top_product,
+    render_kpi_cards,
     render_last_update,
 )
 from components.charts import create_top10_bar_chart
-from components.layout import render_page_header, get_page_columns, render_ai_column
+from components.layout import get_page_columns, render_ai_column, render_page_header
+from data import get_filter_state, load_monthly_summary, load_records
+from plotly.subplots import make_subplots
+
 from shared.ui.theme import get_colors
 
 

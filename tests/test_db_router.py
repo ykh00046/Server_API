@@ -7,10 +7,11 @@ SQL building, and parameter construction.
 All tests use mocks to avoid real DB/filesystem dependencies.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock, PropertyMock
+from unittest.mock import MagicMock, PropertyMock, patch
 
-from shared.database import DBTargets, DBRouter
+import pytest
+
+from shared.database import DBRouter, DBTargets
 
 
 # ==========================================================

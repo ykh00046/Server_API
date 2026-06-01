@@ -13,9 +13,8 @@ three `_render_*` helpers. `_render_detail_table` returns the renamed DataFrame 
 
 import pandas as pd
 import streamlit as st
-
-from data import get_filter_state, load_records, _cached_excel_bytes
-from components.layout import render_page_header, get_page_columns, render_ai_column
+from components.layout import get_page_columns, render_ai_column, render_page_header
+from data import _cached_excel_bytes, get_filter_state, load_records
 
 
 # ==========================================================

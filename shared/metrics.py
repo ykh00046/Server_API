@@ -14,7 +14,6 @@ import threading
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import Deque, Dict
 
 
 @dataclass
@@ -31,7 +30,7 @@ class PerformanceMonitor:
 
     def __init__(self, max_samples: int = 1000):
         self.max_samples = max_samples
-        self._metrics: Dict[str, Deque[QueryMetric]] = defaultdict(
+        self._metrics: dict[str, deque[QueryMetric]] = defaultdict(
             lambda: deque(maxlen=max_samples)
         )
         self._lock = threading.Lock()
@@ -52,7 +51,7 @@ class PerformanceMonitor:
         with self._lock:
             self._metrics[query_name].append(metric)
 
-    def _stats_for(self, samples: Deque[QueryMetric]) -> dict:
+    def _stats_for(self, samples: deque[QueryMetric]) -> dict:
         if not samples:
             return {}
         durations = sorted(m.duration_ms for m in samples)
@@ -82,7 +81,7 @@ class PerformanceMonitor:
             samples = list(self._metrics.get(query_name, ()))
         return self._stats_for(deque(samples))
 
-    def get_all_stats(self) -> Dict[str, dict]:
+    def get_all_stats(self) -> dict[str, dict]:
         with self._lock:
             snapshot = {name: list(dq) for name, dq in self._metrics.items()}
         return {name: self._stats_for(deque(s)) for name, s in snapshot.items()}
@@ -111,7 +110,7 @@ class TimedQuery:
         self.cache_hit = cache_hit
         self._t0 = 0.0
 
-    def __enter__(self) -> "TimedQuery":
+    def __enter__(self) -> TimedQuery:
         self._t0 = time.perf_counter()
         return self
 

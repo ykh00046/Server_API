@@ -9,10 +9,9 @@ v8 Enhancement:
 - Multiple skeleton types (table, kpi, chart)
 """
 
-import streamlit as st
 from datetime import datetime
-from typing import Optional
 
+import streamlit as st
 
 # ==========================================================
 # Skeleton Loading Components (v8)
@@ -140,7 +139,7 @@ class LoadingContext:
             message: Initial loading message to display.
         """
         self.msg = message
-        self.placeholder: Optional[st.empty] = None
+        self.placeholder: st.empty | None = None
         self.progress_bar = None
 
     def __enter__(self) -> "LoadingContext":
@@ -154,7 +153,7 @@ class LoadingContext:
         if self.progress_bar is not None:
             self.progress_bar.empty()
 
-    def update(self, progress: float, message: Optional[str] = None) -> None:
+    def update(self, progress: float, message: str | None = None) -> None:
         """
         Update progress bar.
 

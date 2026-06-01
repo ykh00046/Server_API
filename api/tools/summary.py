@@ -6,7 +6,7 @@ Gemini SDK requires actual type hints, not stringified ones.
 
 import concurrent.futures
 import sqlite3
-from typing import Optional, Dict, Any
+from typing import Any
 
 from shared import (
     DBRouter,
@@ -25,8 +25,8 @@ logger = get_logger(__name__)
 def get_production_summary(
     date_from: str,
     date_to: str,
-    item_code: Optional[str] = None
-) -> Dict[str, Any]:
+    item_code: str | None = None
+) -> dict[str, Any]:
     """
     Get production statistics for a specified period.
 
@@ -102,8 +102,8 @@ def get_production_summary(
 def get_monthly_trend(
     date_from: str,
     date_to: str,
-    item_code: Optional[str] = None
-) -> Dict[str, Any]:
+    item_code: str | None = None
+) -> dict[str, Any]:
     """
     Get monthly production trend (totals per month) for a specified period.
 
@@ -171,7 +171,7 @@ def get_top_items(
     date_from: str,
     date_to: str,
     limit: int = 5
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get the top produced items (by total quantity) for a specified period.
 
@@ -233,8 +233,8 @@ def compare_periods(
     period1_to: str,
     period2_from: str,
     period2_to: str,
-    item_code: Optional[str] = None
-) -> Dict[str, Any]:
+    item_code: str | None = None
+) -> dict[str, Any]:
     """
     Compare production statistics between two periods.
     Use for questions like "이번 달 vs 저번 달", "올해 vs 작년", "1분기 vs 2분기", "전월 대비".
