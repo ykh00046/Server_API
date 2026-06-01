@@ -93,7 +93,7 @@
 | AC5 | auth on + 키 없음: 보호 라우트 401, `X-API-Key` 정답 200, 틀린 키 401 | test |
 | AC6 | auth on + Bearer 정답 200, 틀린 토큰 401 | test |
 | AC7 | auth on에서도 공개경로(`/healthz`, `/docs`, `/openapi.json`) 200 | test |
-| AC8 | 인증 grant/deny/public 시 감사 로그 1건 기록(request_id·principal 포함) | test |
+| AC8 | 인증 grant/deny 시 감사 로그 1건 기록(request_id·principal 포함). 공개경로는 인증을 스킵하므로 audit도 스킵(Design §3, 로그 노이즈/성능 보호) | test |
 | AC9 | 기존 pytest 전체 회귀 green (auth off 기본) | pytest |
 | AC10 | import smoke 통과(`shared.auth`, `api._audit`, `api.main`) | python -c |
 | AC11 | ruff 게이트(F,BLE001,I,UP,B904) 신규 파일 0 errors | ruff |
