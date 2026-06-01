@@ -29,9 +29,11 @@ def validate_date_format(date_str: str, field_name: str = "date") -> dt.date:
     try:
         return dt.date.fromisoformat(date_str)
     except ValueError:
+        # Same-type rewrap: the original `Invalid isoformat string` message is
+        # superseded by the friendlier one below, so suppress the cause chain.
         raise ValueError(
             f"Invalid {field_name} format: '{date_str}'. Expected YYYY-MM-DD."
-        )
+        ) from None
 
 
 def validate_date_range(date_from: str, date_to: str) -> None:
@@ -161,7 +163,7 @@ def validate_db_path(path: str) -> bool:
     try:
         _P(path).resolve()
     except (OSError, RuntimeError) as e:
-        raise ValueError(f"Invalid database path: cannot resolve ({e})")
+        raise ValueError(f"Invalid database path: cannot resolve ({e})") from e
     return True
 
 

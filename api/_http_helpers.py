@@ -27,11 +27,11 @@ def _normalize_date(date_str: str | None, add_days: int = 0) -> str | None:
         if add_days:
             d = d + dt.timedelta(days=add_days)
         return d.isoformat()
-    except ValueError:
+    except ValueError as e:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid date format: '{date_str}'. Expected YYYY-MM-DD (e.g., 2026-01-15)."
-        )
+        ) from e
 
 
 def _validate_date_range(date_from: str | None, date_to: str | None) -> None:
@@ -41,7 +41,7 @@ def _validate_date_range(date_from: str | None, date_to: str | None) -> None:
     try:
         _validate_date_range_pure(date_from, date_to)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 def _validate_length(value: str | None, max_length: int, field_name: str) -> str | None:
@@ -49,4 +49,4 @@ def _validate_length(value: str | None, max_length: int, field_name: str) -> str
     try:
         return _validate_length_pure(value, max_length, field_name)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e

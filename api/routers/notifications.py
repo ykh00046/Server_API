@@ -67,7 +67,7 @@ def create_webhook(req: WebhookCreate):
     try:
         created, _ = store.create_webhook(req)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     return created
 
 
@@ -95,7 +95,7 @@ def update_webhook(webhook_id: int, req: WebhookUpdate):
             rotate_secret=req.rotate_secret,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     if result is None:
         raise HTTPException(status_code=404, detail=f"webhook {webhook_id} not found")
     return result

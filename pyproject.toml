@@ -1,7 +1,8 @@
 # ==========================================================
 # Ruff — R3-ruff-ble001-coverage
 # Baseline gate: high-signal rules only (F = real errors, BLE001 = blind-except).
-# Future ramp (R4): I (imports), UP (pyupgrade), B904, SIM.
+# Ramp history: R4 added I (imports) + UP (pyupgrade); R5 added B904 (raise-from).
+# Future ramp (R6+): B (remaining bugbear), SIM, E501.
 # ==========================================================
 [tool.ruff]
 target-version = "py312"
@@ -25,7 +26,14 @@ extend-exclude = [
 # Dict/List` while UP006 rewrites bodies to `dict/list`, which would orphan those
 # imports as F401. Including UP035 keeps the gate self-consistent. Its fix is
 # "unsafe"-classified; applied via --unsafe-fixes and proven by import smoke + pytest.
-select = ["F", "BLE001", "I", "UP"]
+#
+# R5-ruff-b904-ramp: B904(raise-without-from) added as a SINGLE rule, not the whole
+# `B` group. B904 has no autofix (the `from` target is a human choice), so the 7 boundary
+# re-raises (_http_helpers.py x3, notifications.py x2, validators.py x2) were rewritten by
+# hand this cycle — `from err` to preserve the cause (default), `from None` only for the
+# one same-type rewrap where the original is noise (validators.py date parse). The rest of
+# `B` (B008 FastAPI Depends-default, B905 zip-strict, ...) needs separate review → R6.
+select = ["F", "BLE001", "I", "UP", "B904"]
 
 [tool.ruff.lint.per-file-ignores]
 # Test code: unused imports (fixtures/registration) and broad catch are often
