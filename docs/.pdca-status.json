@@ -10,7 +10,8 @@
       "startedAt": "2026-06-02",
       "completedAt": "2026-06-02",
       "matchRate": 100,
-      "iterations": 0
+      "iterations": 0,
+      "qa": "PASS"
     }
   },
   "pipeline": {
@@ -23,5 +24,14 @@
     "onboardingCompleted": false,
     "lastActivity": "2026-06-01T13:44:38.007Z"
   },
-  "history": []
+  "history": [
+    {
+      "feature": "auth-audit-v1",
+      "completedAt": "2026-06-02",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "note": "Iterate(gap 2차 96%->문서정합+실측 후 100%) + QA(신규 33 / 회귀 360 green, ruff All checks passed) + Report 확정"
+    }
+  ]
 }

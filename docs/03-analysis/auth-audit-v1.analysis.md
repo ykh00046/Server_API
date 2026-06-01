@@ -50,6 +50,17 @@
 
 - 공개경로가 두 곳에 존재: `shared.auth.PUBLIC_PATHS`(6개, 인증 SSOT) vs `add_request_id_and_rate_limit`의 rate-limit 스킵 리스트(5개, `/redoc` 누락). 인증 SSOT는 정상 단일화. rate-limit 스킵은 기능이 분리된 기존 코드이며 Plan §3(rate limiter 개편 defer) 범위. 인증/감사 동작에 영향 없음. 향후 `/redoc`을 rate-limit 스킵에 추가하면 두 목록 완전 정렬(선택적 후속, `auth-rbac-v2` 또는 별도).
 
-## 5. 결론
+## 5. 독립 재검증 (2026-06-02, Iterate 재실행)
 
-Match Rate **100%** — Act(iterate) 불필요. QA 후 Report 진행.
+후속 세션에서 gap-detector를 1회 더 독립 실행해 교차 확인했다. 2차 판정은 **96%**로, 차감 요인은 두 가지였고 모두 코드 결함이 아니다:
+
+| 요인 | 성격 | 처리 |
+|---|---|---|
+| AC11(ruff)·AC9(pytest)가 read-only 분석 범위 밖 → "미실측" 처리 | 측정 한계 | 본 세션에서 `ruff check`=**All checks passed**, `pytest`=**360 passed**, 신규 33 passed 실측 → green 확정 |
+| AC8 문구: Plan은 "public 기록" 시사 ↔ Design §3은 "public 스킵" 결정 | Plan↔Design 문서 문구 불일치(코드는 Design 준수) | Plan AC8 문구를 Design에 맞춰 명확화(문서 정합) |
+
+추가로 deviation D1(테스트 보호경로 `/metrics/performance`→`/items`)을 Design §7.2에 "Code is truth"로 반영했다. 재검증 후 코드-설계 일치율은 **100%**(11개 실측 AC 전부 green, deviation 0건 잔존)로 확정된다.
+
+## 6. 결론
+
+Match Rate **100%** (실측 재검증 완료) — Act(iterate) 불필요. QA PASS, Report 확정.
