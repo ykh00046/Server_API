@@ -20,7 +20,12 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["F", "BLE001"]
+# R4-import-pyupgrade-ramp: I(import sorting) + UP(pyupgrade) added to the gate.
+# UP035(deprecated-import) is included too: deferring it leaves `from typing import
+# Dict/List` while UP006 rewrites bodies to `dict/list`, which would orphan those
+# imports as F401. Including UP035 keeps the gate self-consistent. Its fix is
+# "unsafe"-classified; applied via --unsafe-fixes and proven by import smoke + pytest.
+select = ["F", "BLE001", "I", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 # Test code: unused imports (fixtures/registration) and broad catch are often
