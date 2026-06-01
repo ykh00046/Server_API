@@ -26,8 +26,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import sqlite3
 import sys
 import time
 from datetime import datetime
@@ -36,14 +34,13 @@ from pathlib import Path
 # Add parent directory for shared imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shared import DB_FILE, ARCHIVE_DB_FILE, DATABASE_DIR, DB_TIMEOUT
+from shared import DB_FILE, ARCHIVE_DB_FILE, DATABASE_DIR
 from shared.config import LOGS_DIR
 from shared.db_maintenance import (
     wait_for_stabilization,
     check_and_heal_indexes,
     run_analyze,
     get_file_state,
-    REQUIRED_INDEXES,
 )
 
 
@@ -98,16 +95,6 @@ def save_state(state: dict):
             json.dump(state, f)
     except (OSError, json.JSONDecodeError) as e:
         log("WARN", f"Failed to save state: {e}")
-
-
-def get_file_state(path: Path) -> tuple[float, int]:
-    """Get mtime and size of a file. Returns (0, 0) if not exists."""
-    if not path.exists():
-        return 0, 0
-    try:
-        return os.path.getmtime(path), os.path.getsize(path)
-    except OSError:
-        return 0, 0
 
 
 # ==========================================================
@@ -217,7 +204,7 @@ def run_daemon(interval: int):
     while True:
         try:
             run_check()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - daemon loop must log and continue after unexpected cycle failures.
             log("ERROR", f"Check cycle failed: {e}")
 
         log("INFO", f"Next check in {interval} seconds...")

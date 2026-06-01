@@ -45,3 +45,4 @@ Thumbs.db
 .pytest-tmp/
 .pytest_tmp/
 .tmp-tests/
+.bkit/

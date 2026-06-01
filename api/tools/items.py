@@ -5,7 +5,7 @@ Gemini SDK requires actual type hints, not stringified ones.
 """
 
 import sqlite3
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 
 from shared import (
     ARCHIVE_DB_FILE,

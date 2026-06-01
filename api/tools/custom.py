@@ -8,7 +8,6 @@ import re
 from typing import Dict, Any
 
 from shared import (
-    DBRouter,
     DBTargets,
     get_logger,
 )

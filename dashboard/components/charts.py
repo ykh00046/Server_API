@@ -11,7 +11,7 @@ Provides interactive charts:
 
 import plotly.graph_objects as go
 import pandas as pd
-from typing import List, Optional
+from typing import List
 
 from shared.ui.theme import CHART_SERIES_COLORS
 
@@ -101,7 +101,6 @@ def create_distribution_pie(df: pd.DataFrame, template: str) -> go.Figure:
 
     # Aggregate by item
     item_totals = df.groupby("item_code")["good_quantity"].sum().reset_index()
-    total = item_totals["good_quantity"].sum()
 
     # Top 10 + Others
     top10 = item_totals.nlargest(10, "good_quantity")

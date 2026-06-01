@@ -17,7 +17,7 @@ import sqlite3
 import time
 import threading
 from functools import wraps
-from typing import Any, Callable
+from typing import Callable
 
 from cachetools import TTLCache
 

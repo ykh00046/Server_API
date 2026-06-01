@@ -11,7 +11,7 @@ Provides unified logic for:
 """
 
 from datetime import datetime, timedelta
-from typing import Tuple, Optional
+from typing import Tuple
 import pandas as pd
 
 

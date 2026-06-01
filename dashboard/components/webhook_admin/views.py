@@ -6,7 +6,6 @@ the rest of the page continues to render.
 """
 from __future__ import annotations
 
-from typing import Any
 
 import streamlit as st
 

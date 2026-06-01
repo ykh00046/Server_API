@@ -8,7 +8,6 @@ import socket
 import webbrowser
 import time
 import queue
-from abc import ABC, abstractmethod
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Callable, Optional
@@ -25,11 +24,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from shared import (
     BASE_DIR,
-    DB_FILE,
-    ARCHIVE_DB_FILE,
     DASHBOARD_PORT,
     API_PORT,
-    DB_TIMEOUT,
 )
 from shared.process_utils import kill_process_tree
 from tools.db_watcher import DBWatcher
@@ -49,7 +45,7 @@ def _cleanup_all_processes() -> None:
             try:
                 if proc.poll() is None:
                     kill_process_tree(proc.pid)
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort atexit cleanup must not block shutdown.
                 pass
         _active_processes.clear()
 
@@ -99,10 +95,6 @@ def _create_tray_icon() -> Image.Image:
     size = 64
     image = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
-
-    # Draw a simple gear-like circle
-    center = size // 2
-    radius = size // 2 - 4
 
     # Outer circle (dark blue)
     draw.ellipse([8, 8, size-8, size-8], fill='#1a237e', outline='#3949ab', width=2)
@@ -501,14 +493,14 @@ class ServerManager(ctk.CTk):
                         level = "SUCCESS"
 
                     panel.append_log(text, level)
-                except Exception:
+                except Exception:  # noqa: BLE001 - log streaming thread stops on any panel/pipe failure.
                     break
-        except Exception:
+        except Exception:  # noqa: BLE001 - background log streaming must not crash the UI.
             pass
         finally:
             try:
                 panel.append_log(">>> Process Exited", "WARN")
-            except Exception:
+            except Exception:  # noqa: BLE001 - widget may already be destroyed during shutdown.
                 pass  # Widget may be destroyed
 
     def _start_process(self, cmd: list[str], panel: ServicePanel, cwd: str | None = None) -> subprocess.Popen:
@@ -619,7 +611,7 @@ class ServerManager(ctk.CTk):
                 self.portal_panel.process.wait()
             try:
                 self.after(0, self._reset_portal_ui)
-            except Exception:
+            except Exception:  # noqa: BLE001 - Tk may already be torn down during one-shot cleanup.
                 pass  # Widget may be destroyed
         threading.Thread(target=_monitor, daemon=True).start()
 
@@ -648,7 +640,7 @@ class ServerManager(ctk.CTk):
             self.tray_icon = pystray.Icon(
                 "production_hub", icon_image, "Production Hub", menu
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - tray backends fail variably; UI remains usable.
             # Printed so it shows up in console for the dev; UI keeps working.
             print(f"[Manager] Tray init failed: {e}", flush=True)
 

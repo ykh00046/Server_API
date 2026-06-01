@@ -1,0 +1,4 @@
+# Dev / lint / test tooling (R3-ruff-ble001-coverage)
+ruff>=0.15
+pytest>=7.0
+pytest-cov>=4.0

@@ -10,7 +10,7 @@ Custom HTML cards with:
 
 import streamlit as st
 import pandas as pd
-from datetime import date, timedelta
+from datetime import date
 from typing import Dict, Any, Optional, List
 
 

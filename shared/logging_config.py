@@ -15,7 +15,6 @@ import sys
 import time
 import uuid
 from logging.handlers import RotatingFileHandler
-from pathlib import Path
 from contextvars import ContextVar
 from typing import Any
 
@@ -24,7 +23,6 @@ from .config import (
     LOG_FILE,
     LOG_MAX_BYTES,
     LOG_BACKUP_COUNT,
-    LOG_FORMAT,
     LOG_DATE_FORMAT,
     SLOW_QUERY_THRESHOLD_MS,
 )

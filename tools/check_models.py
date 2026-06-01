@@ -14,11 +14,11 @@ if not api_key:
 
 genai.configure(api_key=api_key)
 
-print(f"Checking available models for your API key...")
+print("Checking available models for your API key...")
 try:
     for m in genai.list_models():
         if 'generateContent' in m.supported_generation_methods:
             print(f"- Name: {m.name}")
             print(f"  Description: {m.description}")
-except Exception as e:
+except Exception as e:  # noqa: BLE001 - external SDK can raise provider-specific errors here.
     print(f"Error listing models: {e}")

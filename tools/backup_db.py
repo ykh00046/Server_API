@@ -20,11 +20,9 @@ Can be scheduled via Windows Task Scheduler for automated daily backups.
 from __future__ import annotations
 
 import argparse
-import os
 import sqlite3
 import sys
-import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 # Add parent directory for shared imports
@@ -182,7 +180,7 @@ def run_backup(db_path: Path, prefix: str, retention: int) -> bool:
 
     # 4. Verify backup
     if not verify_backup(backup_path):
-        log("ERROR", f"Backup verification failed. Removing corrupted backup.")
+        log("ERROR", "Backup verification failed. Removing corrupted backup.")
         try:
             backup_path.unlink()
         except OSError:

@@ -21,7 +21,6 @@ from datetime import date
 from typing import List
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from google.genai import types
 from google.genai.errors import ClientError, ServerError
