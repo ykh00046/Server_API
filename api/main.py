@@ -15,13 +15,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from shared import (
     api_rate_limiter,
+    authenticate,
     get_logger,
+    is_public_path,
+    load_auth_settings,
     setup_logging,
 )
-from shared.config import CORS_ORIGINS, WEBHOOK_WORKER_ENABLED
-from shared.logging_config import set_request_id
+from shared.config import (
+    API_AUTH_ENABLED,
+    API_BEARER_TOKENS,
+    API_KEYS,
+    CORS_ORIGINS,
+    WEBHOOK_WORKER_ENABLED,
+)
+from shared.logging_config import get_request_id, set_request_id
 
 from . import chat
+from ._audit import record_auth_event
 
 # Backward-compatible re-exports — tests/test_input_validation.py imports
 # these names directly from api.main.
@@ -38,6 +48,14 @@ from .routers import notifications, records, summary, system
 # ==========================================================
 setup_logging()
 logger = get_logger(__name__)
+
+# auth-audit-v1: surface a misconfiguration where auth is enabled but no
+# credentials are configured — every protected route would 401 (fail-closed).
+if API_AUTH_ENABLED and not (API_KEYS or API_BEARER_TOKENS):
+    logger.warning(
+        "[Auth] API_AUTH_ENABLED=true but no API_KEYS/API_BEARER_TOKENS set "
+        "— all protected routes will return 401."
+    )
 
 _webhook_worker = WebhookDispatchWorker()  # webhook-async-dispatch-v2
 
@@ -73,6 +91,62 @@ app.include_router(system.router)
 app.include_router(records.router)
 app.include_router(summary.router)
 app.include_router(notifications.router)
+
+
+# ==========================================================
+# Authentication + Audit Middleware (auth-audit-v1)
+# ==========================================================
+# Registered BEFORE add_request_id_and_rate_limit on purpose: Starlette runs
+# the most-recently-added middleware outermost, so the request_id/rate-limit
+# middleware stays outermost (request_id is set first) and this auth layer runs
+# inner — it can therefore reference get_request_id() in audit logs.
+# When API_AUTH_ENABLED is False (default) this is a single-branch pass-through,
+# preserving the existing open-access behavior and the full test suite.
+@app.middleware("http")
+async def auth_and_audit(request, call_next):
+    """Authenticate protected routes and emit an audit log per decision."""
+    settings = load_auth_settings()
+
+    # Pass-through when disabled, for CORS preflight (carries no credentials by
+    # spec), and for public paths (single source of truth in shared.auth).
+    if (
+        not settings.enabled
+        or request.method == "OPTIONS"
+        or is_public_path(request.url.path)
+    ):
+        return await call_next(request)
+
+    result = authenticate(request.headers, settings)
+    request_id = get_request_id()
+    client_ip = request.client.host if request.client else "unknown"
+
+    if not result.authenticated:
+        record_auth_event(
+            request_id=request_id,
+            client_ip=client_ip,
+            method=request.method,
+            path=request.url.path,
+            result=result,
+            status_code=401,
+        )
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Unauthorized"},
+            headers={
+                "WWW-Authenticate": "Bearer",
+                "X-Request-ID": request_id or "",
+            },
+        )
+
+    record_auth_event(
+        request_id=request_id,
+        client_ip=client_ip,
+        method=request.method,
+        path=request.url.path,
+        result=result,
+        status_code=200,
+    )
+    return await call_next(request)
 
 
 # ==========================================================
