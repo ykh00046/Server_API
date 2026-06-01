@@ -114,6 +114,21 @@ CORS_ORIGINS: list[str] = [
 CUSTOM_QUERY_TIMEOUT_SEC = float(os.getenv("CUSTOM_QUERY_TIMEOUT_SEC", 10.0))
 
 # ==========================================================
+# API Authentication (auth-audit-v1) — opt-in, default OFF
+# ==========================================================
+# When False (default), the auth middleware is a pass-through so existing
+# open-access behavior and the whole test suite are preserved unchanged.
+# Enable in production via .env: API_AUTH_ENABLED=true + API_KEYS / API_BEARER_TOKENS.
+_TRUTHY = {"1", "true", "yes", "on"}
+API_AUTH_ENABLED = os.getenv("API_AUTH_ENABLED", "false").strip().lower() in _TRUTHY
+API_KEYS: list[str] = [
+    k.strip() for k in os.getenv("API_KEYS", "").split(",") if k.strip()
+]
+API_BEARER_TOKENS: list[str] = [
+    t.strip() for t in os.getenv("API_BEARER_TOKENS", "").split(",") if t.strip()
+]
+
+# ==========================================================
 # Webhook Notifications (webhook-notifications-v1)
 # ==========================================================
 NOTIFICATIONS_DB_FILE = DATABASE_DIR / "notifications.db"

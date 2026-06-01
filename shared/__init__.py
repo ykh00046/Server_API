@@ -9,6 +9,15 @@ This module provides common utilities used across the application:
 - rate_limiter: IP-based rate limiting system
 """
 
+from .auth import (
+    AuthResult,
+    AuthSettings,
+    authenticate,
+    extract_credentials,
+    is_public_path,
+    load_auth_settings,
+    mask_secret,
+)
 from .cache import api_cache, clear_api_cache, get_cache_stats, get_db_version
 from .config import (
     API_PORT,
@@ -71,4 +80,12 @@ __all__ = [
     "validate_date_range",
     "validate_date_range_exclusive",
     "validate_length",
+    # auth (auth-audit-v1)
+    "AuthResult",
+    "AuthSettings",
+    "authenticate",
+    "extract_credentials",
+    "is_public_path",
+    "load_auth_settings",
+    "mask_secret",
 ]
