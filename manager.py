@@ -45,7 +45,7 @@ def _cleanup_all_processes() -> None:
             try:
                 if proc.poll() is None:
                     kill_process_tree(proc.pid)
-            except Exception:  # noqa: BLE001 - best-effort atexit cleanup must not block shutdown.
+            except (OSError, RuntimeError, subprocess.SubprocessError, ValueError):
                 pass
         _active_processes.clear()
 
@@ -493,14 +493,14 @@ class ServerManager(ctk.CTk):
                         level = "SUCCESS"
 
                     panel.append_log(text, level)
-                except Exception:  # noqa: BLE001 - log streaming thread stops on any panel/pipe failure.
+                except (AttributeError, OSError, RuntimeError, tk.TclError, ValueError):
                     break
-        except Exception:  # noqa: BLE001 - background log streaming must not crash the UI.
+        except (AttributeError, OSError, RuntimeError, tk.TclError, ValueError):
             pass
         finally:
             try:
                 panel.append_log(">>> Process Exited", "WARN")
-            except Exception:  # noqa: BLE001 - widget may already be destroyed during shutdown.
+            except (AttributeError, RuntimeError, tk.TclError, ValueError):
                 pass  # Widget may be destroyed
 
     def _start_process(self, cmd: list[str], panel: ServicePanel, cwd: str | None = None) -> subprocess.Popen:
@@ -611,7 +611,7 @@ class ServerManager(ctk.CTk):
                 self.portal_panel.process.wait()
             try:
                 self.after(0, self._reset_portal_ui)
-            except Exception:  # noqa: BLE001 - Tk may already be torn down during one-shot cleanup.
+            except (RuntimeError, tk.TclError):
                 pass  # Widget may be destroyed
         threading.Thread(target=_monitor, daemon=True).start()
 
@@ -640,7 +640,7 @@ class ServerManager(ctk.CTk):
             self.tray_icon = pystray.Icon(
                 "production_hub", icon_image, "Production Hub", menu
             )
-        except Exception as e:  # noqa: BLE001 - tray backends fail variably; UI remains usable.
+        except (AttributeError, OSError, RuntimeError, ValueError) as e:
             # Printed so it shows up in console for the dev; UI keeps working.
             print(f"[Manager] Tray init failed: {e}", flush=True)
 

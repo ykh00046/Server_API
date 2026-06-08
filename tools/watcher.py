@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 import sys
 import time
 from datetime import datetime
@@ -203,7 +204,7 @@ def run_daemon(interval: int):
     while True:
         try:
             run_check()
-        except Exception as e:  # noqa: BLE001 - daemon loop must log and continue after unexpected cycle failures.
+        except (OSError, RuntimeError, ValueError, json.JSONDecodeError, sqlite3.Error) as e:
             log("ERROR", f"Check cycle failed: {e}")
 
         log("INFO", f"Next check in {interval} seconds...")

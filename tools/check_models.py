@@ -3,6 +3,7 @@ from pathlib import Path
 
 import google.generativeai as genai
 from dotenv import load_dotenv
+from google.api_core import exceptions as google_exceptions
 
 # Load API Key
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,5 +22,11 @@ try:
         if 'generateContent' in m.supported_generation_methods:
             print(f"- Name: {m.name}")
             print(f"  Description: {m.description}")
-except Exception as e:  # noqa: BLE001 - external SDK can raise provider-specific errors here.
+except (
+    OSError,
+    RuntimeError,
+    ValueError,
+    google_exceptions.GoogleAPIError,
+    google_exceptions.RetryError,
+) as e:
     print(f"Error listing models: {e}")
