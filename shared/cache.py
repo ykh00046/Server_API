@@ -44,6 +44,11 @@ def get_db_version() -> str:
     global _db_version_cache, _db_version_timestamp, _db_version_cache_sources
 
     current_time = time.time()
+    # NOTE: id() comparison looks like a no-op (module-level Path constants
+    # never change in production), but tests/test_cache.py uses
+    # @patch("shared.cache.DB_FILE") which swaps these module attributes —
+    # the id() change busts the 1s TTL cache so a patched test never sees a
+    # version computed from the previous (real) path. Do not simplify away.
     current_sources = (id(DB_FILE), id(ARCHIVE_DB_FILE))
 
     # Return cached version if still valid
