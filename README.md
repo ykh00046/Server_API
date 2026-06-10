@@ -1,5 +1,7 @@
 # Production Data Hub
 
+![CI](https://github.com/ykh00046/Server_API/actions/workflows/ci.yml/badge.svg)
+
 생산 데이터 분석 및 AI 챗봇 시스템
 
 ## 주요 기능
@@ -21,15 +23,29 @@ cd Server_API
 ```
 
 ### 2. 가상환경 생성 및 활성화
+
+정본 인터프리터는 **Python 3.12** (ruff `target-version`과 일치):
+
 ```powershell
-python -m venv .venv
+py -3.12 -m venv .venv
 .\.venv\Scripts\activate
 ```
 
 ### 3. 의존성 설치
-```bash
+
+재현 가능한 설치(권장 — CI와 동일한 핀 고정 버전):
+
+```powershell
 pip install -U pip
-pip install -r requirements.txt
+pip install -r requirements.lock.txt
+```
+
+최신 버전으로 의존성을 올릴 때(top-level 선언 기준 설치 후 lock 재생성):
+
+```powershell
+pip install -r requirements.txt -r requirements-dev.txt
+pip freeze > requirements.lock.txt
+# requirements*.txt 와 lock 을 같은 커밋으로
 ```
 
 ### 4. 환경 변수 설정
@@ -215,7 +231,18 @@ Server_API/
 pytest tests/ -v
 ```
 
-### 스모크 검증
+### CI (GitHub Actions)
+
+`main` push / PR 시 `.github/workflows/ci.yml`이 자동 실행된다:
+
+| Job | 내용 |
+|-----|------|
+| `lint` | `ruff check .` — 게이트 규칙(F/BLE001/I/UP/B904)은 `pyproject.toml`이 결정 |
+| `test` | `pytest --cov --cov-fail-under=66` — coverage floor는 CI 전용(로컬 pytest는 floor 없음) |
+
+의존성은 `requirements.lock.txt`로 설치된다(재현성). 의존성 변경 시 위 §3의 lock 재생성 절차를 따른다.
+
+### 스모크 검증 (선택, Linux/WSL 전용)
 
 Linux/WSL 기준 재현 가능한 최소 검증 경로:
 
