@@ -71,18 +71,6 @@ _save_session_history = _sstore.save_session_history
 _cleanup_expired_sessions = _sstore.cleanup_expired_sessions
 
 
-def _get_cleanup_counter() -> int:
-    return _sstore._cleanup_counter
-
-
-def _set_cleanup_counter(v: int) -> None:
-    _sstore._cleanup_counter = v
-
-
-# Test compatibility: some tests assign to `chat_mod._cleanup_counter`.
-# Attribute access is redirected via module __getattr__/__setattr__ below.
-
-
 # ==========================================================
 # Models
 # ==========================================================
