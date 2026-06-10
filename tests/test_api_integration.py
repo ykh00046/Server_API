@@ -156,6 +156,24 @@ def test_chat_rate_limit_boundary(client, fake_gemini, monkeypatch):
     assert detail["code"] == "RATE_LIMITED"
 
 
+def test_public_paths_skip_rate_limit(client, monkeypatch):
+    """review-quickwins-202606 QW-1: every PUBLIC_PATHS entry must bypass the
+    general API rate limiter (SSOT parity with the auth middleware exemptions).
+
+    Tighten the limiter to 1 req/min, then hit each public path twice — none
+    may 429. Guards against the skip list drifting from shared.auth again.
+    """
+    from shared import api_rate_limiter
+    from shared.auth import PUBLIC_PATHS
+
+    monkeypatch.setattr(api_rate_limiter, "max_requests", 1)
+    api_rate_limiter._requests.clear()
+    for path in sorted(PUBLIC_PATHS):
+        for _ in range(2):
+            r = client.get(path)
+            assert r.status_code != 429, f"{path} hit the rate limiter"
+
+
 def test_metrics_performance_shape(client):
     """GET /metrics/performance returns dict of per-query stats (possibly empty)."""
     r = client.get("/metrics/performance")

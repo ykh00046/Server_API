@@ -162,8 +162,9 @@ async def add_request_id_and_rate_limit(request, call_next):
     """Add request ID and apply rate limiting to API endpoints."""
     request_id = set_request_id()
 
-    # Skip rate limiting for health checks
-    if request.url.path in ["/", "/healthz", "/healthz/ai", "/docs", "/openapi.json"]:
+    # Skip rate limiting for public paths — shared.auth.PUBLIC_PATHS is the
+    # single source of truth (same exemption set as the auth middleware).
+    if is_public_path(request.url.path):
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
         return response
