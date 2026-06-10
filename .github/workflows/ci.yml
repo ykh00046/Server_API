@@ -16,8 +16,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Install ruff (lock-pinned version)
@@ -28,8 +28,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -38,8 +38,7 @@ jobs:
         run: pip install -r requirements.lock.txt
       # The runner has no ERP database. Integration tests hit /records,/items,
       # /summary against the live DB path, so create an EMPTY production_records
-      # schema (docs/specs/operations_manual.md "신규 Live DB 생성" step) —
-      # tests are written to accept empty result sets (200/404 tolerant).
+      # schema (docs/specs/operations_manual.md "?�규 Live DB ?�성" step) ??      # tests are written to accept empty result sets (200/404 tolerant).
       - name: Create empty fixture DB
         run: |
           mkdir -p database
@@ -59,8 +58,7 @@ jobs:
           conn.commit()
           conn.close()
           "
-      # Coverage floor lives here ON PURPOSE, not in pyproject addopts —
-      # see pyproject.toml [tool.coverage] comment (local runs stay floor-free).
-      # Baseline measured 2026-06-10: 71% → floor 66 (-5pp runner margin).
+      # Coverage floor lives here ON PURPOSE, not in pyproject addopts ??      # see pyproject.toml [tool.coverage] comment (local runs stay floor-free).
+      # Baseline measured 2026-06-10: 71% ??floor 66 (-5pp runner margin).
       - name: Pytest + coverage floor (CI-only)
         run: python -m pytest tests/ -q --cov --cov-report=term --cov-fail-under=66
