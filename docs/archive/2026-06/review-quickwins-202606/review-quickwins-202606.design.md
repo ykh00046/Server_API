@@ -80,6 +80,8 @@ def _set_cleanup_counter(v: int) -> None: ... # :78-79
 
 각 커밋 전 로컬 게이트(pytest+ruff), push 후 CI green 확인(AC7).
 
+> *실제(2026-06-10): `create_index.py` 삭제는 staging 실수로 커밋 #1(92d2139)에 선반영 — 커밋 메시지에 기록된 의도적 편차, 최종 트리는 본 설계와 동일.*
+
 ## 6. AC 매핑
 
 AC1·AC2 → §1 / AC3 → §2 / AC4 → §3 / AC5 → §4 / AC6·AC7 → §5 게이트 / AC8 → Check.

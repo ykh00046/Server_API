@@ -4,6 +4,12 @@
 
 ## 📁 아카이브 목록
 
+### 2. 검토 Quick wins 4건 (review-quickwins-202606)
+- **완료일**: 2026-06-10
+- **상태**: ✅ 완료 (Match Rate 100%, AC 8/8)
+- **요약**: ①rate-limit 공개경로를 `shared.auth.PUBLIC_PATHS` SSOT로 통일(+집합 단위 재발방지 테스트) ②`cache.py` id() 가드 의도 주석 — 재검증으로 "죽은 가드" 결론 정정(`@patch` 감지용 실동작) ③인덱스 도구를 `db_maintenance.REQUIRED_INDEXES`(6종)로 통합, 구버전 `create_index.py` 삭제 ④`chat.py` 미사용 wrapper+거짓 주석 제거. 360 → 361 tests, CI run 27267105258 green.
+- **문서**: plan / design / analysis / report
+
 ### 1. CI 파이프라인 + 환경 표준화 (ci-and-env-standardization)
 - **완료일**: 2026-06-10
 - **상태**: ✅ 완료 (Match Rate 98%, AC 9/9)

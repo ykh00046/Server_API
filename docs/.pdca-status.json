@@ -1,14 +1,19 @@
 {
   "version": "2.0",
   "lastUpdated": "2026-06-10T00:00:00.000Z",
-  "activeFeatures": ["review-quickwins-202606"],
+  "activeFeatures": [],
   "primaryFeature": "review-quickwins-202606",
   "features": {
     "review-quickwins-202606": {
-      "phase": "design",
-      "status": "active",
+      "phase": "archived",
+      "status": "completed",
       "startedAt": "2026-06-10",
-      "note": "2026-06-10 검토 Quick wins 4건 (QW-2는 재검증으로 결론 정정: 죽은 가드 아님 → 주석 문서화)"
+      "completedAt": "2026-06-10",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "archivedTo": "docs/archive/2026-06/review-quickwins-202606/",
+      "note": "검토 Quick wins 4건. QW-2 재검증 정정(죽은 가드 아님). 361 green, CI run 27267105258"
     },
     "ci-and-env-standardization": {
       "phase": "archived",
@@ -42,6 +47,14 @@
     "lastActivity": "2026-06-01T13:44:38.007Z"
   },
   "history": [
+    {
+      "feature": "review-quickwins-202606",
+      "completedAt": "2026-06-10",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "note": "Quick wins 4건: 공개경로 SSOT+집합 테스트, cache 가드 의도 주석(재검증 정정), 인덱스 REQUIRED_INDEXES 통합, chat.py 죽은 코드 제거. 361 green + CI green"
+    },
     {
       "feature": "ci-and-env-standardization",
       "completedAt": "2026-06-10",
