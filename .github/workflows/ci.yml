@@ -38,7 +38,8 @@ jobs:
         run: pip install -r requirements.lock.txt
       # The runner has no ERP database. Integration tests hit /records,/items,
       # /summary against the live DB path, so create an EMPTY production_records
-      # schema (docs/specs/operations_manual.md "? ê·œ Live DB ?ì„±" step) ??      # tests are written to accept empty result sets (200/404 tolerant).
+      # schema (see docs/specs/operations_manual.md, "new Live DB" step).
+      # Tests are written to accept empty result sets (200/404 tolerant).
       - name: Create empty fixture DB
         run: |
           mkdir -p database
@@ -58,7 +59,8 @@ jobs:
           conn.commit()
           conn.close()
           "
-      # Coverage floor lives here ON PURPOSE, not in pyproject addopts ??      # see pyproject.toml [tool.coverage] comment (local runs stay floor-free).
-      # Baseline measured 2026-06-10: 71% ??floor 66 (-5pp runner margin).
+      # Coverage floor lives here ON PURPOSE, not in pyproject addopts --
+      # see pyproject.toml [tool.coverage] comment (local runs stay floor-free).
+      # Baseline measured 2026-06-10: 71% -> floor 66 (-5pp runner margin).
       - name: Pytest + coverage floor (CI-only)
         run: python -m pytest tests/ -q --cov --cov-report=term --cov-fail-under=66
