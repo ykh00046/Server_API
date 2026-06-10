@@ -26,6 +26,11 @@ database/.watcher_state.json
 .agents/
 docs/.pdca-snapshots/
 
+# Coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+
 # Logs
 logs/
 .playwright-mcp/

@@ -5,8 +5,9 @@
   "primaryFeature": "ci-and-env-standardization",
   "features": {
     "ci-and-env-standardization": {
-      "phase": "report",
+      "phase": "archived",
       "status": "completed",
+      "archivedTo": "docs/archive/2026-06/ci-and-env-standardization/",
       "startedAt": "2026-06-10",
       "completedAt": "2026-06-10",
       "matchRate": 98,
