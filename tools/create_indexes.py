@@ -2,7 +2,9 @@
 """
 Database Index Creation Script
 
-Creates optimized indexes for production_records table.
+Creates the required indexes for production_records table.
+Index definitions live in shared.db_maintenance.REQUIRED_INDEXES (single
+source of truth, 6 indexes) — the same set check_and_heal_indexes() heals.
 Run this script once after database is created or when performance degrades.
 
 Usage:
@@ -21,42 +23,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from shared import ARCHIVE_DB_FILE, DB_FILE
+from shared.db_maintenance import REQUIRED_INDEXES
 from shared.logging_config import get_logger, setup_logging
 
 setup_logging()
 logger = get_logger(__name__)
-
-
-# ==========================================================
-# Index Definitions
-# ==========================================================
-# Format: (index_name, table, columns, description)
-INDEXES = [
-    (
-        "idx_production_date_item",
-        "production_records",
-        "(production_date, item_code)",
-        "Composite index for date range + item queries"
-    ),
-    (
-        "idx_lot_number",
-        "production_records",
-        "(lot_number)",
-        "Index for lot number prefix searches"
-    ),
-    (
-        "idx_agg_covering",
-        "production_records",
-        "(item_code, production_date, good_quantity)",
-        "Covering index for common aggregations"
-    ),
-    (
-        "idx_date_qty",
-        "production_records",
-        "(production_date, good_quantity)",
-        "Index for date-ordered quantity queries"
-    ),
-]
 
 
 def get_existing_indexes(conn: sqlite3.Connection) -> set[str]:
@@ -125,24 +96,21 @@ def create_indexes(db_path: Path, dry_run: bool = False, force: bool = False) ->
     created = 0
     skipped = 0
 
-    for index_name, table, columns, description in INDEXES:
+    for index_name, sql in REQUIRED_INDEXES.items():
         if index_name in existing and not force:
-            logger.info(f"[SKIP] {index_name} already exists - {description}")
+            logger.info(f"[SKIP] {index_name} already exists")
             skipped += 1
             continue
 
-        sql = f"CREATE INDEX IF NOT EXISTS {index_name} ON {table}{columns}"
-
         if dry_run:
             logger.info(f"[DRY RUN] {sql}")
-            logger.info(f"         -> {description}")
         else:
             start = time.time()
             try:
                 conn.execute(sql)
                 conn.commit()
                 elapsed = time.time() - start
-                logger.info(f"[OK] {index_name} created in {elapsed:.2f}s - {description}")
+                logger.info(f"[OK] {index_name} created in {elapsed:.2f}s")
                 created += 1
             except sqlite3.Error as e:
                 logger.error(f"[FAIL] {index_name}: {e}")
