@@ -52,6 +52,7 @@ requirements.lock.txt   ← [신규] 정본 venv의 pip freeze 전체 스냅샷 
 TOTAL  2762 stmts  742 miss  616 branch  97 partial  → 71%
 ```
 - floor = **66%** (보수 마진 5%p — 러너/버전 차이에 따른 ±1~2%p 변동 흡수).
+- 측정 인터프리터 각주: 위 71%는 py3.13(당시 시스템 환경) 실측. py3.12 정본 venv의 CI 조건 시뮬레이션(빈 fixture DB)에서는 **70%** — 빈 DB로 데이터 경로 분기가 덜 실행된 차이. floor 66은 양쪽 모두 −4~5%p 마진으로 유효, 결론 불변.
 - 참고: `shared/ui/*`(theme.py 등 streamlit 헬퍼)가 0%로 전체를 끌어내리고 있음 — coverage `source`에서 빼는 것도 가능하나 **pyproject 불변 원칙**에 따라 이번엔 그대로 두고, floor 상향+source 조정은 커버리지 램프 후속 사이클로.
 
 ## 2. `.github/workflows/ci.yml` 상세
@@ -75,8 +76,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Install ruff (lock-pinned version)
@@ -87,17 +88,24 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements.lock.txt
       - name: Install dependencies (locked)
         run: pip install -r requirements.lock.txt
+      - name: Create empty fixture DB   # §4 S1 우회 경로 — 실제 채택됨 (아래 노트)
+        run: ...                        # production_records 빈 스키마 생성 (구현 ci.yml 참조)
       - name: Pytest + coverage floor (CI-only, per pyproject comment)
         run: python -m pytest tests/ -q --cov --cov-report=term --cov-fail-under=66
 ```
+
+> **구현 중 확정 사항(2026-06-10)**:
+> - 액션 버전은 `checkout@v6` / `setup-python@v6` — 첫 run의 Node 20 deprecation annotation(2026-06-16 Node 24 강제) 대응으로 `@v4`/`@v5`에서 상향, 상향 후 run green 확인.
+> - §4 S1 시뮬레이션에서 실DB 의존 테스트 12건이 확인되어, 사전 허용해 둔 우회 경로(빈 `production_records` fixture DB step)가 실제 채택됨.
+> - lint job의 ruff 버전 추출에 `tr -d '\r'` 추가 — Windows CRLF lock 체크아웃 방어.
 
 설계 노트:
 - **lint job은 lock 전체를 설치하지 않는다** — ruff 단일 설치(수 초). 단 버전은 lock에서 추출해 로컬과 동일 보장.
@@ -174,4 +182,6 @@ S1/S2 실패 시: 실패 테스트가 실DB/실env에 암묵 의존하는 것이
 
 - ~~커버리지 baseline 미지~~ → **해소**: 71% 실측, floor 66.
 - ~~CI 의존성 서브셋 미정~~ → **해소**: 단일 full lock (§1.1).
-- **잔존**: Linux 러너 타이밍 flaky(`test_rate_limiter.py` sleep 기반) — 1차 관찰, 재발 시 `rate-limiter-clock-injection` 사이클 분리. Windows 전용 전이 핀(§1.2 마커 대응). S1(DB 부재) 결과에 따른 ci.yml fixture step 추가 가능성(§4).
+- ~~Windows 전용 전이 핀~~ → **해소(2026-06-10)**: freeze 산출물 육안 검사 결과 pywin32 계열 0건, colorama(cross-platform)만 — 수동 마커 불필요.
+- ~~S1 fixture step 가능성~~ → **확정**: S1에서 실DB 의존 12건 검출, 빈 fixture DB step 채택(§2 노트).
+- **잔존**: Linux 러너 타이밍 flaky(`test_rate_limiter.py` sleep 기반) — 1차 관찰, 재발 시 `rate-limiter-clock-injection` 사이클 분리. 추가 관찰 대상: `test_notifications_bulk_retry.py` worker dispatch 계열 간헐 실패(전체 스위트 순서 의존 추정, 단독/재실행 green).
