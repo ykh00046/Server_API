@@ -27,8 +27,8 @@ def render_page_header(title: str, breadcrumb: str = "") -> None:
             st.caption(breadcrumb)
     with col_toggle:
         is_open = st.session_state.get("ai_panel_open", False)
-        btn_label = "🤖 닫기" if is_open else "🤖 열기"
-        if st.button(btn_label, key=f"ai_toggle_{title}"):
+        btn_label = "AI 닫기" if is_open else "AI 열기"
+        if st.button(btn_label, icon=":material/smart_toy:", key=f"ai_toggle_{title}"):
             st.session_state["ai_panel_open"] = not is_open
             st.rerun()
 

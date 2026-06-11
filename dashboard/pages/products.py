@@ -29,9 +29,9 @@ from shared.ui.theme import get_colors
 # Product Category Classification
 # ==========================================================
 PRODUCT_CATEGORIES = {
-    "AS": {"label": "AS (어셈블리)", "icon": "🔩", "color": "#ec4899"},
-    "AC": {"label": "AC (악세사리)", "icon": "💎", "color": "#0ea5e9"},
-    "AW": {"label": "AW (조립완성)", "icon": "📦", "color": "#f43f5e"},
+    "AS": {"label": "AS (어셈블리)", "color": "#2563eb"},
+    "AC": {"label": "AC (악세사리)", "color": "#0d9488"},
+    "AW": {"label": "AW (조립완성)", "color": "#f59e0b"},
 }
 
 
@@ -45,33 +45,20 @@ def _classify_item_code(code: str) -> str:
 
 def _get_category_info(cat: str) -> dict:
     """Get display info for a category."""
-    return PRODUCT_CATEGORIES.get(cat, {"label": f"기타 ({cat})", "icon": "📋", "color": "#94a3b8"})
+    return PRODUCT_CATEGORIES.get(cat, {"label": f"기타 ({cat})", "color": "#64748b"})
 
 
 # ==========================================================
 # Section 1: Category Overview KPIs
 # ==========================================================
 def _render_category_kpis(cat_summary: pd.DataFrame, num_cats: int) -> None:
-    """Render category-level KPI cards (one per detected category)."""
+    """Render category-level KPI cards (one bordered metric per category)."""
     kpi_cols = st.columns(max(num_cats, 1))
     for i, row in cat_summary.iterrows():
         cat_info = _get_category_info(row["category"])
-        with kpi_cols[i % num_cats]:
-            st.markdown(
-                f'<div class="bkit-kpi-card">'
-                f'<div class="bkit-kpi-bar" style="background:{cat_info["color"]}"></div>'
-                f'<div class="bkit-kpi-header">'
-                f'<span class="bkit-kpi-label">{cat_info["label"]}</span>'
-                f'<span class="bkit-kpi-icon" style="background:rgba(0,0,0,0.03)">{cat_info["icon"]}</span>'
-                f'</div>'
-                f'<div class="bkit-kpi-value">{row["total_qty"]:,.0f}</div>'
-                f'<div style="display:flex;justify-content:space-between;font-size:0.8rem;color:var(--color-text-muted, #64748b);margin-top:4px;">'
-                f'<span>{row["batch_count"]:,}배치</span>'
-                f'<span>{row["product_count"]}품목</span>'
-                f'</div>'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
+        with kpi_cols[i % num_cats], st.container(border=True):
+            st.metric(cat_info["label"], f"{row['total_qty']:,.0f}")
+            st.caption(f"{row['batch_count']:,}배치 · {row['product_count']}품목")
 
 
 # ==========================================================
@@ -87,7 +74,7 @@ def _render_distribution_charts(
     chart_col1, chart_col2 = st.columns(2)
 
     with chart_col1:
-        st.markdown("**🍩 카테고리별 생산 비중**")
+        st.markdown("**:material/donut_small: 카테고리별 생산 비중**")
         cat_colors = [_get_category_info(c)["color"] for c in cat_summary["category"]]
         cat_labels = [_get_category_info(c)["label"] for c in cat_summary["category"]]
         fig_cat = go.Figure(go.Pie(
@@ -112,7 +99,7 @@ def _render_distribution_charts(
         st.plotly_chart(fig_cat, width="stretch", config=get_chart_config("category_dist"))
 
     with chart_col2:
-        st.markdown("**📊 카테고리별 Top 5 제품**")
+        st.markdown("**:material/bar_chart: 카테고리별 Top 5 제품**")
         item_totals = (
             df.groupby(["category", "item_code"])["good_quantity"]
             .sum()
@@ -179,7 +166,7 @@ def _render_drilldown_item_detail(
     detail_col1, detail_col2 = st.columns([3, 2])
 
     with detail_col1:
-        st.markdown(f"**📈 {selected_code} 월별 추이**")
+        st.markdown(f"**:material/trending_up: {selected_code} 월별 추이**")
         if not item_df.empty:
             monthly = (
                 item_df.groupby("year_month")["good_quantity"]
@@ -215,7 +202,7 @@ def _render_drilldown_item_detail(
             st.info("데이터가 없습니다.")
 
     with detail_col2:
-        st.markdown("**📋 최근 배치 이력**")
+        st.markdown("**:material/list_alt: 최근 배치 이력**")
         if not item_df.empty:
             recent = (
                 item_df.sort_values("production_dt", ascending=False)
@@ -355,18 +342,18 @@ with col_main:
         )
         categories_present = cat_summary["category"].tolist()
 
-        st.markdown("#### 📊 카테고리별 현황")
+        st.markdown("#### :material/category: 카테고리별 현황")
         _render_category_kpis(cat_summary, len(categories_present))
-        st.markdown('<div class="bkit-spacer-8"></div>', unsafe_allow_html=True)
+        st.space(8)
 
         _render_distribution_charts(df, cat_summary, categories_present, chart_template)
 
         st.divider()
-        st.markdown("#### 🔍 제품 상세 드릴다운")
+        st.markdown("#### :material/search: 제품 상세 드릴다운")
         _render_drilldown(df, categories_present, colors, chart_template)
 
         st.divider()
-        st.markdown("#### 📈 제품 추세 비교")
+        st.markdown("#### :material/stacked_line_chart: 제품 추세 비교")
         _render_trend_comparison(df, db_ver, chart_template)
 
 render_ai_column(col_ai)

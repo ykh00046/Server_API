@@ -31,7 +31,7 @@ def _render_kpi_cards(df: pd.DataFrame) -> None:
         st.metric("생산일 수", f"{unique_days}일")
     with kpi3:
         st.metric("일 평균 배치", f"{avg_daily:.1f}건")
-    st.markdown('<div class="bkit-spacer-8"></div>', unsafe_allow_html=True)
+    st.space(8)
 
 
 # ==========================================================
@@ -64,18 +64,20 @@ def _render_export_buttons(df: pd.DataFrame, display_detail: pd.DataFrame) -> No
     export_col1, export_col2, _ = st.columns([1, 1, 4])
     with export_col1:
         st.download_button(
-            "📥 Excel 다운로드",
-            _cached_excel_bytes(df),
-            "production_records.xlsx",
+            "Excel 다운로드",
+            data=_cached_excel_bytes(df),
+            file_name="production_records.xlsx",
+            icon=":material/download:",
             width="stretch",
         )
     with export_col2:
         csv_data = display_detail.to_csv(index=False).encode("utf-8-sig")
         st.download_button(
-            "📋 CSV 다운로드",
-            csv_data,
-            "production_records.csv",
+            "CSV 다운로드",
+            data=csv_data,
+            file_name="production_records.csv",
             mime="text/csv",
+            icon=":material/csv:",
             width="stretch",
         )
 
@@ -99,7 +101,10 @@ with col_main:
     df, bad_dt = load_records(item_codes, keyword, date_from, date_to, limit, db_ver=db_ver)
 
     if bad_dt > 0:
-        st.warning(f"⚠️ {bad_dt:,}개 레코드의 날짜 파싱에 문제가 있습니다.")
+        st.warning(
+            f"{bad_dt:,}개 레코드의 날짜 파싱에 문제가 있습니다.",
+            icon=":material/warning:",
+        )
 
     _render_kpi_cards(df)
     display_detail = _render_detail_table(df)

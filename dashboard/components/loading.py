@@ -211,6 +211,6 @@ def render_cache_status(cache_hit: bool) -> None:
     from cache or fetched from the database.
     """
     if cache_hit:
-        st.success("캐시에서 로드됨", icon="✅")
+        st.success("캐시에서 로드됨", icon=":material/check_circle:")
     else:
         st.info("데이터베이스에서 로드됨", icon="ℹ️")

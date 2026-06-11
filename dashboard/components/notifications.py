@@ -41,26 +41,19 @@ def show_toast(
         Uses Streamlit's native toast when available (st.toast in Streamlit 1.34+),
         falls back to styled alert for older versions.
     """
-    # Default icons by type
+    # Default icons by type (Material)
     default_icons = {
-        ToastType.SUCCESS: "✅",
-        ToastType.ERROR: "❌",
-        ToastType.WARNING: "⚠️",
-        ToastType.INFO: "ℹ️",
+        ToastType.SUCCESS: ":material/check_circle:",
+        ToastType.ERROR: ":material/error:",
+        ToastType.WARNING: ":material/warning:",
+        ToastType.INFO: ":material/info:",
     }
 
-    icon = icon or default_icons.get(type, "ℹ️")
+    icon = icon or default_icons.get(type, ":material/info:")
 
     # Use Streamlit's native toast if available
     if hasattr(st, 'toast'):
-        if type == ToastType.SUCCESS:
-            st.toast(message, icon="✅")
-        elif type == ToastType.ERROR:
-            st.toast(message, icon="❌")
-        elif type == ToastType.WARNING:
-            st.toast(message, icon="⚠️")
-        else:
-            st.toast(message, icon="ℹ️")
+        st.toast(message, icon=icon)
     else:
         # Fallback to styled message
         _show_fallback_toast(message, type)

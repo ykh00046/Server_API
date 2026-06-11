@@ -103,7 +103,7 @@ def _stream_chat_tokens_once(stream_url: str, payload: dict) -> Iterator[str]:
                 if event_name == "token":
                     yield data.get("text", "")
                 elif event_name == "tool_call":
-                    st.toast(f"🔧 {data.get('name', '')}", icon="⚙️")
+                    st.toast(data.get("name", ""), icon=":material/build:")
                 elif event_name == "error":
                     code = data.get("code", "internal")
                     msg = _ERROR_MESSAGES.get(code, data.get("message", "AI 스트리밍 오류"))
@@ -165,7 +165,8 @@ def _render_table_download(content: str, key_prefix: str, index: int) -> None:
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             df.to_excel(writer, index=False, sheet_name="AI_Data")
         st.download_button(
-            label="📊 엑셀 다운로드",
+            label="엑셀 다운로드",
+            icon=":material/download:",
             data=output.getvalue(),
             file_name=f"ai_analysis_{index}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -186,7 +187,7 @@ def _process_pending_user_message(chat_container, api_url: str) -> None:
     latest_prompt = st.session_state.messages[-1]["content"]
     target = chat_container if chat_container is not None else st.container()
     with target:
-        with st.chat_message("assistant", avatar="🤖"):
+        with st.chat_message("assistant", avatar=":material/smart_toy:"):
             payload = {
                 "query": latest_prompt,
                 "session_id": st.session_state.get("chat_session_id"),
@@ -228,28 +229,16 @@ def render_ai_status_indicator(is_online: bool = True) -> None:
     """
     Render AI status indicator.
     """
-    status_color = "#00aa66" if is_online else "#cc4444"
-    status_text = "온라인" if is_online else "오프라인"
-    status_icon = "●" if is_online else "○"
-
-    st.markdown(
-        f'<div class="bkit-flex-center">'
-        f'<span class="bkit-status-dot" style="color:{status_color}">{status_icon}</span>'
-        f'<span style="color:{status_color};font-weight:600">AI 엔진: {status_text}</span>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
+    if is_online:
+        st.badge("AI 엔진: 온라인", icon=":material/check_circle:", color="green")
+    else:
+        st.badge("AI 엔진: 오프라인", icon=":material/cancel:", color="red")
 
 
 def render_ai_header_with_animation() -> None:
-    """Render AI section header with styling."""
-    st.markdown(
-        f'<div class="bkit-ai-header">'
-        f'<h1>생산 데이터 분석 AI</h1>'
-        f'<p>Core Engine: {GEMINI_MODEL} | 2025-2026 통합 데이터</p>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
+    """Render AI section header (native title + caption)."""
+    st.title("생산 데이터 분석 AI", anchor=False)
+    st.caption(f"Core Engine: {GEMINI_MODEL} | 2025-2026 통합 데이터")
 
 
 def render_ai_chat(api_url: str | None = None) -> None:
@@ -268,16 +257,14 @@ def render_ai_chat(api_url: str | None = None) -> None:
     # 1. Zero-State UI (대화 시작 전 중앙 화면)
     # ==========================================
     if len(st.session_state.messages) == 0:
-        st.markdown(
-            '<div class="bkit-zero-state">'
-            '<div class="bkit-icon">👋</div>'
-            '<h2>무엇을 분석해 드릴까요?</h2>'
-            '<p>자연어로 질문하면, 수십만 건의 데이터를 즉시 분석해 표와 차트로 답변합니다.</p>'
-            '</div>',
-            unsafe_allow_html=True,
-        )
+        st.space(60)
+        with st.container(horizontal_alignment="center"):
+            st.markdown(":material/waving_hand:")
+            st.subheader("무엇을 분석해 드릴까요?", anchor=False)
+            st.caption("자연어로 질문하면, 수십만 건의 데이터를 즉시 분석해 표와 차트로 답변합니다.")
+        st.space(24)
 
-        # Starter card styling is in theme.py _BASE_RULES (.bkit-starter-cards)
+        # Starter card button sizing CSS lives in theme.py (_STARTER_CARD_CSS)
 
         col1, col2 = st.columns(2)
         prompt_clicked: str | None = None
@@ -292,18 +279,17 @@ def render_ai_chat(api_url: str | None = None) -> None:
             st.rerun()
 
         # Fill remaining space so input stays at bottom
-        st.markdown("<div style='height:150px'></div>", unsafe_allow_html=True)
+        st.space(150)
 
     # ==========================================
     # 2. Active Chat UI (대화 진행 중)
     # ==========================================
     else:
-        # Context Hint Badge
-        st.markdown(
-            '<div class="bkit-hint-badge">'
-            '<span>💡 팁: \'표로 정리해줘\'라고 질문하면 데이터를 엑셀로 다운로드할 수 있습니다.</span>'
-            '</div>',
-            unsafe_allow_html=True,
+        # Context hint
+        st.caption(
+            ":material/lightbulb: 팁: '표로 정리해줘'라고 질문하면 데이터를 "
+            "엑셀로 다운로드할 수 있습니다.",
+            text_alignment="right",
         )
 
         # Chat container
@@ -311,7 +297,10 @@ def render_ai_chat(api_url: str | None = None) -> None:
 
         with chat_container:
             for i, message in enumerate(st.session_state.messages):
-                avatar = "👤" if message["role"] == "user" else "🤖"
+                avatar = (
+                    ":material/person:" if message["role"] == "user"
+                    else ":material/smart_toy:"
+                )
                 with st.chat_message(message["role"], avatar=avatar):
                     content = message["content"]
                     st.markdown(content, unsafe_allow_html=False)
@@ -392,13 +381,9 @@ def render_ai_section_compact(api_url: str | None = None) -> None:
     # Chat role CSS is in theme.py _BASE_RULES
 
     # Compact header
-    st.markdown(
-        f'<div class="bkit-gradient-header">'
-        f'<span style="font-size:0.9rem;font-weight:700">🤖 AI 분석 비서</span>'
-        f'<span class="bkit-model-tag">{GEMINI_MODEL}</span>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
+    with st.container(horizontal=True, vertical_alignment="center"):
+        st.markdown("**:material/smart_toy: AI 분석 비서**")
+        st.badge(GEMINI_MODEL, color="blue")
 
     # Initialize chat history
     if "messages" not in st.session_state:
@@ -408,13 +393,9 @@ def render_ai_section_compact(api_url: str | None = None) -> None:
 
     # Quick prompt chips (shown when no messages)
     if len(st.session_state.messages) == 0:
-        st.markdown(
-            '<div class="bkit-compact-zero-state">'
-            '<div class="bkit-icon">💬</div>'
-            '<p>무엇을 분석할까요?</p>'
-            '</div>',
-            unsafe_allow_html=True,
-        )
+        with st.container(horizontal_alignment="center"):
+            st.markdown(":material/chat:")
+            st.caption("무엇을 분석할까요?")
 
         # Quick chips as buttons
         chip_clicked = None
@@ -433,7 +414,10 @@ def render_ai_section_compact(api_url: str | None = None) -> None:
         chat_container = st.container(height=400)
         with chat_container:
             for i, message in enumerate(st.session_state.messages):
-                avatar = "👤" if message["role"] == "user" else "🤖"
+                avatar = (
+                    ":material/person:" if message["role"] == "user"
+                    else ":material/smart_toy:"
+                )
                 with st.chat_message(message["role"], avatar=avatar):
                     content = message["content"]
                     st.markdown(content, unsafe_allow_html=False)

@@ -28,7 +28,7 @@ _SECRET_KEY = "_webhook_last_secret"
 # Section: queue stats
 # =====================================================================
 def render_queue_stats_section(client: WebhookAdminClient) -> None:
-    st.subheader("📊 큐 상태")
+    st.subheader(":material/monitoring: 큐 상태", anchor=False)
     try:
         stats = client.queue_stats()
     except WebhookAdminError as e:
@@ -126,7 +126,7 @@ def render_secret_banner_if_any() -> None:
 # Section: webhook list + selection
 # =====================================================================
 def render_webhook_list_section(client: WebhookAdminClient) -> int | None:
-    st.subheader("📋 등록된 webhook")
+    st.subheader(":material/webhook: 등록된 webhook", anchor=False)
     filt_label = st.radio(
         "필터",
         options=["전체", "활성", "비활성"],
@@ -172,7 +172,7 @@ def render_webhook_detail(
     webhook_id: int,
     event_catalog: list[dict],
 ) -> None:
-    st.subheader(f"⚙️ webhook #{webhook_id}")
+    st.subheader(f":material/settings: webhook #{webhook_id}", anchor=False)
     try:
         wh = client.get_webhook(webhook_id)
     except WebhookAdminError as e:
@@ -188,7 +188,7 @@ def render_webhook_detail(
     with cols[1]:
         active = st.checkbox("활성", value=bool(wh.get("active")), key=f"wh_active_{webhook_id}")
     with cols[2]:
-        if st.button("🔄 Test ping", key=f"wh_test_{webhook_id}", help="webhook에 테스트 페이로드를 즉시 1회 발송"):
+        if st.button("Test ping", icon=":material/send:", key=f"wh_test_{webhook_id}", help="webhook에 테스트 페이로드를 즉시 1회 발송"):
             _do_test_ping(client, webhook_id)
     with cols[3]:
         if st.button("🗑️ 삭제", key=f"wh_delete_{webhook_id}", type="secondary"):

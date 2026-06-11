@@ -12,7 +12,7 @@ from components.webhook_admin import WebhookAdminClient, views
 
 from shared.config import API_BASE_URL
 
-st.title("🔔 Webhook 관리")
+st.title(":material/notifications: Webhook 관리", anchor=False)
 st.caption(f"API: `{API_BASE_URL}`")
 
 

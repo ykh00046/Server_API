@@ -16,7 +16,7 @@ import plotly.graph_objects as go
 from shared.ui.theme import CHART_SERIES_COLORS
 
 
-def create_top10_bar_chart(df: pd.DataFrame, template: str, marker_color: str = "#ec4899") -> go.Figure:
+def create_top10_bar_chart(df: pd.DataFrame, template: str, marker_color: str = "#2563eb") -> go.Figure:
     """
     Create horizontal bar chart for top 10 products.
 
