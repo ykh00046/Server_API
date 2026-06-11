@@ -1,9 +1,15 @@
 {
   "version": "2.0",
   "lastUpdated": "2026-06-10T00:00:00.000Z",
-  "activeFeatures": [],
-  "primaryFeature": "review-quickwins-202606",
+  "activeFeatures": ["ui-design-overhaul-v1"],
+  "primaryFeature": "ui-design-overhaul-v1",
   "features": {
+    "ui-design-overhaul-v1": {
+      "phase": "design",
+      "status": "active",
+      "startedAt": "2026-06-11",
+      "note": "UI/디자인 대폭 개선 — 블루/슬레이트 + 네이티브 우선 (사용자 결정 2026-06-11). config.toml 풀 테마, theme.py 351→~110줄, KPI st.metric화, Material 아이콘"
+    },
     "review-quickwins-202606": {
       "phase": "archived",
       "status": "completed",
