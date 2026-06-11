@@ -45,7 +45,7 @@ def render_queue_stats_section(client: WebhookAdminClient) -> None:
         dead_n = 0
     if dead_n > 0:
         st.caption(f"포기됨(dead) {dead_n}건이 재시도 큐로 복귀 가능합니다.")
-        if st.button(f"💀 dead {dead_n}건 전체 재시도", key="webhook_bulk_retry_dead"):
+        if st.button(f"dead {dead_n}건 전체 재시도", icon=":material/restart_alt:", key="webhook_bulk_retry_dead"):
             _do_bulk_retry_dead(client)
 
 
@@ -68,7 +68,7 @@ def render_register_form(
     client: WebhookAdminClient,
     event_catalog: list[dict],
 ) -> None:
-    st.subheader("➕ 신규 등록")
+    st.subheader(":material/add_circle: 신규 등록", anchor=False)
     event_names = [e.get("name", "") for e in event_catalog if e.get("name")]
     with st.expander("새 webhook 등록", expanded=False):
         with st.form("webhook_register_form", clear_on_submit=True):
@@ -112,7 +112,7 @@ def render_secret_banner_if_any() -> None:
     if not secret_info:
         return
     st.warning(
-        "🔑 새 webhook secret이 1회 노출되었습니다. **이 페이지를 떠나면 다시 볼 수 없습니다.** "
+        "새 webhook secret이 1회 노출되었습니다. **이 페이지를 떠나면 다시 볼 수 없습니다.** "
         "안전한 곳에 복사해 두세요."
     )
     st.code(secret_info["secret"], language="text")
@@ -191,7 +191,7 @@ def render_webhook_detail(
         if st.button("Test ping", icon=":material/send:", key=f"wh_test_{webhook_id}", help="webhook에 테스트 페이로드를 즉시 1회 발송"):
             _do_test_ping(client, webhook_id)
     with cols[3]:
-        if st.button("🗑️ 삭제", key=f"wh_delete_{webhook_id}", type="secondary"):
+        if st.button("삭제", icon=":material/delete:", key=f"wh_delete_{webhook_id}", type="secondary"):
             _do_delete(client, webhook_id)
 
     new_events = st.multiselect(
@@ -208,7 +208,7 @@ def render_webhook_detail(
     )
 
     save_col, rotate_col, _ = st.columns([1, 1, 4])
-    if save_col.button("💾 저장", key=f"wh_save_{webhook_id}"):
+    if save_col.button("저장", icon=":material/save:", key=f"wh_save_{webhook_id}"):
         _do_update(
             client,
             webhook_id,
@@ -216,7 +216,7 @@ def render_webhook_detail(
             description=new_desc,
             active=active,
         )
-    if rotate_col.button("🔑 secret 회전", key=f"wh_rotate_{webhook_id}"):
+    if rotate_col.button("secret 회전", icon=":material/key:", key=f"wh_rotate_{webhook_id}"):
         _do_rotate(client, webhook_id)
 
 
@@ -296,7 +296,7 @@ _DELIVERY_STATUSES = ("전체", "success", "queued", "in_flight", "retrying", "f
 
 
 def render_deliveries_section(client: WebhookAdminClient, webhook_id: int) -> None:
-    st.subheader("📬 최근 발송 이력")
+    st.subheader(":material/outbox: 최근 발송 이력", anchor=False)
     cols = st.columns([1, 1, 4])
     status_choice = cols[0].selectbox(
         "status",
@@ -328,7 +328,7 @@ def render_deliveries_section(client: WebhookAdminClient, webhook_id: int) -> No
             did = d.get("id")
             if did is None:
                 continue
-            if st.button(f"🔁 재시도 #{did} ({d.get('status')})", key=f"retry_{webhook_id}_{did}"):
+            if st.button(f"재시도 #{did} ({d.get('status')})", icon=":material/replay:", key=f"retry_{webhook_id}_{did}"):
                 _do_retry(client, did)
 
 

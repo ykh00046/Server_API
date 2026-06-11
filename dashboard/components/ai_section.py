@@ -197,7 +197,7 @@ def _process_pending_user_message(chat_container, api_url: str) -> None:
                 full_answer = "".join(str(p) for p in full_answer)
             # Always append assistant message to prevent infinite rerun (H5)
             st.session_state.messages.append(
-                {"role": "assistant", "content": full_answer or "⚠️ 응답을 받지 못했습니다."}
+                {"role": "assistant", "content": full_answer or "응답을 받지 못했습니다."}
             )
             st.rerun()
 
@@ -324,7 +324,7 @@ def render_ai_chat(api_url: str | None = None) -> None:
         st.markdown("")  # spacer
         col1, col2 = st.columns([1, 5])
         with col1:
-            if st.button("새로운 대화 시작", icon="✨", help="대화 기록을 지우고 초기 화면으로 돌아갑니다."):
+            if st.button("새로운 대화 시작", icon=":material/add_comment:", help="대화 기록을 지우고 초기 화면으로 돌아갑니다."):
                 st.session_state.messages = []
                 st.rerun()
 
@@ -436,6 +436,6 @@ def render_ai_section_compact(api_url: str | None = None) -> None:
 
     # New chat button
     if len(st.session_state.messages) > 0:
-        if st.button("✨ 새 대화", key="compact_new_chat", width="stretch"):
+        if st.button("새 대화", icon=":material/add_comment:", key="compact_new_chat", width="stretch"):
             st.session_state.messages = []
             st.rerun()

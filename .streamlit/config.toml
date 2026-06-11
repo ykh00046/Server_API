@@ -7,6 +7,12 @@
 
 [theme]
 base = "light"
+# NOTE(1.58): these three keys are only valid at the top [theme] level —
+# Streamlit warns "not a valid config option" if placed under
+# [theme.light]/[theme.dark] variants.
+showSidebarBorder = true
+baseFontSize = 14
+chartCategoricalColors = ["#2563eb", "#0d9488", "#f59e0b", "#7c3aed", "#dc2626", "#0891b2", "#64748b"]
 
 [theme.light]
 primaryColor = "#2563eb"
@@ -16,16 +22,13 @@ textColor = "#0f172a"
 linkColor = "#2563eb"
 borderColor = "#e2e8f0"
 showWidgetBorder = true
-showSidebarBorder = true
 baseRadius = "8px"
 buttonRadius = "8px"
 linkUnderline = false
 font = "'Noto Sans KR':https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap"
-baseFontSize = 14
 headingFontSizes = ["28px", "22px", "18px", "16px", "14px", "12px"]
 headingFontWeights = [700, 600, 600, 600, 500, 500]
 codeFontSize = "13px"
-chartCategoricalColors = ["#2563eb", "#0d9488", "#f59e0b", "#7c3aed", "#dc2626", "#0891b2", "#64748b"]
 blueColor = "#2563eb"
 greenColor = "#059669"
 redColor = "#dc2626"
@@ -49,16 +52,13 @@ textColor = "#e2e8f0"
 linkColor = "#60a5fa"
 borderColor = "#334155"
 showWidgetBorder = true
-showSidebarBorder = true
 baseRadius = "8px"
 buttonRadius = "8px"
 linkUnderline = false
 font = "'Noto Sans KR':https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap"
-baseFontSize = 14
 headingFontSizes = ["28px", "22px", "18px", "16px", "14px", "12px"]
 headingFontWeights = [700, 600, 600, 600, 500, 500]
 codeFontSize = "13px"
-chartCategoricalColors = ["#60a5fa", "#2dd4bf", "#fbbf24", "#a78bfa", "#f87171", "#22d3ee", "#94a3b8"]
 blueColor = "#60a5fa"
 greenColor = "#34d399"
 redColor = "#f87171"

@@ -160,7 +160,7 @@ def render_preset_manager(
         The caller should apply these values to the filter controls.
     """
     st.sidebar.divider()
-    with st.sidebar.expander("📁 필터 프리셋", expanded=False):
+    with st.sidebar.expander("필터 프리셋", icon=":material/folder:", expanded=False):
         loaded_preset = None
 
         # Load preset section
