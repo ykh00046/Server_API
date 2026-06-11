@@ -45,7 +45,7 @@ def _render_kpi_section(df, date_from, date_to, colors) -> None:
         batch_sparkline=sparkline,
         top_product_sparkline=top_spark,
     )
-    st.markdown('<div class="bkit-spacer-8"></div>', unsafe_allow_html=True)
+    st.space(8)
 
 
 # ==========================================================
@@ -56,7 +56,7 @@ def _render_chart_row_1(df, date_from, date_to, db_ver, chart_template, colors) 
     chart_col1, chart_col2 = st.columns(2)
 
     with chart_col1:
-        st.markdown("**📈 월별 생산 추세**")
+        st.markdown("**:material/trending_up: 월별 생산 추세**")
         summary_df = load_monthly_summary(date_from, date_to, db_ver=db_ver)
         if len(summary_df) > 0:
             fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -94,7 +94,7 @@ def _render_chart_row_1(df, date_from, date_to, db_ver, chart_template, colors) 
             st.info("데이터가 없습니다.")
 
     with chart_col2:
-        st.markdown("**🏆 Top 10 제품별 생산량**")
+        st.markdown("**:material/leaderboard: Top 10 제품별 생산량**")
         fig_bar = create_top10_bar_chart(df, chart_template, marker_color=colors["primary"])
         fig_bar.update_layout(height=360, margin=dict(l=80, r=20, t=30, b=40))
         st.plotly_chart(fig_bar, width="stretch", config=get_chart_config("top10"))
@@ -108,13 +108,13 @@ def _render_chart_row_2(df, chart_template) -> None:
     chart_col3, chart_col4 = st.columns(2)
 
     with chart_col3:
-        st.markdown("**🍩 생산 분포**")
+        st.markdown("**:material/donut_small: 생산 분포**")
         fig_pie = create_distribution_pie(df, chart_template)
         fig_pie.update_layout(height=340, margin=dict(l=20, r=20, t=30, b=40))
         st.plotly_chart(fig_pie, width="stretch", config=get_chart_config("distribution"))
 
     with chart_col4:
-        st.markdown("**📊 최근 현황 요약**")
+        st.markdown("**:material/table_chart: 최근 현황 요약**")
         if not df.empty:
             recent = df.head(7)[["production_date", "item_code", "item_name", "good_quantity"]].copy()
             recent["production_date"] = df.head(7)["production_dt"].dt.strftime("%Y-%m-%d")

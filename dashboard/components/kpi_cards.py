@@ -1,11 +1,10 @@
 """
-KPI Dashboard Cards — B3 sidebar style.
+KPI Dashboard Cards — native st.metric (ui-design-overhaul-v1).
 
-Custom HTML cards with:
-- Gradient top bar (pink/sky)
-- Icon box
-- MoM change rate
-- CSS bar sparkline
+Pure KPI/sparkline computation + a thin render layer using
+st.metric(border=True, chart_data=...) inside a horizontal container
+(wraps responsively, unlike st.columns). Colors come from the native
+theme — no custom HTML/CSS.
 """
 
 from datetime import date
@@ -148,95 +147,55 @@ def _format_number(n: int) -> str:
     return str(n)
 
 
-def _render_sparkline_bars(data: list[int], color_light: str, color_dark: str) -> str:
-    """Generate CSS bar sparkline HTML."""
-    if not data or max(data) == 0:
-        return ""
-    max_val = max(data)
-    bars = ""
-    for i, v in enumerate(data):
-        h = max(int(v / max_val * 100), 3) if max_val > 0 else 3
-        c = color_dark if i == len(data) - 1 else color_light
-        bars += f'<div style="flex:1;border-radius:2px;min-height:3px;height:{h}%;background:{c};"></div>'
-    return f'<div style="display:flex;align-items:end;gap:2px;height:28px;margin-top:10px;">{bars}</div>'
+def _has_signal(data: list[int] | None) -> bool:
+    """True if sparkline data exists and is not all zeros."""
+    return bool(data) and max(data) > 0
 
 
 def render_kpi_cards(
     kpis: dict[str, Any],
-    colors: dict[str, str],
+    colors: dict[str, str] | None = None,
     sparkline_data: list[int] | None = None,
     batch_sparkline: list[int] | None = None,
     top_product_sparkline: list[int] | None = None
 ) -> None:
     """
-    Render 4 KPI cards in B3 style with gradient bars, icons, and sparklines.
+    Render 4 KPI cards as native bordered metrics with sparklines.
 
     Args:
         kpis: KPI values dict from calculate_kpis()
-        colors: Theme color palette
+        colors: Unused (legacy param kept for call-site compatibility;
+                colors now come from the native theme)
         sparkline_data: Daily production trend for last 7 days
         batch_sparkline: Daily batch count trend for last 7 days
         top_product_sparkline: Daily trend for top product
     """
-    if sparkline_data is None:
-        sparkline_data = [0] * 7
-    if batch_sparkline is None:
-        batch_sparkline = [0] * 7
-    if top_product_sparkline is None:
-        top_product_sparkline = [0] * 7
-
-    cards = [
-        {
-            "label": "총 생산량",
-            "value": _format_number(kpis["total_qty"]),
-            "icon": "📦",
-            "gradient": "linear-gradient(90deg, #f472b6, #f9a8d4)",
-            "icon_bg": "#fdf2f8",
-            "icon_color": "#ec4899",
-            "spark": _render_sparkline_bars(sparkline_data, "#fce7f3", "#f472b6"),
-        },
-        {
-            "label": "배치 수",
-            "value": f"{kpis['batch_count']:,}",
-            "icon": "🧪",
-            "gradient": "linear-gradient(90deg, #38bdf8, #7dd3fc)",
-            "icon_bg": "#f0f9ff",
-            "icon_color": "#0ea5e9",
-            "spark": _render_sparkline_bars(batch_sparkline, "#e0f2fe", "#38bdf8"),
-        },
-        {
-            "label": "활성 제품",
-            "value": str(kpis.get("active_products", 0)),
-            "icon": "🏷️",
-            "gradient": "linear-gradient(90deg, #f9a8d4, #7dd3fc)",
-            "icon_bg": "#fdf2f8",
-            "icon_color": "#f472b6",
-            "spark": "",  # No sparkline for count
-        },
-        {
-            "label": "평균 배치 크기",
-            "value": f"{kpis.get('avg_batch_size', 0):,}",
-            "icon": "📏",
-            "gradient": "linear-gradient(90deg, #0ea5e9, #f472b6)",
-            "icon_bg": "#f0f9ff",
-            "icon_color": "#0284c7",
-            "spark": _render_sparkline_bars(top_product_sparkline, "#e0f2fe", "#0ea5e9"),
-        },
-    ]
-
-    # Render as 4 columns
-    cols = st.columns(4)
-    for i, card in enumerate(cards):
-        with cols[i]:
-            st.markdown(
-                f'<div class="bkit-kpi-card">'
-                f'<div class="bkit-kpi-bar" style="background:{card["gradient"]}"></div>'
-                f'<div class="bkit-kpi-header">'
-                f'<span class="bkit-kpi-label">{card["label"]}</span>'
-                f'<span class="bkit-kpi-icon" style="background:{card["icon_bg"]}">{card["icon"]}</span>'
-                f'</div>'
-                f'<div class="bkit-kpi-value">{card["value"]}</div>'
-                f'{card["spark"]}'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
+    with st.container(horizontal=True):
+        st.metric(
+            "총 생산량",
+            _format_number(kpis["total_qty"]),
+            border=True,
+            chart_data=sparkline_data if _has_signal(sparkline_data) else None,
+            chart_type="line",
+        )
+        st.metric(
+            "배치 수",
+            f"{kpis['batch_count']:,}",
+            border=True,
+            chart_data=batch_sparkline if _has_signal(batch_sparkline) else None,
+            chart_type="bar",
+        )
+        st.metric(
+            "활성 제품",
+            str(kpis.get("active_products", 0)),
+            border=True,
+        )
+        st.metric(
+            "평균 배치 크기",
+            f"{kpis.get('avg_batch_size', 0):,}",
+            border=True,
+            chart_data=(
+                top_product_sparkline if _has_signal(top_product_sparkline) else None
+            ),
+            chart_type="line",
+        )
