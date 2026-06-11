@@ -356,19 +356,31 @@ def test_is_retryable_status_only_failed_dead():
 # Static page wiring (AC1) — verified by source inspection, not Streamlit runtime.
 # =====================================================================
 def test_app_py_registers_webhook_page_under_operations_section():
-    """AC1: dashboard/app.py must declare a `pages/webhooks.py` entry.
+    """AC1: dashboard/app.py must declare a `views/webhooks.py` entry.
 
     We can't run the Streamlit page directly (no st.runtime in pytest), so
     we inspect the source to confirm the nav wiring is in place.
+    (nav-routing-fix-v1: the directory is views/, NOT pages/ — a pages/ dir
+    would re-enable Streamlit's legacy v1 routing on cold deep links.)
     """
     src = (_ROOT / "dashboard" / "app.py").read_text(encoding="utf-8")
     assert '"운영"' in src
-    assert 'pages/webhooks.py' in src
+    assert 'views/webhooks.py' in src
     assert 'Webhook 관리' in src
 
 
+def test_no_legacy_pages_directory():
+    """nav-routing-fix-v1 regression guard: dashboard/pages/ must not exist.
+
+    Even an EMPTY pages/ directory flips PagesManager.uses_pages_directory
+    (Streamlit 1.58, pages_manager.py:58) and cold-session deep links bypass
+    st.navigation entirely.
+    """
+    assert not (_ROOT / "dashboard" / "pages").exists()
+
+
 def test_webhooks_page_file_exists_and_uses_api_base_url():
-    page = (_ROOT / "dashboard" / "pages" / "webhooks.py").read_text(encoding="utf-8")
+    page = (_ROOT / "dashboard" / "views" / "webhooks.py").read_text(encoding="utf-8")
     assert "WebhookAdminClient" in page
     assert "API_BASE_URL" in page
     # AC9: page-level try/except for catalog failure must be present.

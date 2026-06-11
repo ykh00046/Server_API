@@ -2,7 +2,12 @@
 Production Data Hub — Main Entry Point.
 
 B3 Sidebar UI: st.navigation multi-page with sidebar filters.
-Pages are loaded from dashboard/pages/ directory.
+Pages are loaded from the dashboard/views/ directory.
+
+NOTE(nav-routing-fix-v1): the directory is deliberately NOT named "pages/" —
+a directory of that name (even empty) flips Streamlit's legacy v1 multipage
+flag (PagesManager.uses_pages_directory) and cold-session deep links would
+then bypass st.navigation and this script entirely (no sidebar/filters).
 """
 
 import sys
@@ -59,15 +64,15 @@ elif check_msg:
 # ==========================================================
 pages = {
     "대시보드": [
-        st.Page("pages/overview.py", title="종합 현황", icon=":material/dashboard:", default=True),
-        st.Page("pages/trends.py", title="생산 추세", icon=":material/trending_up:"),
+        st.Page("views/overview.py", title="종합 현황", icon=":material/dashboard:", default=True),
+        st.Page("views/trends.py", title="생산 추세", icon=":material/trending_up:"),
     ],
     "생산 관리": [
-        st.Page("pages/batches.py", title="배치 내역", icon=":material/list_alt:"),
-        st.Page("pages/products.py", title="제품별 분석", icon=":material/inventory_2:"),
+        st.Page("views/batches.py", title="배치 내역", icon=":material/list_alt:"),
+        st.Page("views/products.py", title="제품별 분석", icon=":material/inventory_2:"),
     ],
     "운영": [
-        st.Page("pages/webhooks.py", title="Webhook 관리", icon=":material/notifications:"),
+        st.Page("views/webhooks.py", title="Webhook 관리", icon=":material/notifications:"),
     ],
 }
 
