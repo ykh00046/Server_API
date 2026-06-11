@@ -4,6 +4,12 @@
 
 ## 📁 아카이브 목록
 
+### 3. UI/디자인 대폭 개선 (ui-design-overhaul-v1)
+- **완료일**: 2026-06-11
+- **상태**: ✅ 완료 (Match Rate 100%, AC 10/10)
+- **요약**: Pink/Sky 커스텀 CSS 체제 → 산업용 블루/슬레이트 + Streamlit 네이티브 테마(config.toml SSOT, light+dark, 설정 메뉴 토글). theme.py 351→99줄, KPI 카드 `st.metric(border+chart_data)` 네이티브화, 전 표면 Material 아이콘, unsafe_allow_html 18→5곳, 핑크 hex 잔재 0. Playwright 시각검증 10장(라이트/다크), 361 green + CI run 27349353535. 부수 발견: 1.58 변형 섹션 키 제약(D1), 콜드 딥링크 라우팅 우회(O1, 후속).
+- **문서**: plan / design / analysis / report
+
 ### 2. 검토 Quick wins 4건 (review-quickwins-202606)
 - **완료일**: 2026-06-10
 - **상태**: ✅ 완료 (Match Rate 100%, AC 8/8)

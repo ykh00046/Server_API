@@ -1,14 +1,19 @@
 {
   "version": "2.0",
   "lastUpdated": "2026-06-10T00:00:00.000Z",
-  "activeFeatures": ["ui-design-overhaul-v1"],
+  "activeFeatures": [],
   "primaryFeature": "ui-design-overhaul-v1",
   "features": {
     "ui-design-overhaul-v1": {
-      "phase": "design",
-      "status": "active",
+      "phase": "archived",
+      "status": "completed",
       "startedAt": "2026-06-11",
-      "note": "UI/디자인 대폭 개선 — 블루/슬레이트 + 네이티브 우선 (사용자 결정 2026-06-11). config.toml 풀 테마, theme.py 351→~110줄, KPI st.metric화, Material 아이콘"
+      "completedAt": "2026-06-11",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "archivedTo": "docs/archive/2026-06/ui-design-overhaul-v1/",
+      "note": "블루/슬레이트 네이티브 테마 전환. theme.py 351→99줄, unsafe 18→5, hex 잔재 0, Playwright 10장, CI run 27349353535 green"
     },
     "review-quickwins-202606": {
       "phase": "archived",
@@ -53,6 +58,14 @@
     "lastActivity": "2026-06-01T13:44:38.007Z"
   },
   "history": [
+    {
+      "feature": "ui-design-overhaul-v1",
+      "completedAt": "2026-06-11",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "note": "UI 대폭 개선: config.toml SSOT 네이티브 테마(light+dark), KPI st.metric화, Material 아이콘, 핑크 hex 37→0, unsafe 18→5. 361 green + CI green + 시각검증 10장"
+    },
     {
       "feature": "review-quickwins-202606",
       "completedAt": "2026-06-10",
