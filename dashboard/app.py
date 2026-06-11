@@ -31,7 +31,7 @@ from shared.ui.theme import (
 st.set_page_config(
     page_title="생산 데이터 허브",
     layout="wide",
-    page_icon="🏭",
+    page_icon=":material/factory:",
     initial_sidebar_state="expanded",
 )
 
@@ -49,7 +49,7 @@ init_ai_panel_state()
 # ==========================================================
 check_ok, check_msg = run_self_check()
 if not check_ok:
-    st.error(f"🚨 시스템 초기화 실패: {check_msg}")
+    st.error(f"시스템 초기화 실패: {check_msg}", icon=":material/error:")
     st.stop()
 elif check_msg:
     st.warning(check_msg)
@@ -59,15 +59,15 @@ elif check_msg:
 # ==========================================================
 pages = {
     "대시보드": [
-        st.Page("pages/overview.py", title="종합 현황", icon="📊", default=True),
-        st.Page("pages/trends.py", title="생산 추세", icon="📈"),
+        st.Page("pages/overview.py", title="종합 현황", icon=":material/dashboard:", default=True),
+        st.Page("pages/trends.py", title="생산 추세", icon=":material/trending_up:"),
     ],
     "생산 관리": [
-        st.Page("pages/batches.py", title="배치 내역", icon="📋"),
-        st.Page("pages/products.py", title="제품별 분석", icon="📦"),
+        st.Page("pages/batches.py", title="배치 내역", icon=":material/list_alt:"),
+        st.Page("pages/products.py", title="제품별 분석", icon=":material/inventory_2:"),
     ],
     "운영": [
-        st.Page("pages/webhooks.py", title="Webhook 관리", icon="🔔"),
+        st.Page("pages/webhooks.py", title="Webhook 관리", icon=":material/notifications:"),
     ],
 }
 
@@ -78,16 +78,11 @@ nav = st.navigation(pages)
 # ==========================================================
 with st.sidebar:
     # Logo area
-    st.markdown(
-        '<div class="bkit-sidebar-logo">'
-        '<div class="bkit-title">🏭 생산 데이터 허브</div>'
-        '<div class="bkit-subtitle">Production Data Hub</div>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown("### :material/factory: 생산 데이터 허브")
+    st.caption("Production Data Hub")
 
     # Filters section
-    st.markdown("#### 🔍 검색 필터")
+    st.markdown("#### :material/filter_list: 검색 필터")
 
     current_db_ver = get_db_mtime()
 
@@ -130,13 +125,11 @@ with st.sidebar:
     if loaded_preset:
         st.info("프리셋 로드됨. 필터 조정 후 새로고침하세요.")
 
-    if st.button("🔄 새로고침", width="stretch"):
+    if st.button("새로고침", icon=":material/refresh:", width="stretch"):
         st.cache_data.clear()
         st.rerun()
 
-    st.divider()
-
-    # Theme toggle
+    # Theme hint (native light/dark toggle lives in the settings menu)
     render_theme_toggle()
 
 # ==========================================================
