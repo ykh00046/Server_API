@@ -2,8 +2,19 @@
   "version": "2.0",
   "lastUpdated": "2026-06-10T00:00:00.000Z",
   "activeFeatures": [],
-  "primaryFeature": "ui-design-overhaul-v1",
+  "primaryFeature": "nav-routing-fix-v1",
   "features": {
+    "nav-routing-fix-v1": {
+      "phase": "archived",
+      "status": "completed",
+      "startedAt": "2026-06-11",
+      "completedAt": "2026-06-11",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "archivedTo": "docs/archive/2026-06/nav-routing-fix-v1/",
+      "note": "O1 해소: pages/→views/ 개명 (원인=uses_pages_directory 플래그). 콜드 딥링크 실측 PASS, 362 green, CI run 27355978686"
+    },
     "ui-design-overhaul-v1": {
       "phase": "archived",
       "status": "completed",
@@ -58,6 +69,14 @@
     "lastActivity": "2026-06-01T13:44:38.007Z"
   },
   "history": [
+    {
+      "feature": "nav-routing-fix-v1",
+      "completedAt": "2026-06-11",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "note": "O1 콜드 딥링크 라우팅 우회 해소: pages/→views/ (1.58 uses_pages_directory 소스 규명). URL 불변, 재발 가드 테스트 추가, 362 green"
+    },
     {
       "feature": "ui-design-overhaul-v1",
       "completedAt": "2026-06-11",

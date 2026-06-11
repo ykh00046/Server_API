@@ -4,6 +4,12 @@
 
 ## 📁 아카이브 목록
 
+### 4. 콜드 딥링크 라우팅 픽스 (nav-routing-fix-v1)
+- **완료일**: 2026-06-11
+- **상태**: ✅ 완료 (Match Rate 100%, AC 7/7)
+- **요약**: ui-design-overhaul-v1 O1 해소 — `pages/` 디렉터리 존재만으로 활성화되는 Streamlit v1 유산 플래그(`uses_pages_directory`, 1.58 소스 규명)가 콜드 딥링크를 v1 라우팅(`_mpa_v1`)으로 보내 app.py를 우회. `dashboard/pages/`→`views/` 개명으로 근본 해소(URL 불변). 콜드 딥링크 Playwright 실측 PASS + `test_no_legacy_pages_directory` 재발 가드. 361→362 tests, CI run 27355978686.
+- **문서**: plan / design / analysis / report
+
 ### 3. UI/디자인 대폭 개선 (ui-design-overhaul-v1)
 - **완료일**: 2026-06-11
 - **상태**: ✅ 완료 (Match Rate 100%, AC 10/10)
