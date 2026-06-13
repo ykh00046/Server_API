@@ -1,4 +1,4 @@
-# shared/rate_limiter.py
+﻿# shared/rate_limiter.py
 """
 Production Data Hub - Rate Limiting System
 
@@ -18,6 +18,7 @@ import math
 import threading
 import time
 from collections import defaultdict, deque
+from collections.abc import Callable
 
 from .config import RATE_LIMIT_WINDOW
 
@@ -40,16 +41,25 @@ class RateLimiter:
             retry = limiter.retry_after("192.168.1.1")
     """
 
-    def __init__(self, max_requests: int, window_seconds: int = RATE_LIMIT_WINDOW):
+    def __init__(
+        self,
+        max_requests: int,
+        window_seconds: int = RATE_LIMIT_WINDOW,
+        clock: Callable[[], float] = time.time,
+    ):
         """
         Initialize rate limiter.
 
         Args:
             max_requests: Maximum requests allowed per window
             window_seconds: Time window in seconds (default: from config)
+            clock: Time source returning epoch seconds. Injectable so tests
+                   can drive the sliding window deterministically without
+                   real sleeps (same pattern as notifications worker).
         """
         self.max_requests = max_requests
         self.window_seconds = window_seconds
+        self._clock = clock
         # IP -> deque of timestamps (O(1) popleft for sliding window cleanup)
         self._requests: dict[str, deque] = defaultdict(deque)
         self._lock = threading.RLock()
@@ -67,7 +77,7 @@ class RateLimiter:
             True if request is allowed, False if rate limit exceeded
         """
         with self._lock:
-            current_time = time.time()
+            current_time = self._clock()
             cutoff_time = current_time - self.window_seconds
 
             # Remove expired timestamps via O(1) popleft (deque is sorted ascending)
@@ -95,7 +105,7 @@ class RateLimiter:
             Number of requests remaining (>= 0)
         """
         with self._lock:
-            current_time = time.time()
+            current_time = self._clock()
             cutoff_time = current_time - self.window_seconds
 
             # Deque is sorted ascending; count from right while > cutoff
@@ -116,7 +126,7 @@ class RateLimiter:
             Seconds to wait, or 0 if no requests in window
         """
         with self._lock:
-            current_time = time.time()
+            current_time = self._clock()
             cutoff_time = current_time - self.window_seconds
 
             # Deque is sorted: oldest is at front
@@ -146,7 +156,7 @@ class RateLimiter:
             Number of IPs removed
         """
         with self._lock:
-            current_time = time.time()
+            current_time = self._clock()
             cutoff_time = current_time - self.window_seconds
 
             removed = 0
@@ -175,7 +185,7 @@ class RateLimiter:
             Dict with total_ips, total_requests, config
         """
         with self._lock:
-            current_time = time.time()
+            current_time = self._clock()
             cutoff_time = current_time - self.window_seconds
 
             total_requests = 0

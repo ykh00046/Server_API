@@ -3,13 +3,28 @@
 Rate Limiter Unit Tests
 
 Tests for the sliding window rate limiting implementation.
-"""
 
-import time
+rate-limiter-clock-injection (2026-06-12): time.sleep-based window tests were
+converted to a FakeClock driven via the RateLimiter `clock` parameter — zero
+real sleeps, deterministic on loaded CI runners.
+"""
 
 import pytest
 
 from shared.rate_limiter import RateLimiter
+
+
+class FakeClock:
+    """Manually-advanced time source for deterministic window tests."""
+
+    def __init__(self, start: float = 1000.0):
+        self.t = start
+
+    def __call__(self) -> float:
+        return self.t
+
+    def advance(self, sec: float) -> None:
+        self.t += sec
 
 
 class TestRateLimiterBasic:
@@ -120,34 +135,48 @@ class TestRateLimiterSlidingWindow:
 
     def test_window_expiration(self):
         """윈도우 만료 후 요청 재허용"""
-        limiter = RateLimiter(max_requests=2, window_seconds=1)
+        clock = FakeClock()
+        limiter = RateLimiter(max_requests=2, window_seconds=1, clock=clock)
 
         # 2회 사용
         assert limiter.is_allowed("10.0.0.1") is True
         assert limiter.is_allowed("10.0.0.1") is True
         assert limiter.is_allowed("10.0.0.1") is False
 
-        # 윈도우 만료 대기
-        time.sleep(1.1)
+        # 윈도우 만료
+        clock.advance(1.1)
 
         # 다시 허용
         assert limiter.is_allowed("10.0.0.1") is True
 
+    def test_window_expiration_boundary(self):
+        """정확히 window_seconds 경과 시점에 만료(<= cutoff)되어 재허용"""
+        clock = FakeClock()
+        limiter = RateLimiter(max_requests=1, window_seconds=1, clock=clock)
+
+        assert limiter.is_allowed("10.0.0.1") is True
+        assert limiter.is_allowed("10.0.0.1") is False
+
+        # 경계: 정확히 1.0초 경과 — timestamps[0] <= cutoff 이므로 만료
+        clock.advance(1.0)
+        assert limiter.is_allowed("10.0.0.1") is True
+
     def test_partial_window_expiration(self):
         """부분적 윈도우 만료로 슬롯 확보"""
-        limiter = RateLimiter(max_requests=3, window_seconds=2)
+        clock = FakeClock()
+        limiter = RateLimiter(max_requests=3, window_seconds=2, clock=clock)
 
-        # 3회 사용
+        # 3회 사용 (첫 요청만 0.5초 먼저)
         limiter.is_allowed("10.0.0.1")
-        time.sleep(0.5)
+        clock.advance(0.5)
         limiter.is_allowed("10.0.0.1")
         limiter.is_allowed("10.0.0.1")
 
         # 한도 초과
         assert limiter.is_allowed("10.0.0.1") is False
 
-        # 첫 번째 요청이 만료될 때까지 대기
-        time.sleep(1.6)
+        # 첫 번째 요청만 만료되는 시점까지 진행 (총 2.1초 > window 2초)
+        clock.advance(1.6)
 
         # 첫 번째 요청 만료로 슬롯 1개 확보
         assert limiter.is_allowed("10.0.0.1") is True
@@ -158,15 +187,16 @@ class TestRateLimiterCleanup:
 
     def test_cleanup_removes_expired_ips(self):
         """만료된 IP 항목 제거"""
-        limiter = RateLimiter(max_requests=5, window_seconds=1)
+        clock = FakeClock()
+        limiter = RateLimiter(max_requests=5, window_seconds=1, clock=clock)
 
         # 여러 IP에서 요청
         limiter.is_allowed("10.0.0.1")
         limiter.is_allowed("10.0.0.2")
         limiter.is_allowed("10.0.0.3")
 
-        # 윈도우 만료 대기
-        time.sleep(1.1)
+        # 윈도우 만료
+        clock.advance(1.1)
 
         # cleanup 실행
         removed = limiter.cleanup()
@@ -180,9 +210,10 @@ class TestRateLimiterCleanup:
         limiter.is_allowed("10.0.0.1")
 
         # 만료된 요청
-        limiter2 = RateLimiter(max_requests=5, window_seconds=1)
+        clock2 = FakeClock()
+        limiter2 = RateLimiter(max_requests=5, window_seconds=1, clock=clock2)
         limiter2.is_allowed("10.0.0.2")
-        time.sleep(1.1)
+        clock2.advance(1.1)
         limiter2.cleanup()
 
         # 활성 IP는 여전히 기록됨
