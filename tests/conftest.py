@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 import sqlite3
 import sys
+import threading
 from pathlib import Path
 
 # Ensure project root is importable
@@ -51,6 +52,23 @@ def _reset_rate_limiters():
     except AttributeError:
         pass
     yield
+
+
+@pytest.fixture(autouse=True)
+def _join_leaked_webhook_workers():
+    """Drain any still-running WebhookDispatchWorker daemon thread after each test.
+
+    rate-limiter-clock-injection (2026-06-13): a worker started with a slow
+    transport can outlive worker.stop() (busy past its join timeout). Because
+    the worker resolves NOTIFICATIONS_DB_FILE from global config at write time,
+    a leaked thread's trailing record_attempt() can land in the NEXT test's
+    monkeypatched isolated_db — flipping a sibling's delivery status. Joining
+    here guarantees no worker thread survives into the next test.
+    """
+    yield
+    for t in threading.enumerate():
+        if t.name == "WebhookDispatchWorker" and t.is_alive():
+            t.join(timeout=5.0)
 
 
 @pytest.fixture(autouse=True)

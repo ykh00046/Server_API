@@ -368,10 +368,21 @@ def test_worker_stop_timeout_does_not_raise(client, isolated_db, captured):
     worker.start()
     # Let the tick fire and the slow handler grab the request
     time.sleep(0.3)
+    busy_thread = worker._thread  # capture before stop() clears the handle
     # Stop with a short timeout — handler hasn't returned yet
     worker.stop(timeout=0.2)
     # Should not raise; thread may still be alive but daemon GC takes over.
     assert worker._thread is None or worker._thread.daemon
+    # rate-limiter-clock-injection (2026-06-13): drain the in-flight daemon
+    # thread before this test's isolated_db is torn down. Otherwise its trailing
+    # record_attempt() resolves NOTIFICATIONS_DB_FILE from the GLOBAL config at
+    # write time — by the time the 1.5s slow handler returns, a LATER test has
+    # monkeypatched a different isolated_db, and the stray success-write (same
+    # autoincrement id=1) flips that test's queued delivery to 'success'. This
+    # was the root cause of the intermittent test_notifications_bulk_retry
+    # failures (full-suite only, status='success').
+    if busy_thread is not None:
+        busy_thread.join(timeout=5.0)
 
 
 # ==========================================================
