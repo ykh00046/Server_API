@@ -2,8 +2,19 @@
   "version": "2.0",
   "lastUpdated": "2026-06-10T00:00:00.000Z",
   "activeFeatures": [],
-  "primaryFeature": "nav-routing-fix-v1",
+  "primaryFeature": "rate-limiter-clock-injection",
   "features": {
+    "rate-limiter-clock-injection": {
+      "phase": "archived",
+      "status": "completed",
+      "startedAt": "2026-06-12",
+      "completedAt": "2026-06-13",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "archivedTo": "docs/archive/2026-06/rate-limiter-clock-injection/",
+      "note": "flaky 2원천 제거. (A) RateLimiter clock 주입(5.3s→0.21s). (B) bulk_retry 근본원인=누출 워커 스레드 cross-DB 오염, 타겟+conftest 가드. baseline 2/10→10/10 green(363)"
+    },
     "nav-routing-fix-v1": {
       "phase": "archived",
       "status": "completed",
@@ -69,6 +80,14 @@
     "lastActivity": "2026-06-01T13:44:38.007Z"
   },
   "history": [
+    {
+      "feature": "rate-limiter-clock-injection",
+      "completedAt": "2026-06-13",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "note": "RateLimiter clock 주입(sleep 테스트 결정론화) + bulk_retry flaky 근본원인(누출 워커 cross-DB 오염) 규명·수정. baseline 2/10 실패→10/10 green"
+    },
     {
       "feature": "nav-routing-fix-v1",
       "completedAt": "2026-06-11",

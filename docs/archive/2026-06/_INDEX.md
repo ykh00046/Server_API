@@ -4,6 +4,12 @@
 
 ## 📁 아카이브 목록
 
+### 5. flaky 제거: RateLimiter clock + bulk_retry 격리 (rate-limiter-clock-injection)
+- **완료일**: 2026-06-13
+- **상태**: ✅ 완료 (Match Rate 100%, AC 7/7)
+- **요약**: 두 flaky 원천 제거 — (A) `RateLimiter`에 `clock` 주입(worker.py 선례)으로 sleep 4테스트를 FakeClock화(5.3s→0.21s, 경계 테스트 추가), (B) bulk_retry 간헐 실패(누적 4회)의 근본 원인 규명: `test_worker_stop_timeout_does_not_raise`의 누출 데몬 워커가 1.5s 느린 핸들러 반환 시 `NOTIFICATIONS_DB_FILE`을 전역 재해석 → 나중 테스트의 isolated_db(동일 id=1)에 success 기록. 타겟(스레드 드레인)+방어(conftest autouse 가드) 2중 수정. baseline 2/10 실패 → 10/10 green(363 passed). 제품 결함 아님(테스트 격리).
+- **문서**: plan / design / analysis / report
+
 ### 4. 콜드 딥링크 라우팅 픽스 (nav-routing-fix-v1)
 - **완료일**: 2026-06-11
 - **상태**: ✅ 완료 (Match Rate 100%, AC 7/7)
