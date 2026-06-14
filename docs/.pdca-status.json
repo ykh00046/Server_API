@@ -2,8 +2,19 @@
   "version": "2.0",
   "lastUpdated": "2026-06-10T00:00:00.000Z",
   "activeFeatures": [],
-  "primaryFeature": "coverage-blindspots-v1",
+  "primaryFeature": "webcloring-pdf-separation",
   "features": {
+    "webcloring-pdf-separation": {
+      "phase": "archived",
+      "status": "completed",
+      "startedAt": "2026-06-15",
+      "completedAt": "2026-06-15",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "archivedTo": "docs/archive/2026-06/webcloring-pdf-separation/",
+      "note": "submodule 분리 준비 완료(outward는 SEPARATION.md 핸드오프). portal 5개 제거+lock 재생성(google-auth는 Gemini 전이로 자동 잔류), pytest 9.1 timeout 마커 등록. 376 green. outward_status=pending-user"
+    },
     "coverage-blindspots-v1": {
       "phase": "archived",
       "status": "completed",
@@ -91,6 +102,14 @@
     "lastActivity": "2026-06-01T13:44:38.007Z"
   },
   "history": [
+    {
+      "feature": "webcloring-pdf-separation",
+      "completedAt": "2026-06-15",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "note": "submodule 분리 준비: portal 의존성 제거+lock 재생성(google-auth 오제거 freeze로 회피)+SEPARATION.md. pytest 9.1 마커 이슈 surfaced&fixed. outward는 사용자 핸드오프"
+    },
     {
       "feature": "coverage-blindspots-v1",
       "completedAt": "2026-06-14",

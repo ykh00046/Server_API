@@ -4,6 +4,12 @@
 
 ## 📁 아카이브 목록
 
+### 7. webcloring-pdf submodule 분리 준비 (webcloring-pdf-separation)
+- **완료일**: 2026-06-15
+- **상태**: ✅ 완료 (Match Rate 100%, AC 7/7) — outward 단계는 사용자 핸드오프(SEPARATION.md)
+- **요약**: 2026-05 결정 실행. 사용자 선택 "준비만, push는 사용자". main `requirements.txt`에서 portal 전용 5개(selenium/webdriver-manager/google-api-python-client/google-auth-httplib2/google-auth-oauthlib) 제거(psutil은 process_utils용 잔류), `requirements.lock.txt` fresh freeze 재생성(95→79 핀) — **google-auth는 google-genai(Gemini) 전이로 자동 잔류**(수동 삭제 오제거 회피). freeze가 pytest 9.0.3→9.1.0 올려 노출된 strict-markers 이슈를 `timeout` 마커 등록으로 근본 수정. cleaned venv 376 green + import smoke. outward 5단계는 루트 `SEPARATION.md` 절차서로. design은 plan에 통합(compact).
+- **문서**: plan / analysis / report (+ 루트 SEPARATION.md 운영문서)
+
 ### 6. 커버리지 사각지대 (coverage-blindspots-v1)
 - **완료일**: 2026-06-14
 - **상태**: ✅ 완료 (Match Rate 100%, AC 8/8)
