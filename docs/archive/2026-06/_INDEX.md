@@ -4,6 +4,12 @@
 
 ## 📁 아카이브 목록
 
+### 6. 커버리지 사각지대 (coverage-blindspots-v1)
+- **완료일**: 2026-06-14
+- **상태**: ✅ 완료 (Match Rate 100%, AC 8/8)
+- **요약**: 사각지대를 2종 분리 — (A) measured(api+shared)의 0% 파일은 **죽은 코드**(`shared/utils/data_helpers`+`date_helpers`, import 0건)였어서 삭제 → 72%→75%. (B) unmeasured(dashboard)의 brittle 로직(AI 마크다운 표 파싱·SSE 이벤트 파싱)을 streamlit-free `_parsing.py`로 추출(로직 1:1)하고 13개 characterization 테스트(importlib 격리)로 회귀 가드. 363→376 tests. pyproject source/floor 불변. 통찰: 0% 파일은 "테스트 대상"이 아니라 "분류 대상(삭제 vs 테스트)".
+- **문서**: plan / design / analysis / report
+
 ### 5. flaky 제거: RateLimiter clock + bulk_retry 격리 (rate-limiter-clock-injection)
 - **완료일**: 2026-06-13
 - **상태**: ✅ 완료 (Match Rate 100%, AC 7/7)

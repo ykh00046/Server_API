@@ -2,8 +2,19 @@
   "version": "2.0",
   "lastUpdated": "2026-06-10T00:00:00.000Z",
   "activeFeatures": [],
-  "primaryFeature": "rate-limiter-clock-injection",
+  "primaryFeature": "coverage-blindspots-v1",
   "features": {
+    "coverage-blindspots-v1": {
+      "phase": "archived",
+      "status": "completed",
+      "startedAt": "2026-06-14",
+      "completedAt": "2026-06-14",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "archivedTo": "docs/archive/2026-06/coverage-blindspots-v1/",
+      "note": "(A) 죽은 코드 삭제 72%→75% (B) AI 표/SSE 파서 streamlit-free 추출+13 characterization 테스트. 376 passed, pyproject 불변"
+    },
     "rate-limiter-clock-injection": {
       "phase": "archived",
       "status": "completed",
@@ -80,6 +91,14 @@
     "lastActivity": "2026-06-01T13:44:38.007Z"
   },
   "history": [
+    {
+      "feature": "coverage-blindspots-v1",
+      "completedAt": "2026-06-14",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "note": "죽은 코드(shared/utils) 삭제로 72%→75% + AI 표/SSE 파서 추출·13 테스트. 사각지대=분류 대상(삭제 vs 테스트)이라는 통찰"
+    },
     {
       "feature": "rate-limiter-clock-injection",
       "completedAt": "2026-06-13",
