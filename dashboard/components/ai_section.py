@@ -9,7 +9,6 @@ Features:
 """
 
 import io
-import json
 import time
 from collections.abc import Iterator
 
@@ -18,6 +17,8 @@ import pandas as pd
 import streamlit as st
 
 from shared.config import API_BASE_URL, GEMINI_MODEL
+
+from ._parsing import parse_markdown_table, parse_sse_events
 
 try:
     import streamlit_shadcn_ui as sui
@@ -86,32 +87,19 @@ def _stream_chat_tokens_once(stream_url: str, payload: dict) -> Iterator[str]:
                 detail = ""
             st.error(f"스트리밍 요청 실패: HTTP {r.status_code} {detail[:200]}")
             return
-        event_name: str | None = None
-        for line in r.iter_lines():
-            if not line:
-                event_name = None
-                continue
-            if line.startswith("event:"):
-                event_name = line[6:].strip()
-                continue
-            if line.startswith("data:"):
-                raw = line[5:].strip()
-                try:
-                    data = json.loads(raw)
-                except json.JSONDecodeError:
-                    continue
-                if event_name == "token":
-                    yield data.get("text", "")
-                elif event_name == "tool_call":
-                    st.toast(data.get("name", ""), icon=":material/build:")
-                elif event_name == "error":
-                    code = data.get("code", "internal")
-                    msg = _ERROR_MESSAGES.get(code, data.get("message", "AI 스트리밍 오류"))
-                    st.error(msg)
-                    return
-                elif event_name == "done":
-                    st.session_state["_last_chat_meta"] = data
-                    return
+        for event_name, data in parse_sse_events(r.iter_lines()):
+            if event_name == "token":
+                yield data.get("text", "")
+            elif event_name == "tool_call":
+                st.toast(data.get("name", ""), icon=":material/build:")
+            elif event_name == "error":
+                code = data.get("code", "internal")
+                msg = _ERROR_MESSAGES.get(code, data.get("message", "AI 스트리밍 오류"))
+                st.error(msg)
+                return
+            elif event_name == "done":
+                st.session_state["_last_chat_meta"] = data
+                return
 
 
 def _stream_chat_tokens(stream_url: str, payload: dict) -> Iterator[str]:
@@ -144,23 +132,10 @@ def _stream_chat_tokens(stream_url: str, payload: dict) -> Iterator[str]:
 
 def _render_table_download(content: str, key_prefix: str, index: int) -> None:
     """Render Excel download button if content contains a markdown table."""
-    if "|" not in content or "\n|" not in content:
+    df = parse_markdown_table(content)
+    if df is None:
         return
     try:
-        lines = content.split("\n")
-        table_lines = [
-            line for line in lines if "|" in line and line.strip().startswith("|")
-        ]
-        if len(table_lines) <= 2:
-            return
-        table_text = "\n".join(table_lines).replace("**", "")
-        df = pd.read_csv(
-            io.StringIO(table_text.replace(" ", "")), sep="|"
-        ).dropna(how="all", axis=1)
-        df = df[~df.iloc[:, 0].str.contains(r"^-+$", na=False)]
-        df.columns = [col.strip() for col in df.columns]
-        if df.empty:
-            return
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             df.to_excel(writer, index=False, sheet_name="AI_Data")
