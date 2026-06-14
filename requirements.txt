@@ -17,10 +17,9 @@ Pillow
 httpx
 streamlit-shadcn-ui
 
-# Portal Automation (webcloring-pdf)
-selenium
-webdriver-manager
-google-api-python-client
-google-auth-httplib2
-google-auth-oauthlib
+# Process management (manager.py / shared.process_utils kill_process_tree)
 psutil
+
+# webcloring-pdf (INTEROJO 포털 자동화)는 별도 submodule로 분리됨.
+# selenium / webdriver-manager / google-api-* 등 portal 전용 의존성은
+# webcloring-pdf/requirements.txt 에서 관리한다 (SEPARATION.md 참조).

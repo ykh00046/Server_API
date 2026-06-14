@@ -68,6 +68,12 @@ addopts = [
     "-ra",
     "--strict-markers",
 ]
+# Registered markers (required by --strict-markers). pytest 9.1 errors on
+# unregistered marks where 9.0 only warned; `timeout` is used by
+# test_process_utils.py and is a no-op unless pytest-timeout is installed.
+markers = [
+    "timeout: per-test timeout in seconds (no-op unless pytest-timeout installed)",
+]
 # tmp_path base is controlled via PYTEST_DEBUG_TEMPROOT env var set in
 # tests/conftest.py so that locked dirs from prior runs do not block startup
 # (which is what --basetemp would attempt to wipe).
