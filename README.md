@@ -22,6 +22,11 @@ git clone <repo-url>
 cd Server_API
 ```
 
+> `webcloring-pdf/`(INTEROJO 포털 자동화)는 별도 submodule이다. 함께 받으려면
+> `git clone --recurse-submodules <repo-url>` 또는 클론 후
+> `git submodule update --init`. 분리 절차/현황은 [SEPARATION.md](SEPARATION.md) 참조.
+> (메인 API/대시보드는 submodule 없이도 동작한다.)
+
 ### 2. 가상환경 생성 및 활성화
 
 정본 인터프리터는 **Python 3.12** (ruff `target-version`과 일치):
