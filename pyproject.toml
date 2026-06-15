@@ -38,14 +38,27 @@ extend-exclude = [
 # fixed (B905 zip strict=True, B025 dup-except→Exception, B007 unused-loop-var);
 # SIM via autofix (SIM117/300/102/108) + contextlib.suppress for SIM105. tests'
 # B017 (pytest.raises(Exception)) is per-file-ignored (broad raises are idiomatic
-# in tests). E501/C901 deferred → R7+.
-select = ["F", "BLE001", "I", "UP", "B", "SIM"]
+# in tests).
+#
+# R7-ruff-e501-ramp: E501(line-too-long, 100) added. `ruff format` NOT adopted
+# (would reformat 85/99 files; blame preserved instead). Real code lines were
+# wrapped; files whose E501s are dominated by content that wraps badly — Korean
+# system prompts / UI strings, test JSON fixtures — are per-file-ignored for
+# E501 (wrapping Korean sentences hurts readability/meaning). C901 deferred → R8.
+select = ["F", "BLE001", "I", "UP", "B", "SIM", "E501"]
 
 [tool.ruff.lint.per-file-ignores]
-# Test code: unused imports (fixtures/registration), broad catch, and broad
-# pytest.raises(Exception) (B017) are often intentional. Real bugs
-# (F821/F841/F811) stay enforced.
-"tests/**" = ["F401", "BLE001", "B017"]
+# Test code: unused imports (fixtures/registration), broad catch, broad
+# pytest.raises(Exception) (B017), and long JSON-fixture lines (E501) are
+# often intentional. Real bugs (F821/F841/F811) stay enforced.
+"tests/**" = ["F401", "BLE001", "B017", "E501"]
+# E501 exempt: these files' long lines are Korean prompt/UI string content
+# (not code) where wrapping degrades readability. See R7 plan.
+"api/chat.py" = ["E501"]
+"dashboard/components/ai_section.py" = ["E501"]
+"dashboard/components/webhook_admin/views.py" = ["E501"]
+"dashboard/components/presets.py" = ["E501"]
+"portal_settings_dialog.py" = ["E501"]
 
 # ==========================================================
 # Coverage — R3-ruff-ble001-coverage
