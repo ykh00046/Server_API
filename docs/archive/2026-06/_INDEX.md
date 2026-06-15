@@ -4,6 +4,12 @@
 
 ## 📁 아카이브 목록
 
+### 10. ruff E501 게이트 램프 (R7-ruff-e501-ramp)
+- **완료일**: 2026-06-15
+- **상태**: ✅ 완료 (Match Rate 100%, AC 7/7)
+- **요약**: ruff 게이트에 E501(line-too-long, 100) 추가. **`ruff format` 미도입**(85/99 파일 재포맷 회피, blame 보존 — 사용자 결정). 99건 분류: code/ascii ~45건(15파일) 수동 래핑(SQL paren+concat 공백보존, f-string 분할, 시그니처/dict/list 줄바꿈, CSS 셀렉터 개행, noqa 0), 한글 프롬프트/UI 5파일(chat/ai_section/views/presets/portal_settings)+테스트 JSON 3파일은 per-file-ignore(한글 East-Asian-width 2라 래핑해도 재위반·의미훼손). 376 green. R6 후속. 잔여 C901은 R8.
+- **문서**: plan / analysis / report
+
 ### 9. ruff B+SIM 게이트 램프 (R6-ruff-bugbear-sim-ramp)
 - **완료일**: 2026-06-15
 - **상태**: ✅ 완료 (Match Rate 100%, AC 7/7)

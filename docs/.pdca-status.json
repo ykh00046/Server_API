@@ -2,8 +2,19 @@
   "version": "2.0",
   "lastUpdated": "2026-06-10T00:00:00.000Z",
   "activeFeatures": [],
-  "primaryFeature": "R6-ruff-bugbear-sim-ramp",
+  "primaryFeature": "R7-ruff-e501-ramp",
   "features": {
+    "R7-ruff-e501-ramp": {
+      "phase": "archived",
+      "status": "completed",
+      "startedAt": "2026-06-15",
+      "completedAt": "2026-06-15",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "archivedTo": "docs/archive/2026-06/R7-ruff-e501-ramp/",
+      "note": "E501 게이트(ruff format 미도입). code/ascii ~45건 래핑(noqa 0), KOR-str 5파일+tests per-file-ignore. 376 green"
+    },
     "coverage-source-expansion": {
       "phase": "archived",
       "status": "completed",
@@ -125,6 +136,13 @@
   },
   "history": [
     {
+      "feature": "R7-ruff-e501-ramp",
+      "completedAt": "2026-06-15",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "note": "E501 게이트 추가. code/ascii ~45건 래핑(SQL concat 공백보존), 한글/JSON 문자열 파일 per-file-ignore. ruff format 미도입(blame 보존). 376 green"
+    },
       "feature": "R6-ruff-bugbear-sim-ramp",
       "completedAt": "2026-06-15",
       "matchRate": 100,
