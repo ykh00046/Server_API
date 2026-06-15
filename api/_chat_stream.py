@@ -100,7 +100,9 @@ async def run_stream(
     client_obj = get_client()
     if client_obj is None:
         logger.error(f"[ChatStream] request_id={request_id} | AI disabled")
-        yield _sse("error", {"code": ERR_AI_DISABLED, "message": "Gemini API Key is not configured."})
+        yield _sse(
+            "error", {"code": ERR_AI_DISABLED, "message": "Gemini API Key is not configured."}
+        )
         return
 
     history = _sstore.get_session_history(session_id, client_ip)
@@ -229,7 +231,10 @@ async def run_stream(
             f"[ChatStream Timeout] request_id={request_id} | "
             f"partial_chars={partial_chars} | duration_ms={duration_ms:.1f}"
         )
-        yield _sse("error", {"code": ERR_TIMEOUT, "message": f"스트리밍 시간 초과 ({int(STREAM_TIMEOUT_SEC)}초)"})
+        yield _sse(
+            "error",
+            {"code": ERR_TIMEOUT, "message": f"스트리밍 시간 초과 ({int(STREAM_TIMEOUT_SEC)}초)"},
+        )
         return
     except Exception as e:  # noqa: BLE001 — SSE top-level: 어떤 예외도 stream을 죽이지 않고 error 이벤트로 송출
         duration_ms = (time.perf_counter() - start) * 1000

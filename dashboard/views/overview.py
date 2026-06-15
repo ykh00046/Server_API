@@ -116,7 +116,9 @@ def _render_chart_row_2(df, chart_template) -> None:
     with chart_col4:
         st.markdown("**:material/table_chart: 최근 현황 요약**")
         if not df.empty:
-            recent = df.head(7)[["production_date", "item_code", "item_name", "good_quantity"]].copy()
+            recent = df.head(7)[
+                ["production_date", "item_code", "item_name", "good_quantity"]
+            ].copy()
             recent["production_date"] = df.head(7)["production_dt"].dt.strftime("%Y-%m-%d")
             recent = recent.rename(columns={
                 "production_date": "생산일",

@@ -160,7 +160,10 @@ def load_records(
         params.extend(item_codes)
     if keyword:
         like = f"%{escape_like_wildcards(keyword)}%"
-        where.append("(item_code LIKE ? ESCAPE '\\' OR item_name LIKE ? ESCAPE '\\' OR lot_number LIKE ? ESCAPE '\\')")
+        where.append(
+            "(item_code LIKE ? ESCAPE '\\' OR item_name LIKE ? ESCAPE '\\' "
+            "OR lot_number LIKE ? ESCAPE '\\')"
+        )
         params.extend([like, like, like])
     if date_from:
         where.append("production_date >= ?")
@@ -216,9 +219,15 @@ def load_monthly_summary(date_from, date_to, db_ver):
     where_clause = " AND ".join(where) if where else "1=1"
 
     final_sql, _ = DBRouter.build_aggregation_sql(
-        inner_select="substr(production_date, 1, 7) AS year_month, SUM(good_quantity) AS total_prod, COUNT(*) AS cnt",
+        inner_select=(
+            "substr(production_date, 1, 7) AS year_month, "
+            "SUM(good_quantity) AS total_prod, COUNT(*) AS cnt"
+        ),
         inner_where=where_clause,
-        outer_select="year_month, SUM(total_prod) AS total_production, SUM(cnt) AS batch_count, AVG(total_prod/cnt) AS avg_batch_size",
+        outer_select=(
+            "year_month, SUM(total_prod) AS total_production, "
+            "SUM(cnt) AS batch_count, AVG(total_prod/cnt) AS avg_batch_size"
+        ),
         outer_group_by="year_month",
         targets=targets,
         outer_order_by="year_month",
@@ -249,7 +258,10 @@ def load_daily_summary(date_from, date_to, db_ver):
     where_clause = " AND ".join(where) if where else "1=1"
 
     final_sql, _ = DBRouter.build_aggregation_sql(
-        inner_select="substr(production_date, 1, 10) AS production_day, SUM(good_quantity) AS total_prod, COUNT(*) AS cnt",
+        inner_select=(
+            "substr(production_date, 1, 10) AS production_day, "
+            "SUM(good_quantity) AS total_prod, COUNT(*) AS cnt"
+        ),
         inner_where=where_clause,
         outer_select="production_day, SUM(total_prod) AS total_production, SUM(cnt) AS batch_count",
         outer_group_by="production_day",
@@ -281,7 +293,10 @@ def load_weekly_summary(date_from, date_to, db_ver):
 
     where_clause = " AND ".join(where) if where else "1=1"
 
-    week_expr = "substr(production_date, 1, 4) || '-W' || printf('%02d', (strftime('%j', production_date) - 1) / 7 + 1)"
+    week_expr = (
+        "substr(production_date, 1, 4) || '-W' || "
+        "printf('%02d', (strftime('%j', production_date) - 1) / 7 + 1)"
+    )
 
     final_sql, _ = DBRouter.build_aggregation_sql(
         inner_select=f"{week_expr} AS year_week, SUM(good_quantity) AS total_prod, COUNT(*) AS cnt",

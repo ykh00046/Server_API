@@ -84,7 +84,10 @@ def load_state() -> dict:
                 return json.load(f)
         except (OSError, json.JSONDecodeError):
             pass
-    return {"live_mtime": 0, "live_size": 0, "archive_mtime": 0, "archive_size": 0, "last_analyze_ts": 0}
+    return {
+        "live_mtime": 0, "live_size": 0, "archive_mtime": 0,
+        "archive_size": 0, "last_analyze_ts": 0,
+    }
 
 
 def save_state(state: dict):

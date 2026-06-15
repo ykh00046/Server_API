@@ -50,7 +50,9 @@ def _decode_cursor(cursor: str) -> dict | None:
 def get_records(
     item_code: str | None = Query(default=None, max_length=50, description="Item code filter"),
     q: str | None = Query(default=None, max_length=100, description="Search query"),
-    lot_number: str | None = Query(default=None, max_length=50, description="Lot number prefix filter (e.g., LT2026)"),
+    lot_number: str | None = Query(
+        default=None, max_length=50, description="Lot number prefix filter (e.g., LT2026)"
+    ),
     date_from: str | None = Query(default=None, description="YYYY-MM-DD (inclusive)"),
     date_to: str | None = Query(default=None, description="YYYY-MM-DD (inclusive)"),
     min_quantity: int | None = Query(default=None, ge=0, description="Minimum good_quantity"),
@@ -84,7 +86,10 @@ def get_records(
 
     if q:
         like = f"%{escape_like_wildcards(q)}%"
-        where.append("(item_code LIKE ? ESCAPE '\\' OR item_name LIKE ? ESCAPE '\\' OR lot_number LIKE ? ESCAPE '\\')")
+        where.append(
+            "(item_code LIKE ? ESCAPE '\\' OR item_name LIKE ? ESCAPE '\\' "
+            "OR lot_number LIKE ? ESCAPE '\\')"
+        )
         params.extend([like, like, like])
 
     if lot_number:

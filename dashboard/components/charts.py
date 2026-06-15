@@ -16,7 +16,9 @@ import plotly.graph_objects as go
 from shared.ui.theme import CHART_SERIES_COLORS
 
 
-def create_top10_bar_chart(df: pd.DataFrame, template: str, marker_color: str = "#2563eb") -> go.Figure:
+def create_top10_bar_chart(
+    df: pd.DataFrame, template: str, marker_color: str = "#2563eb"
+) -> go.Figure:
     """
     Create horizontal bar chart for top 10 products.
 
@@ -105,7 +107,9 @@ def create_distribution_pie(df: pd.DataFrame, template: str) -> go.Figure:
     # Top 10 + Others
     top10 = item_totals.nlargest(10, "good_quantity")
     if len(item_totals) > 10:
-        others_sum = item_totals[~item_totals["item_code"].isin(top10["item_code"])]["good_quantity"].sum()
+        others_sum = item_totals[
+            ~item_totals["item_code"].isin(top10["item_code"])
+        ]["good_quantity"].sum()
         others_row = pd.DataFrame([{"item_code": "Others", "good_quantity": others_sum}])
         top10 = pd.concat([top10, others_row], ignore_index=True)
 

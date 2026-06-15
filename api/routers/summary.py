@@ -41,9 +41,16 @@ def _monthly_total_cached(date_from_n: str | None, date_to_n: str | None) -> lis
 
     with QueryLogger("monthly_total", targets, logger) as ql:
         sql, params_doubled = DBRouter.build_aggregation_sql(
-            inner_select="substr(production_date, 1, 7) AS year_month, SUM(good_quantity) AS total, COUNT(*) AS cnt, AVG(good_quantity) AS avg_val",
+            inner_select=(
+                "substr(production_date, 1, 7) AS year_month, "
+                "SUM(good_quantity) AS total, COUNT(*) AS cnt, "
+                "AVG(good_quantity) AS avg_val"
+            ),
             inner_where=where_clause,
-            outer_select="year_month, SUM(total) AS total_production, SUM(cnt) AS batch_count, AVG(avg_val) AS avg_batch_size",
+            outer_select=(
+                "year_month, SUM(total) AS total_production, "
+                "SUM(cnt) AS batch_count, AVG(avg_val) AS avg_batch_size"
+            ),
             outer_group_by="year_month",
             targets=targets,
             outer_order_by="year_month"
@@ -94,9 +101,15 @@ def _summary_by_item_cached(
 
     with QueryLogger("summary_by_item", targets, logger) as ql:
         sql, _ = DBRouter.build_aggregation_sql(
-            inner_select="item_code, MAX(item_name) AS item_name, SUM(good_quantity) AS total, COUNT(*) AS cnt",
+            inner_select=(
+                "item_code, MAX(item_name) AS item_name, "
+                "SUM(good_quantity) AS total, COUNT(*) AS cnt"
+            ),
             inner_where=where_clause,
-            outer_select="item_code, MAX(item_name) AS item_name, SUM(total) AS total_production, SUM(cnt) AS batch_count",
+            outer_select=(
+                "item_code, MAX(item_name) AS item_name, "
+                "SUM(total) AS total_production, SUM(cnt) AS batch_count"
+            ),
             outer_group_by="item_code",
             targets=targets,
             outer_order_by="total_production DESC",
@@ -118,7 +131,9 @@ def _summary_by_item_cached(
 def summary_by_item(
     date_from: str = Query(..., description="YYYY-MM-DD (inclusive, required)"),
     date_to: str = Query(..., description="YYYY-MM-DD (inclusive, required)"),
-    item_code: str | None = Query(default=None, max_length=50, description="Filter by specific item"),
+    item_code: str | None = Query(
+        default=None, max_length=50, description="Filter by specific item"
+    ),
     limit: int = Query(default=100, ge=1, le=1000),
 ):
     """
@@ -162,9 +177,17 @@ def _monthly_by_item_cached(
 
     with QueryLogger("monthly_by_item", targets, logger) as ql:
         sql, _ = DBRouter.build_aggregation_sql(
-            inner_select="substr(production_date, 1, 7) AS year_month, item_code, MAX(item_name) AS item_name, SUM(good_quantity) AS total, COUNT(*) AS cnt, AVG(good_quantity) AS avg_val",
+            inner_select=(
+                "substr(production_date, 1, 7) AS year_month, item_code, "
+                "MAX(item_name) AS item_name, SUM(good_quantity) AS total, "
+                "COUNT(*) AS cnt, AVG(good_quantity) AS avg_val"
+            ),
             inner_where=where_clause,
-            outer_select="year_month, item_code, MAX(item_name) AS item_name, SUM(total) AS total_production, SUM(cnt) AS batch_count, AVG(avg_val) AS avg_batch_size",
+            outer_select=(
+                "year_month, item_code, MAX(item_name) AS item_name, "
+                "SUM(total) AS total_production, SUM(cnt) AS batch_count, "
+                "AVG(avg_val) AS avg_batch_size"
+            ),
             outer_group_by="year_month, item_code",
             targets=targets,
             outer_order_by="year_month DESC, total_production DESC",
@@ -180,7 +203,9 @@ def _monthly_by_item_cached(
 
 @router.get("/summary/monthly_by_item")
 def monthly_by_item(
-    year_month: str | None = Query(default=None, max_length=7, pattern=r"^\d{4}-\d{2}$", description="e.g., 2026-01"),
+    year_month: str | None = Query(
+        default=None, max_length=7, pattern=r"^\d{4}-\d{2}$", description="e.g., 2026-01"
+    ),
     item_code: str | None = Query(default=None, max_length=50, description="Filter by item code"),
     limit: int = Query(default=5000, ge=1, le=50000),
 ):

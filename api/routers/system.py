@@ -97,7 +97,10 @@ def health_check():
     status["ai_api"] = {
         "key_configured": api_key_exists,
         "cached_status": _ai_health_cache["status"],
-        "last_check_age_sec": int(time.time() - _ai_health_cache["last_check"]) if _ai_health_cache["last_check"] > 0 else None
+        "last_check_age_sec": (
+            int(time.time() - _ai_health_cache["last_check"])
+            if _ai_health_cache["last_check"] > 0 else None
+        ),
     }
 
     # v7: API Cache stats

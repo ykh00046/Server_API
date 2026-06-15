@@ -96,7 +96,10 @@ def search_production_items(
                        (" (단종 제품 포함)" if include_archive else " (현재 제품만)")
         }
 
-        logger.info(f"[Tool] search_production_items: keyword='{keyword}' include_archive={include_archive} found={len(items)}")
+        logger.info(
+            f"[Tool] search_production_items: keyword='{keyword}' "
+            f"include_archive={include_archive} found={len(items)}"
+        )
         return result
 
     except (sqlite3.Error, KeyError) as e:  # noqa: BLE001 — Gemini tool boundary: 모든 예외를 error dict로 변환 (LLM 계약)
@@ -114,7 +117,8 @@ def get_item_history(
     Use for questions like "BW0021 최근 생산 이력", "XXX 마지막 10건", "최근에 언제 만들었어".
 
     Args:
-        item_code: Exact product code (e.g., 'BW0021'). Use search_production_items first to find this.
+        item_code: Exact product code (e.g., 'BW0021'). Use
+            search_production_items first to find this.
         limit: Number of records to return (default: 10, max: 50)
 
     Returns:
@@ -161,7 +165,9 @@ def get_item_history(
             ),
         }
 
-        logger.info(f"[Tool] get_item_history: item_code={item_code} limit={limit} found={len(records)}")
+        logger.info(
+            f"[Tool] get_item_history: item_code={item_code} limit={limit} found={len(records)}"
+        )
         return result
 
     except sqlite3.Error as e:  # noqa: BLE001 — Gemini tool boundary: 모든 예외를 error dict로 변환 (LLM 계약)

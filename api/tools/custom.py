@@ -79,9 +79,11 @@ def execute_custom_query(
         Dict with query results or error message.
 
     Example queries:
-        - sql="SELECT SUM(good_quantity) as total FROM production_records WHERE item_code = ? AND production_date >= ?"
+        - sql="SELECT SUM(good_quantity) as total FROM production_records
+               WHERE item_code = ? AND production_date >= ?"
           params=["BW0021", "2026-01-20"]
-        - sql="SELECT lot_number, SUM(good_quantity) as qty FROM production_records WHERE item_code = ? GROUP BY lot_number ORDER BY qty DESC LIMIT 10"
+        - sql="SELECT lot_number, SUM(good_quantity) as qty FROM production_records
+               WHERE item_code = ? GROUP BY lot_number ORDER BY qty DESC LIMIT 10"
           params=["ABC001"]
     """
     import sqlite3
@@ -158,7 +160,9 @@ def execute_custom_query(
         # Determine if archive is needed
         use_archive = "ARCHIVE.PRODUCTION_RECORDS" in sql_upper
 
-        with QueryLogger("custom_query", DBTargets(use_archive=use_archive, use_live=True), logger) as ql:
+        with QueryLogger(
+            "custom_query", DBTargets(use_archive=use_archive, use_live=True), logger
+        ) as ql:
             ql.add_info("description", description or "custom query")
 
             # Execute with timeout (CUSTOM_QUERY_TIMEOUT_SEC).
@@ -193,7 +197,10 @@ def execute_custom_query(
                     cursor = connection.execute(sql_clean, bound_params)
                     rows = cursor.fetchall()
                     result["rows"] = [dict(r) for r in rows]
-                    result["columns"] = [desc[0] for desc in cursor.description] if cursor.description else []
+                    result["columns"] = (
+                        [desc[0] for desc in cursor.description]
+                        if cursor.description else []
+                    )
                 except sqlite3.Error as e:  # noqa: BLE001 — Gemini tool boundary: 모든 예외를 error로 변환 (LLM 계약)
                     result["error"] = str(e)
                     logger.exception("[custom_query] run_query failed")
@@ -218,7 +225,10 @@ def execute_custom_query(
                 return {
                     "status": "error",
                     "code": "QUERY_TIMEOUT",
-                    "message": f"Query timeout (exceeded {CUSTOM_QUERY_TIMEOUT_SEC:.0f} seconds). Please simplify your query."
+                    "message": (
+                        f"Query timeout (exceeded {CUSTOM_QUERY_TIMEOUT_SEC:.0f} seconds). "
+                        "Please simplify your query."
+                    )
                 }
 
             conn.close()
@@ -233,7 +243,9 @@ def execute_custom_query(
 
             ql.set_row_count(len(result["rows"]))
 
-        logger.info(f"[Tool] execute_custom_query: {description or 'custom'} rows={len(result['rows'])}")
+        logger.info(
+            f"[Tool] execute_custom_query: {description or 'custom'} rows={len(result['rows'])}"
+        )
         return {
             "status": "success",
             "description": description,

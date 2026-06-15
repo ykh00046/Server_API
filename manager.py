@@ -355,7 +355,10 @@ class ServerManager(ctk.CTk):
         self.web_panel = ServicePanel(
             self,
             config,
-            grid_args={"row": 1, "column": 0, "rowspan": 2, "sticky": "nsew", "padx": (20, 10), "pady": 10}
+            grid_args={
+                "row": 1, "column": 0, "rowspan": 2, "sticky": "nsew",
+                "padx": (20, 10), "pady": 10,
+            }
         )
 
     def _init_api_panel(self):
@@ -372,7 +375,10 @@ class ServerManager(ctk.CTk):
         self.api_panel = ServicePanel(
             self,
             config,
-            grid_args={"row": 1, "column": 1, "rowspan": 2, "sticky": "nsew", "padx": 10, "pady": 10}
+            grid_args={
+                "row": 1, "column": 1, "rowspan": 2, "sticky": "nsew",
+                "padx": 10, "pady": 10,
+            }
         )
 
     def _init_portal_panel(self):
@@ -401,7 +407,9 @@ class ServerManager(ctk.CTk):
         self.db_frame.grid_columnconfigure(0, weight=1)
 
         # Status Bar
-        self.db_status_bar = ctk.CTkFrame(self.db_frame, height=4, fg_color=COLOR_SUCCESS, corner_radius=2)
+        self.db_status_bar = ctk.CTkFrame(
+            self.db_frame, height=4, fg_color=COLOR_SUCCESS, corner_radius=2
+        )
         self.db_status_bar.grid(row=0, column=0, sticky="ew", padx=2, pady=2)
 
         # Header
@@ -499,7 +507,9 @@ class ServerManager(ctk.CTk):
             with contextlib.suppress(AttributeError, RuntimeError, tk.TclError, ValueError):
                 panel.append_log(">>> Process Exited", "WARN")
 
-    def _start_process(self, cmd: list[str], panel: ServicePanel, cwd: str | None = None) -> subprocess.Popen:
+    def _start_process(
+        self, cmd: list[str], panel: ServicePanel, cwd: str | None = None
+    ) -> subprocess.Popen:
         """Start subprocess and stream output to panel."""
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"
@@ -525,7 +535,11 @@ class ServerManager(ctk.CTk):
         self.web_panel.set_running(f"Running ({DASHBOARD_PORT})")
         self.web_panel.append_log(">>> Starting Dashboard...", "INFO")
 
-        cmd = [PY, "-m", "streamlit", "run", str(BASE_DIR / "dashboard" / "app.py"), "--server.address", "0.0.0.0", "--server.port", str(DASHBOARD_PORT), "--server.headless", "true"]
+        cmd = [
+            PY, "-m", "streamlit", "run", str(BASE_DIR / "dashboard" / "app.py"),
+            "--server.address", "0.0.0.0", "--server.port", str(DASHBOARD_PORT),
+            "--server.headless", "true",
+        ]
         self.web_panel.process = self._start_process(cmd, self.web_panel)
 
     def stop_web(self):

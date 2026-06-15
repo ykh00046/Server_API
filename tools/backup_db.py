@@ -140,7 +140,10 @@ def cleanup_old_backups(prefix: str, retention: int):
     )
 
     if len(backups) <= retention:
-        log("INFO", f"Cleanup: {len(backups)} backups found, retention={retention}. No cleanup needed.")
+        log(
+            "INFO",
+            f"Cleanup: {len(backups)} backups found, retention={retention}. No cleanup needed.",
+        )
         return
 
     # Remove old backups

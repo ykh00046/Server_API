@@ -33,7 +33,8 @@ def get_production_summary(
     Args:
         date_from: Start date (YYYY-MM-DD), inclusive
         date_to: End date (YYYY-MM-DD), inclusive
-        item_code: Exact product code (e.g., 'BW0021'). Use search_production_items first to find this.
+        item_code: Exact product code (e.g., 'BW0021'). Use
+            search_production_items first to find this.
 
     Returns:
         Dict with total_quantity, average_quantity, production_count
@@ -59,7 +60,10 @@ def get_production_summary(
                 ql.add_info("item_code", item_code)
 
             sql, params_doubled = DBRouter.build_aggregation_sql(
-                inner_select="SUM(good_quantity) AS total, COUNT(*) AS cnt, AVG(good_quantity) AS avg_val",
+                inner_select=(
+                    "SUM(good_quantity) AS total, COUNT(*) AS cnt, "
+                    "AVG(good_quantity) AS avg_val"
+                ),
                 inner_where=where_clause,
                 outer_select="SUM(total) AS total, SUM(cnt) AS count, AVG(avg_val) AS average",
                 outer_group_by="",
@@ -94,7 +98,9 @@ def get_production_summary(
         return result
 
     except Exception as e:  # noqa: BLE001 — Gemini tool boundary: 모든 예외를 error dict로 변환 (LLM 계약)
-        logger.exception(f"[Tool Error] get_production_summary failed: {date_from}~{date_to} item={item_code}")
+        logger.exception(
+            f"[Tool Error] get_production_summary failed: {date_from}~{date_to} item={item_code}"
+        )
         return {"status": "error", "message": str(e)}
 
 
@@ -135,7 +141,10 @@ def get_monthly_trend(
                 ql.add_info("item_code", item_code)
 
             sql, _ = DBRouter.build_aggregation_sql(
-                inner_select="substr(production_date, 1, 7) AS year_month, SUM(good_quantity) AS total, COUNT(*) AS cnt",
+                inner_select=(
+                    "substr(production_date, 1, 7) AS year_month, "
+                    "SUM(good_quantity) AS total, COUNT(*) AS cnt"
+                ),
                 inner_where=where_clause,
                 outer_select="year_month, SUM(total) AS total_production, SUM(cnt) AS batch_count",
                 outer_group_by="year_month",
@@ -158,7 +167,10 @@ def get_monthly_trend(
             "item_code": item_code or "all",
             "trend": trend
         }
-        logger.info(f"[Tool] get_monthly_trend: period={date_from}~{date_to} item={item_code or 'all'} months={len(trend)}")
+        logger.info(
+            f"[Tool] get_monthly_trend: period={date_from}~{date_to} "
+            f"item={item_code or 'all'} months={len(trend)}"
+        )
         return result
 
     except sqlite3.Error as e:  # noqa: BLE001 — Gemini tool boundary: 모든 예외를 error dict로 변환 (LLM 계약)
@@ -198,7 +210,10 @@ def get_top_items(
             sql, _ = DBRouter.build_aggregation_sql(
                 inner_select="item_code, MAX(item_name) AS item_name, SUM(good_quantity) AS total",
                 inner_where=where_clause,
-                outer_select="item_code, MAX(item_name) AS item_name, SUM(total) AS total_production",
+                outer_select=(
+                    "item_code, MAX(item_name) AS item_name, "
+                    "SUM(total) AS total_production"
+                ),
                 outer_group_by="item_code",
                 targets=targets,
                 outer_order_by="total_production DESC",
@@ -219,7 +234,9 @@ def get_top_items(
             "period": f"{date_from} ~ {date_to}",
             "top_items": items
         }
-        logger.info(f"[Tool] get_top_items: period={date_from}~{date_to} limit={limit} found={len(items)}")
+        logger.info(
+            f"[Tool] get_top_items: period={date_from}~{date_to} limit={limit} found={len(items)}"
+        )
         return result
 
     except sqlite3.Error as e:  # noqa: BLE001 — Gemini tool boundary: 모든 예외를 error dict로 변환 (LLM 계약)
@@ -264,7 +281,10 @@ def compare_periods(
             where_clause = " AND ".join(where_parts)
 
             sql, _ = DBRouter.build_aggregation_sql(
-                inner_select="SUM(good_quantity) AS total, COUNT(*) AS cnt, AVG(good_quantity) AS avg_val",
+                inner_select=(
+                    "SUM(good_quantity) AS total, COUNT(*) AS cnt, "
+                    "AVG(good_quantity) AS avg_val"
+                ),
                 inner_where=where_clause,
                 outer_select="SUM(total) AS total, SUM(cnt) AS count, AVG(avg_val) AS average",
                 outer_group_by="",
@@ -275,7 +295,9 @@ def compare_periods(
                 row = conn.execute(sql, query_params).fetchone()
             return dict(row) if row else {"total": 0, "count": 0, "average": 0}
 
-        with QueryLogger("compare_periods", DBTargets(use_archive=True, use_live=True), logger) as ql:
+        with QueryLogger(
+            "compare_periods", DBTargets(use_archive=True, use_live=True), logger
+        ) as ql:
             ql.add_info("period1", f"{p1_from}~{period1_to}")
             ql.add_info("period2", f"{p2_from}~{period2_to}")
             if item_code:

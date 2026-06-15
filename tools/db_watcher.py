@@ -74,15 +74,24 @@ class DBWatcher(threading.Thread):
 
             if current_mtime != last_mtime or current_size != last_size:
                 db_name = db_file.name
-                self.log_queue.put(("WARN", f"🔄 DB Change Detected ({db_name})! Waiting for stabilization..."))
+                self.log_queue.put((
+                    "WARN",
+                    f"🔄 DB Change Detected ({db_name})! Waiting for stabilization...",
+                ))
 
                 if wait_for_stabilization(db_file):
                     self.log_queue.put(("INFO", f"✅ {db_name} Stabilized. Checking indexes..."))
                     result = check_and_heal_indexes(db_file)
                     if result["healed"]:
-                        self.log_queue.put(("SUCCESS", f"♻️ [{db_name}] Auto-Healed Indexes: {', '.join(result['healed'])}"))
+                        self.log_queue.put((
+                            "SUCCESS",
+                            f"♻️ [{db_name}] Auto-Healed Indexes: {', '.join(result['healed'])}",
+                        ))
                     elif result["error"]:
-                        self.log_queue.put(("ERROR", f"❌ [{db_name}] Index Heal Failed: {result['error']}"))
+                        self.log_queue.put((
+                            "ERROR",
+                            f"❌ [{db_name}] Index Heal Failed: {result['error']}",
+                        ))
                     else:
                         self.log_queue.put(("INFO", f"👍 [{db_name}] Indexes are healthy."))
                     self.db_states[db_path_str] = get_file_state(db_file)

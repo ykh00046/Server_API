@@ -52,7 +52,8 @@ CHART_SERIES_COLORS = [
 # AI starter-card buttons: tall, left-aligned, multi-line. No native
 # equivalent in Streamlit 1.58 — kept as the single CSS remnant.
 _STARTER_CARD_CSS = """
-[data-testid="stVerticalBlock"] [data-testid="column"] [data-testid="stBaseButton-secondary"] button {
+[data-testid="stVerticalBlock"] [data-testid="column"]
+[data-testid="stBaseButton-secondary"] button {
     min-height: 120px;
     text-align: left;
     white-space: pre-wrap;
