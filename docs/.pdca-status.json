@@ -1,14 +1,19 @@
 {
   "version": "2.0",
   "lastUpdated": "2026-06-10T00:00:00.000Z",
-  "activeFeatures": ["coverage-source-expansion", "R6-ruff-bugbear-sim-ramp"],
-  "primaryFeature": "coverage-source-expansion",
+  "activeFeatures": ["R6-ruff-bugbear-sim-ramp"],
+  "primaryFeature": "R6-ruff-bugbear-sim-ramp",
   "features": {
     "coverage-source-expansion": {
-      "phase": "plan",
-      "status": "active",
+      "phase": "archived",
+      "status": "completed",
       "startedAt": "2026-06-15",
-      "note": "선별 측정(_parsing.py만 source 추가, 렌더 제외)+floor 66→72. ci-and-env의 'source 불변' 불변식 의도적 해제 첫 사례"
+      "completedAt": "2026-06-15",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "archivedTo": "docs/archive/2026-06/coverage-source-expansion/",
+      "note": "선별 측정(_parsing.py 90%, 렌더 omit)+floor 66→72(75.14%). source=dir+omit화이트리스트로 단일파일 측정. 376 green"
     },
     "R6-ruff-bugbear-sim-ramp": {
       "phase": "plan",
@@ -114,6 +119,14 @@
     "lastActivity": "2026-06-01T13:44:38.007Z"
   },
   "history": [
+    {
+      "feature": "coverage-source-expansion",
+      "completedAt": "2026-06-15",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "note": "_parsing.py 선별 측정(90%)+floor 66→72. source=dir+omit화이트리스트 패턴. pyproject source 불변식 의도적 해제"
+    },
     {
       "feature": "webcloring-pdf-separation",
       "completedAt": "2026-06-15",

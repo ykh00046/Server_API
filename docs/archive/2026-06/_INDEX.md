@@ -4,6 +4,12 @@
 
 ## 📁 아카이브 목록
 
+### 8. 커버리지 측정 범위 확장 (coverage-source-expansion)
+- **완료일**: 2026-06-15
+- **상태**: ✅ 완료 (Match Rate 100%, AC 6/6)
+- **요약**: coverage-blindspots-v1에서 추출한 `dashboard/components/_parsing.py`(테스트된 순수 헬퍼)를 coverage 측정에 추가(90%), 렌더 코드는 omit 화이트리스트로 제외. floor 66→72(실측 75.14% −3pp). dashboard 전체(15%)는 floor 상향과 충돌해 선별 측정(사용자 결정). `--cov=file.py`/`source=[file]`이 importlib 로드를 "never imported"로 흘리는 함정 → `source=dir + omit 화이트리스트`로 해결. ci-and-env "source 불변" 불변식 의도적 해제.
+- **문서**: plan / analysis / report
+
 ### 7. webcloring-pdf submodule 분리 준비 (webcloring-pdf-separation)
 - **완료일**: 2026-06-15
 - **상태**: ✅ 완료 (Match Rate 100%, AC 7/7) — outward 단계는 사용자 핸드오프(SEPARATION.md)
