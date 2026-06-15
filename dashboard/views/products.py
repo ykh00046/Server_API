@@ -252,7 +252,7 @@ def _render_drilldown(
                 f"{row['item_code']} | {row['item_name']} ({row['good_quantity']:,.0f})"
                 for _, row in available_items.iterrows()
             ]
-            item_code_map = dict(zip(item_options, available_items["item_code"]))
+            item_code_map = dict(zip(item_options, available_items["item_code"], strict=True))
 
             selected_item_label = st.selectbox(
                 "제품 선택",

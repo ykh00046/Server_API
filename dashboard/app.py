@@ -104,7 +104,7 @@ with st.sidebar:
 
     items_df = load_item_list(db_ver=current_db_ver)
     labels = items_df["label"].tolist()
-    label_to_code = dict(zip(labels, items_df["item_code"].tolist()))
+    label_to_code = dict(zip(labels, items_df["item_code"].tolist(), strict=True))
     selected_labels = st.multiselect("제품 선택", options=labels, default=[])
     item_codes = (
         [label_to_code[x] for x in selected_labels] if selected_labels else None

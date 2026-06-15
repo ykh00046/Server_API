@@ -36,7 +36,7 @@ def render_queue_stats_section(client: WebhookAdminClient) -> None:
         stats = {}
     cards = formatters.format_queue_stats_cards(stats)
     cols = st.columns(len(cards))
-    for col, (label, value, _hint) in zip(cols, cards):
+    for col, (label, value, _hint) in zip(cols, cards, strict=True):
         col.metric(label, value)
 
     try:

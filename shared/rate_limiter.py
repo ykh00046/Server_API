@@ -191,7 +191,7 @@ class RateLimiter:
             total_requests = 0
             active_ips = 0
 
-            for ip, timestamps in self._requests.items():
+            for _ip, timestamps in self._requests.items():
                 valid_count = sum(1 for ts in timestamps if ts > cutoff_time)
                 if valid_count:
                     active_ips += 1
