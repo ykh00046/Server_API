@@ -89,7 +89,6 @@ omit = [
     "dashboard/components/__init__.py",
     "dashboard/components/ai_section.py",
     "dashboard/components/charts.py",
-    "dashboard/components/kpi_cards.py",
     "dashboard/components/layout.py",
     "dashboard/components/loading.py",
     "dashboard/components/notifications.py",
