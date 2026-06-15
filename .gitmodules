@@ -1,0 +1,3 @@
+[submodule "webcloring-pdf"]
+	path = webcloring-pdf
+	url = https://github.com/ykh00046/webcloring-pdf.git
