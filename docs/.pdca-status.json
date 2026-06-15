@@ -1,9 +1,21 @@
 {
   "version": "2.0",
   "lastUpdated": "2026-06-10T00:00:00.000Z",
-  "activeFeatures": [],
-  "primaryFeature": "webcloring-pdf-separation",
+  "activeFeatures": ["coverage-source-expansion", "R6-ruff-bugbear-sim-ramp"],
+  "primaryFeature": "coverage-source-expansion",
   "features": {
+    "coverage-source-expansion": {
+      "phase": "plan",
+      "status": "active",
+      "startedAt": "2026-06-15",
+      "note": "선별 측정(_parsing.py만 source 추가, 렌더 제외)+floor 66→72. ci-and-env의 'source 불변' 불변식 의도적 해제 첫 사례"
+    },
+    "R6-ruff-bugbear-sim-ramp": {
+      "phase": "plan",
+      "status": "active",
+      "startedAt": "2026-06-15",
+      "note": "ruff B+SIM 게이트 확장(41건 해소). src B 전부 수정, tests B017 per-file-ignore, SIM autofix+수동. R3→R5 후속"
+    },
     "webcloring-pdf-separation": {
       "phase": "archived",
       "status": "completed",
