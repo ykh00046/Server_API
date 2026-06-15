@@ -8,6 +8,7 @@ termination using psutil snapshot-before-kill + wait + taskkill fallback.
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 import subprocess
 
@@ -45,18 +46,14 @@ def kill_process_tree(pid: int, timeout: float = 3.0) -> None:
     all_procs = [parent] + descendants
 
     for p in all_procs:
-        try:
+        with contextlib.suppress(psutil.NoSuchProcess):
             p.terminate()
-        except psutil.NoSuchProcess:
-            pass
 
     _, alive = psutil.wait_procs(all_procs, timeout=timeout)
 
     for p in alive:
-        try:
+        with contextlib.suppress(psutil.NoSuchProcess):
             p.kill()
-        except psutil.NoSuchProcess:
-            pass
 
     # Windows fallback for GUI-subsystem processes psutil can't signal cleanly.
     # No-op if targets already gone.

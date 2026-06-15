@@ -19,6 +19,7 @@ Key Design:
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import sqlite3
 from dataclasses import dataclass
@@ -146,19 +147,15 @@ class DBRouter:
                 cached_conn.execute("SELECT 1")
                 return cached_conn
             except sqlite3.Error:
-                try:
+                with contextlib.suppress(sqlite3.Error):
                     cached_conn.close()
-                except sqlite3.Error:
-                    pass
 
         if cached_conn is not None and cached_mtime != current_mtime:
             logger.debug(
                 f"DB mtime changed, reconnecting... (old={cached_mtime}, new={current_mtime})"
             )
-            try:
+            with contextlib.suppress(sqlite3.Error):
                 cached_conn.close()
-            except sqlite3.Error:
-                pass
 
         mode = "ro" if read_only else "rw"
         db_uri = f"file:{DB_FILE.absolute()}?mode={mode}"

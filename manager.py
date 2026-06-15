@@ -23,6 +23,8 @@ from portal_settings_dialog import PortalSettingsDialog
 # Add current directory to path for shared module import
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import contextlib
+
 from shared import (
     API_PORT,
     BASE_DIR,
@@ -58,11 +60,8 @@ def _register_process(proc: subprocess.Popen) -> None:
 
 def _unregister_process(proc: subprocess.Popen) -> None:
     """Unregister a process from cleanup."""
-    with _process_lock:
-        try:
-            _active_processes.remove(proc)
-        except ValueError:
-            pass
+    with _process_lock, contextlib.suppress(ValueError):
+        _active_processes.remove(proc)
 
 
 # Register cleanup on exit
@@ -315,10 +314,8 @@ class ServerManager(ctk.CTk):
         # signal.signal works only on the main thread and only when a console
         # is attached (direct `python manager.py`). VBS background launch has
         # no console -> handler registration fails silently (expected).
-        try:
+        with contextlib.suppress(ValueError, OSError):
             signal.signal(signal.SIGINT, self._on_sigint)
-        except (ValueError, OSError):
-            pass
 
     def _init_header(self):
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -498,10 +495,9 @@ class ServerManager(ctk.CTk):
         except (AttributeError, OSError, RuntimeError, tk.TclError, ValueError):
             pass
         finally:
-            try:
+            # Widget may be destroyed
+            with contextlib.suppress(AttributeError, RuntimeError, tk.TclError, ValueError):
                 panel.append_log(">>> Process Exited", "WARN")
-            except (AttributeError, RuntimeError, tk.TclError, ValueError):
-                pass  # Widget may be destroyed
 
     def _start_process(self, cmd: list[str], panel: ServicePanel, cwd: str | None = None) -> subprocess.Popen:
         """Start subprocess and stream output to panel."""
@@ -609,10 +605,9 @@ class ServerManager(ctk.CTk):
         def _monitor():
             if self.portal_panel.process:
                 self.portal_panel.process.wait()
-            try:
+            # Widget may be destroyed
+            with contextlib.suppress(RuntimeError, tk.TclError):
                 self.after(0, self._reset_portal_ui)
-            except (RuntimeError, tk.TclError):
-                pass  # Widget may be destroyed
         threading.Thread(target=_monitor, daemon=True).start()
 
     def _reset_portal_ui(self):

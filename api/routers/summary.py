@@ -142,10 +142,7 @@ def _monthly_by_item_cached(
     """Cached internal function for monthly_by_item."""
     if year_month:
         year, month = map(int, year_month.split("-"))
-        if month == 12:
-            next_month_first = f"{year + 1}-01-01"
-        else:
-            next_month_first = f"{year}-{month + 1:02d}-01"
+        next_month_first = f"{year + 1}-01-01" if month == 12 else f"{year}-{month + 1:02d}-01"
         targets = DBRouter.pick_targets(f"{year_month}-01", next_month_first)
     else:
         targets = DBTargets(use_archive=True, use_live=True)

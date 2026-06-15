@@ -28,6 +28,8 @@ from pathlib import Path
 # Add parent directory for shared imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import contextlib
+
 from shared import ARCHIVE_DB_FILE, DATABASE_DIR, DB_FILE, DB_TIMEOUT
 from shared.db_maintenance import wait_for_stabilization
 
@@ -83,10 +85,8 @@ def backup_database(source_path: Path, backup_path: Path) -> bool:
         log("ERROR", f"SQLite error during backup: {e}")
         # Clean up partial backup if it exists
         if backup_path.exists():
-            try:
+            with contextlib.suppress(OSError):
                 backup_path.unlink()
-            except OSError:
-                pass
         return False
 
     except OSError as e:
@@ -180,10 +180,8 @@ def run_backup(db_path: Path, prefix: str, retention: int) -> bool:
     # 4. Verify backup
     if not verify_backup(backup_path):
         log("ERROR", "Backup verification failed. Removing corrupted backup.")
-        try:
+        with contextlib.suppress(OSError):
             backup_path.unlink()
-        except OSError:
-            pass
         return False
 
     # 5. Cleanup old backups

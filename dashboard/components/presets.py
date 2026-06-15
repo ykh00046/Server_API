@@ -182,10 +182,11 @@ def render_preset_manager(
                         loaded_preset = load_preset(selected_preset)
 
                 with col_b:
-                    if st.button("삭제", key="delete_preset", width="stretch"):
-                        if delete_preset(selected_preset):
-                            st.success(f"'{selected_preset}' 삭제됨")
-                            st.rerun()
+                    if st.button(
+                        "삭제", key="delete_preset", width="stretch"
+                    ) and delete_preset(selected_preset):
+                        st.success(f"'{selected_preset}' 삭제됨")
+                        st.rerun()
 
         # Save preset section
         st.text_input(

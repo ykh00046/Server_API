@@ -33,12 +33,19 @@ extend-exclude = [
 # hand this cycle — `from err` to preserve the cause (default), `from None` only for the
 # one same-type rewrap where the original is noise (validators.py date parse). The rest of
 # `B` (B008 FastAPI Depends-default, B905 zip-strict, ...) needs separate review → R6.
-select = ["F", "BLE001", "I", "UP", "B904"]
+#
+# R6-ruff-bugbear-sim-ramp: full `B` (bugbear) + `SIM` (simplify) added. src B
+# fixed (B905 zip strict=True, B025 dup-except→Exception, B007 unused-loop-var);
+# SIM via autofix (SIM117/300/102/108) + contextlib.suppress for SIM105. tests'
+# B017 (pytest.raises(Exception)) is per-file-ignored (broad raises are idiomatic
+# in tests). E501/C901 deferred → R7+.
+select = ["F", "BLE001", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
-# Test code: unused imports (fixtures/registration) and broad catch are often
-# intentional. Real bugs (F821/F841/F811) stay enforced.
-"tests/**" = ["F401", "BLE001"]
+# Test code: unused imports (fixtures/registration), broad catch, and broad
+# pytest.raises(Exception) (B017) are often intentional. Real bugs
+# (F821/F841/F811) stay enforced.
+"tests/**" = ["F401", "BLE001", "B017"]
 
 # ==========================================================
 # Coverage — R3-ruff-ble001-coverage

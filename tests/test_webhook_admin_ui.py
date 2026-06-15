@@ -96,9 +96,8 @@ def test_list_webhooks_no_filter_omits_active():
 
 def test_get_webhook_404_raises_webhook_admin_error():
     rec = _Recorder([_json_resp(404, {"detail": "webhook 99 not found"})])
-    with _client_with(rec.handler) as c:
-        with pytest.raises(WebhookAdminError) as ei:
-            c.get_webhook(99)
+    with _client_with(rec.handler) as c, pytest.raises(WebhookAdminError) as ei:
+        c.get_webhook(99)
     assert ei.value.status == 404
     assert "not found" in str(ei.value)
 
@@ -217,9 +216,8 @@ def test_bulk_retry_dead_passes_webhook_id_and_dry_run():
 
 def test_bulk_retry_dead_surfaces_400():
     rec = _Recorder([_json_resp(400, {"detail": "unsupported statuses ['success']; allowed: dead, failure"})])
-    with _client_with(rec.handler) as c:
-        with pytest.raises(WebhookAdminError) as ei:
-            c.bulk_retry_dead(statuses=["success"])
+    with _client_with(rec.handler) as c, pytest.raises(WebhookAdminError) as ei:
+        c.bulk_retry_dead(statuses=["success"])
     assert ei.value.status == 400
     assert "unsupported statuses" in str(ei.value)
 
@@ -229,18 +227,16 @@ def test_bulk_retry_dead_surfaces_400():
 # =====================================================================
 def test_4xx_with_json_detail_surfaces_detail_message():
     rec = _Recorder([_json_resp(400, {"detail": "url scheme must be http or https"})])
-    with _client_with(rec.handler) as c:
-        with pytest.raises(WebhookAdminError) as ei:
-            c.create_webhook(url="ftp://x", event_types=[], description="", active=True)
+    with _client_with(rec.handler) as c, pytest.raises(WebhookAdminError) as ei:
+        c.create_webhook(url="ftp://x", event_types=[], description="", active=True)
     assert ei.value.status == 400
     assert "url scheme" in str(ei.value)
 
 
 def test_5xx_without_json_falls_back_to_text():
     rec = _Recorder([httpx.Response(500, text="boom")])
-    with _client_with(rec.handler) as c:
-        with pytest.raises(WebhookAdminError) as ei:
-            c.queue_stats()
+    with _client_with(rec.handler) as c, pytest.raises(WebhookAdminError) as ei:
+        c.queue_stats()
     assert ei.value.status == 500
     assert "boom" in str(ei.value)
 
@@ -248,9 +244,8 @@ def test_5xx_without_json_falls_back_to_text():
 def test_timeout_raises_with_status_none():
     def _raise(_request):
         raise httpx.ConnectTimeout("nope")
-    with _client_with(_raise) as c:
-        with pytest.raises(WebhookAdminError) as ei:
-            c.list_webhooks()
+    with _client_with(_raise) as c, pytest.raises(WebhookAdminError) as ei:
+        c.list_webhooks()
     assert ei.value.status is None
     assert "timed out" in str(ei.value)
 
@@ -258,9 +253,8 @@ def test_timeout_raises_with_status_none():
 def test_transport_error_raises_with_status_none():
     def _raise(_request):
         raise httpx.ConnectError("refused")
-    with _client_with(_raise) as c:
-        with pytest.raises(WebhookAdminError) as ei:
-            c.list_webhooks()
+    with _client_with(_raise) as c, pytest.raises(WebhookAdminError) as ei:
+        c.list_webhooks()
     assert ei.value.status is None
     assert "refused" in str(ei.value)
 

@@ -5,6 +5,7 @@ Keeps tests self-contained by writing a tiny spawner script to tmp_path.
 """
 from __future__ import annotations
 
+import contextlib
 import subprocess
 import sys
 import time
@@ -51,10 +52,8 @@ def test_kill_process_tree_removes_parent_and_descendants(tmp_path):
             assert not psutil.pid_exists(dpid), f"descendant {dpid} still alive"
     finally:
         # Safety net if assertions failed mid-way.
-        try:
+        with contextlib.suppress(Exception):
             parent.kill()
-        except Exception:
-            pass
 
 
 def test_kill_process_tree_nonexistent_pid_is_noop():

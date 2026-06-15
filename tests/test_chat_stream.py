@@ -79,10 +79,7 @@ class _FakeClient:
 
 
 def _patch_client(monkeypatch, chunks=None, raise_exc=None, none_client=False):
-    if none_client:
-        fake = None
-    else:
-        fake = _FakeClient(chunks=chunks, raise_exc=raise_exc)
+    fake = None if none_client else _FakeClient(chunks=chunks, raise_exc=raise_exc)
     monkeypatch.setattr(stream_mod, "get_client", lambda: fake)
 
 
@@ -341,7 +338,7 @@ def test_stream_heartbeat_does_not_break_events(client, monkeypatch):
     events = _parse_sse(r.text)
     token_events = [json.loads(d) for e, d in events if e == "token"]
     full = "".join(t["text"] for t in token_events)
-    assert "abc" == full
+    assert full == "abc"
     assert events[-1][0] == "done"
 
 

@@ -161,20 +161,19 @@ def _process_pending_user_message(chat_container, api_url: str) -> None:
 
     latest_prompt = st.session_state.messages[-1]["content"]
     target = chat_container if chat_container is not None else st.container()
-    with target:
-        with st.chat_message("assistant", avatar=":material/smart_toy:"):
-            payload = {
-                "query": latest_prompt,
-                "session_id": st.session_state.get("chat_session_id"),
-            }
-            full_answer = st.write_stream(_stream_chat_tokens(api_url, payload))
-            if isinstance(full_answer, list):
-                full_answer = "".join(str(p) for p in full_answer)
-            # Always append assistant message to prevent infinite rerun (H5)
-            st.session_state.messages.append(
-                {"role": "assistant", "content": full_answer or "응답을 받지 못했습니다."}
-            )
-            st.rerun()
+    with target, st.chat_message("assistant", avatar=":material/smart_toy:"):
+        payload = {
+            "query": latest_prompt,
+            "session_id": st.session_state.get("chat_session_id"),
+        }
+        full_answer = st.write_stream(_stream_chat_tokens(api_url, payload))
+        if isinstance(full_answer, list):
+            full_answer = "".join(str(p) for p in full_answer)
+        # Always append assistant message to prevent infinite rerun (H5)
+        st.session_state.messages.append(
+            {"role": "assistant", "content": full_answer or "응답을 받지 못했습니다."}
+        )
+        st.rerun()
 
 
 def _render_starter_card(idx: int, item: dict) -> str | None:
@@ -287,10 +286,12 @@ def render_ai_chat(api_url: str | None = None) -> None:
     # ==========================================
     prompt = st.chat_input("데이터에 대해 무엇이든 질문하세요 (예: 올해 1분기 총 생산량은?)", key="full_chat_input")
 
-    if prompt:
-        if len(st.session_state.messages) == 0 or st.session_state.messages[-1]["content"] != prompt:
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            st.rerun()
+    if prompt and (
+        len(st.session_state.messages) == 0
+        or st.session_state.messages[-1]["content"] != prompt
+    ):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        st.rerun()
 
     _process_pending_user_message(chat_container, api_url)
 
@@ -402,15 +403,18 @@ def render_ai_section_compact(api_url: str | None = None) -> None:
     # Chat input
     prompt = st.chat_input("질문하세요...", key="compact_chat_input")
 
-    if prompt:
-        if len(st.session_state.messages) == 0 or st.session_state.messages[-1]["content"] != prompt:
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            st.rerun()
+    if prompt and (
+        len(st.session_state.messages) == 0
+        or st.session_state.messages[-1]["content"] != prompt
+    ):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        st.rerun()
 
     _process_pending_user_message(chat_container, api_url)
 
     # New chat button
-    if len(st.session_state.messages) > 0:
-        if st.button("새 대화", icon=":material/add_comment:", key="compact_new_chat", width="stretch"):
-            st.session_state.messages = []
-            st.rerun()
+    if len(st.session_state.messages) > 0 and st.button(
+        "새 대화", icon=":material/add_comment:", key="compact_new_chat", width="stretch"
+    ):
+        st.session_state.messages = []
+        st.rerun()

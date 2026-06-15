@@ -5,6 +5,7 @@ Extracted from api/notifications/store.py (structure-cleanup, 2026-05-27).
 """
 from __future__ import annotations
 
+import contextlib
 import sqlite3
 import threading
 from pathlib import Path
@@ -35,10 +36,8 @@ def _get_conn() -> sqlite3.Connection:
             cached.execute("SELECT 1")
             return cached
         except sqlite3.Error:
-            try:
+            with contextlib.suppress(sqlite3.Error):
                 cached.close()
-            except sqlite3.Error:
-                pass
             setattr(_local, cache_key, None)
 
     path.parent.mkdir(parents=True, exist_ok=True)

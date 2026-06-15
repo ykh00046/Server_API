@@ -69,10 +69,7 @@ def calculate_kpis(
     if not item_totals.empty:
         top_item = str(item_totals.idxmax())
         top_item_rows = df[df["item_code"] == top_item]["item_name"]
-        if not top_item_rows.empty:
-            top_item_name = str(top_item_rows.iloc[0])
-        else:
-            top_item_name = "-"
+        top_item_name = str(top_item_rows.iloc[0]) if not top_item_rows.empty else "-"
     else:
         top_item = "-"
         top_item_name = "-"

@@ -7,6 +7,7 @@ re-exports this module's _local for backwards compatibility).
 from __future__ import annotations
 
 import atexit
+import contextlib
 import logging
 import os
 import sqlite3
@@ -29,10 +30,8 @@ def _cleanup_all_connections() -> None:
     """Cleanup all cached connections on program exit."""
     with _connection_lock:
         for conn in _all_connections:
-            try:
+            with contextlib.suppress(sqlite3.Error):
                 conn.close()
-            except sqlite3.Error:
-                pass
         _all_connections.clear()
     logger.debug("All database connections cleaned up")
 

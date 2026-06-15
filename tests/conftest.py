@@ -26,6 +26,8 @@ os.environ.setdefault(
 )
 (_PROJECT_ROOT / ".pytest_tmp").mkdir(exist_ok=True)
 
+import contextlib
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -43,14 +45,10 @@ def _reset_rate_limiters():
     """Clear in-memory rate limiter state between tests."""
     from api.chat import chat_rate_limiter
     from shared import api_rate_limiter
-    try:
+    with contextlib.suppress(AttributeError):
         api_rate_limiter._requests.clear()  # type: ignore[attr-defined]
-    except AttributeError:
-        pass
-    try:
+    with contextlib.suppress(AttributeError):
         chat_rate_limiter._requests.clear()  # type: ignore[attr-defined]
-    except AttributeError:
-        pass
     yield
 
 
@@ -91,10 +89,8 @@ def _close_db_connections():
         from shared import database as _db
         for attr in list(vars(_db._local)):
             if attr.startswith("conn_"):
-                try:
+                with contextlib.suppress(sqlite3.Error, AttributeError):
                     getattr(_db._local, attr).close()
-                except (sqlite3.Error, AttributeError):
-                    pass
                 setattr(_db._local, attr, None)
     except (ImportError, AttributeError):
         pass

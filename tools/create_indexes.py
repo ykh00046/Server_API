@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import sqlite3
 import sys
 import time
@@ -79,11 +80,9 @@ def create_indexes(db_path: Path, dry_run: bool = False, force: bool = False) ->
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA journal_mode=WAL")
 
-    # Enable dbstat for size calculation
-    try:
+    # Enable dbstat for size calculation (not all SQLite versions support this)
+    with contextlib.suppress(sqlite3.Error):
         conn.execute("PRAGMA stats = ON")
-    except sqlite3.Error:
-        pass  # Not all SQLite versions support this
 
     # Get stats
     stats = get_table_stats(conn)
