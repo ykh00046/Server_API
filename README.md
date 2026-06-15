@@ -178,12 +178,17 @@ database/
 - 쿼리 기간에 따라 `DBRouter`가 Archive / Live / 양쪽 자동 선택
 - ERP가 DB 파일을 갱신해도 mtime 기반 캐시 자동 무효화
 
-### 인덱스
+### 인덱스 (정본: `shared/db_maintenance.REQUIRED_INDEXES`, 6종)
 | 인덱스 | 컬럼 | 용도 |
 |--------|------|------|
 | `idx_production_date` | `production_date` | 날짜 범위 조회 |
 | `idx_item_code` | `item_code` | 제품별 조회 |
-| `idx_item_date` | `item_code, production_date` | 제품 + 날짜 복합 조회 |
+| `idx_production_date_item` | `production_date, item_code` | 날짜+제품 복합 |
+| `idx_lot_number` | `lot_number` | 로트번호 검색 |
+| `idx_agg_covering` | `item_code, production_date, good_quantity` | 집계 커버링 |
+| `idx_date_qty` | `production_date, good_quantity` | 날짜순 수량 조회 |
+
+> 인덱스 생성: `python tools/create_indexes.py` (DB watcher가 변경 감지 시 자동 복구).
 
 ---
 
@@ -192,40 +197,43 @@ database/
 ```
 Server_API/
 ├── api/
-│   ├── main.py              # FastAPI REST 엔드포인트
+│   ├── main.py              # FastAPI 앱 조립 (미들웨어: auth+audit, request_id+rate_limit, CORS, GZip)
 │   ├── chat.py              # AI Chat (멀티턴, 재시도, Rate Limit)
-│   └── tools.py             # AI 도구 함수 7개
+│   ├── _chat_stream.py      # /chat/stream SSE 스트리밍
+│   ├── _session_store.py    # 멀티턴 세션 저장소
+│   ├── _audit.py            # 접근 감사 로그
+│   ├── routers/             # records / summary / system / notifications
+│   ├── tools/               # AI 도구 7개 (items / summary / custom)
+│   └── notifications/       # Webhook 비동기 디스패치 (큐+backoff worker)
 ├── dashboard/
-│   ├── app.py               # Streamlit 메인 대시보드
-│   └── components/
-│       ├── theme.py         # 다크/라이트 모드
-│       ├── kpi_cards.py     # KPI 카드
-│       ├── charts.py        # 차트
-│       ├── presets.py       # 필터 프리셋
-│       ├── ai_section.py    # AI Chat UI
-│       └── ...
+│   ├── app.py               # Streamlit 진입점 (st.navigation, 사이드바 필터)
+│   ├── views/               # 페이지 (overview/trends/batches/products/webhooks)
+│   │                        #   ※ "pages/"가 아님 — 콜드 딥링크 v1 라우팅 회피 (nav-routing-fix-v1)
+│   └── components/          # kpi_cards / charts / ai_section / _parsing / layout / presets ...
 ├── shared/
-│   ├── config.py            # 설정 상수
+│   ├── config.py            # 설정 상수 (.env override)
+│   ├── auth.py              # opt-in 인증 (API-Key/Bearer, 상수시간 비교, PUBLIC_PATHS SSOT)
 │   ├── database.py          # DBRouter, DBTargets, Thread-local 연결
 │   ├── cache.py             # TTLCache + db_mtime 무효화
-│   ├── rate_limiter.py      # 슬라이딩 윈도우 Rate Limiter
-│   ├── db_maintenance.py    # 인덱스 복구, ANALYZE, 안정화 대기
+│   ├── rate_limiter.py      # 슬라이딩 윈도우 Rate Limiter (clock 주입 가능)
+│   ├── db_maintenance.py    # REQUIRED_INDEXES(6종) 복구, ANALYZE, 안정화 대기
+│   ├── process_utils.py     # kill_process_tree (manager 프로세스 관리)
 │   ├── validators.py        # 입력 검증
-│   └── logging_config.py   # Slow Query 로깅
+│   ├── ui/                  # theme.py(네이티브 테마 헬퍼), responsive.py
+│   └── logging_config.py    # Slow Query 로깅, request_id
 ├── tools/
-│   ├── watcher.py           # DB 변경 감시 + 인덱스 복구 + ANALYZE
+│   ├── watcher.py           # DB 변경 감시 + 인덱스 복구 + ANALYZE (standalone)
+│   ├── db_watcher.py        # manager 내장 워처 스레드
+│   ├── create_indexes.py    # 인덱스 생성 (REQUIRED_INDEXES SSOT 참조)
 │   └── backup_db.py         # DB 안전 백업 (mtime 안정화 후 실행)
-├── tests/
-│   ├── test_sql_validation.py   # SQL 인젝션 방지 (16개)
-│   ├── test_rate_limiter.py     # Rate Limiter (16개)
-│   ├── test_input_validation.py # 입력 검증 (19개)
-│   ├── test_cache.py            # API 캐시 (16개)
-│   └── test_db_router.py        # DB 라우팅 (36개)
-├── database/                # DB 파일 및 백업
-├── docs/                    # 문서
-├── logs/                    # 로그 파일
-├── manager.py               # 통합 관리 GUI
-└── requirements.txt
+├── tests/                   # 24개 파일, 389 테스트
+├── webcloring-pdf/          # ⮑ git submodule (INTEROJO 포털 자동화, 별도 repo)
+├── database/                # DB 파일 및 백업 (gitignore)
+├── docs/                    # PDCA 문서 (01-plan ~ 04-report, archive)
+├── manager.py               # 통합 관리 GUI (CustomTkinter + 트레이)
+├── pyproject.toml           # ruff/pytest/coverage 설정 (SSOT)
+├── requirements.txt         # top-level 의존성 선언
+└── requirements.lock.txt    # 핀 고정 lock (CI·재현 설치용)
 ```
 
 ---
@@ -233,7 +241,7 @@ Server_API/
 ## 테스트
 
 ```bash
-pytest tests/ -v
+pytest tests/ -v        # 24개 파일, 389 테스트
 ```
 
 ### CI (GitHub Actions)
@@ -242,10 +250,12 @@ pytest tests/ -v
 
 | Job | 내용 |
 |-----|------|
-| `lint` | `ruff check .` — 게이트 규칙(F/BLE001/I/UP/B904)은 `pyproject.toml`이 결정 |
-| `test` | `pytest --cov --cov-fail-under=66` — coverage floor는 CI 전용(로컬 pytest는 floor 없음) |
+| `lint` | `ruff check .` — 게이트 규칙(F/BLE001/I/UP/B/SIM/E501)은 `pyproject.toml`이 SSOT |
+| `test` | `pytest --cov --cov-fail-under=72` — coverage floor는 CI 전용(로컬 pytest는 floor 없음) |
 
-의존성은 `requirements.lock.txt`로 설치된다(재현성). 의존성 변경 시 위 §3의 lock 재생성 절차를 따른다.
+- 측정 범위: `api` + `shared` + `dashboard/components/_parsing.py`, `kpi_cards.py`(테스트된 순수 로직만; 렌더/IO는 제외). 현재 약 76%.
+- 의존성은 `requirements.lock.txt`로 설치된다(재현성). 의존성 변경 시 §3의 lock 재생성 절차를 따른다.
+- 게이트 램프 이력(R3→R7)은 `docs/archive/2026-06/` 참조.
 
 ### 스모크 검증 (선택, Linux/WSL 전용)
 
@@ -269,13 +279,7 @@ SMOKE_INSTALL=1 SMOKE_RUN_HEALTH=1 tools/smoke_api.sh
 
 `requirements.txt` 전체 설치는 Streamlit/GUI 의존성까지 포함하므로, API 최소 검증만 필요할 때는 `requirements-smoke.txt` 경로를 우선 사용한다.
 
-| 테스트 파일 | 케이스 수 | 설명 |
-|-------------|:---------:|------|
-| `test_sql_validation.py` | 16 | SQL 인젝션 방지 |
-| `test_rate_limiter.py` | 16 | Rate Limiter |
-| `test_input_validation.py` | 19 | 입력 검증 |
-| `test_cache.py` | 16 | API 캐시 |
-| `test_db_router.py` | 36 | DB 라우팅 |
+> 테스트는 24개 파일/389 케이스로 SQL 안전성·Rate Limiter·입력 검증·캐시·DB 라우팅·인증/감사·SSE 스트리밍·webhook·AI 도구 스키마·대시보드 파서/KPI 등을 커버한다. (전체 목록은 `tests/` 참조)
 
 ---
 
@@ -298,6 +302,7 @@ python tools/backup_db.py --cleanup
 
 | 버전 | 날짜 | 변경사항 |
 |------|------|----------|
+| v9 | 2026-06 | CI 파이프라인(GitHub Actions) + py3.12 정본 venv + lock 고정, 대시보드 블루/슬레이트 네이티브 테마, 콜드 딥링크 라우팅 픽스, flaky 제거(RateLimiter clock 주입), 커버리지 측정 확장(floor 72), ruff 게이트 B/SIM/E501 램프, webcloring-pdf submodule 분리 |
 | v8 | 2026-02-26 | AI 도구 2개 추가 (compare_periods, get_item_history), DB ANALYZE 자동화 |
 | v7 | 2026-01-23 | 성능 개선 (GZip, ORJSONResponse, TTLCache, Cursor Pagination, Thread-local 연결) |
 | v6 | 2026-01-23 | 개선 로드맵 (Rate Limit, 멀티턴, 재시도, DBRouter 통합, 백업 자동화) |
@@ -319,3 +324,5 @@ python tools/backup_db.py --cleanup
 - [API 통합 가이드](docs/api_integration_guide.md)
 - [운영 매뉴얼](docs/specs/operations_manual.md)
 - [변경 로그](docs/04-report/changelog.md)
+- [webcloring-pdf 분리 절차서](SEPARATION.md) — submodule 운영/롤백
+- [2026-06 PDCA 아카이브 인덱스](docs/archive/2026-06/_INDEX.md) — 이번 사이클(11건) 기록
