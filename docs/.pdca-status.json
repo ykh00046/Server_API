@@ -2,8 +2,19 @@
   "version": "2.0",
   "lastUpdated": "2026-06-10T00:00:00.000Z",
   "activeFeatures": [],
-  "primaryFeature": "R7-ruff-e501-ramp",
+  "primaryFeature": "coverage-blindspots-v2",
   "features": {
+    "coverage-blindspots-v2": {
+      "phase": "archived",
+      "status": "completed",
+      "startedAt": "2026-06-15",
+      "completedAt": "2026-06-15",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "archivedTo": "docs/archive/2026-06/coverage-blindspots-v2/",
+      "note": "kpi_cards 순수함수 측정 88%(omit 제거)+watcher load/save test-only. 376→389 tests, TOTAL 76%, floor 72 유지"
+    },
     "R7-ruff-e501-ramp": {
       "phase": "archived",
       "status": "completed",
@@ -136,6 +147,13 @@
   },
   "history": [
     {
+      "feature": "coverage-blindspots-v2",
+      "completedAt": "2026-06-15",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "note": "kpi_cards 순수함수 측정 88% + watcher state test-only. 순수도가 측정 단위를 가름. 389 green, floor 72 유지"
+    },
       "feature": "R7-ruff-e501-ramp",
       "completedAt": "2026-06-15",
       "matchRate": 100,

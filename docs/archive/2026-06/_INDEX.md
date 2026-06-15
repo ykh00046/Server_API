@@ -4,6 +4,12 @@
 
 ## 📁 아카이브 목록
 
+### 11. 커버리지 사각지대 v2 (coverage-blindspots-v2)
+- **완료일**: 2026-06-15
+- **상태**: ✅ 완료 (Match Rate 100%, AC 7/7)
+- **요약**: dashboard `kpi_cards.py` 순수함수 5개(calculate_kpis/get_sparkline_data/get_sparkline_for_top_product/_format_number/_has_signal) 단위 테스트 + coverage 측정 포함(88%, omit 화이트리스트에서 제거). `tools/watcher.py` load_state/save_state 단위 테스트(STATE_FILE monkeypatch, test-only — run_check IO는 floor 보호 위해 source 미추가). 376→389 tests, TOTAL 75→76%, floor 72 유지(인플레 자제). 교훈: 파일의 순수도가 측정 포함 단위를 가른다.
+- **문서**: plan / analysis / report
+
 ### 10. ruff E501 게이트 램프 (R7-ruff-e501-ramp)
 - **완료일**: 2026-06-15
 - **상태**: ✅ 완료 (Match Rate 100%, AC 7/7)
