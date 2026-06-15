@@ -4,6 +4,12 @@
 
 ## 📁 아카이브 목록
 
+### 9. ruff B+SIM 게이트 램프 (R6-ruff-bugbear-sim-ramp)
+- **완료일**: 2026-06-15
+- **상태**: ✅ 완료 (Match Rate 100%, AC 7/7)
+- **요약**: ruff 게이트를 `B`(bugbear 전체)+`SIM`(simplify)로 확장(select=F/BLE001/I/UP/B/SIM). 위반 41건 해소 — src B905(strict=True)/B025/B007 코드 수정, tests B017 per-file-ignore(broad raises 관용), SIM105 17건 contextlib.suppress(주석 보존), SIM117/300/102/108 autofix+수동. **B025가 db_maintenance.py 실버그 발견**(중복 `except sqlite3.Error` 도달불가 → 주석 의도대로 `except Exception` 복원). 376 green. R3→R5 후속. 잔여 E501/C901은 R7+.
+- **문서**: plan / analysis / report
+
 ### 8. 커버리지 측정 범위 확장 (coverage-source-expansion)
 - **완료일**: 2026-06-15
 - **상태**: ✅ 완료 (Match Rate 100%, AC 6/6)
