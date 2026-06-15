@@ -47,9 +47,35 @@ select = ["F", "BLE001", "I", "UP", "B904"]
 # rate-limit 60s timing). Apply the floor in CI only.
 # ==========================================================
 [tool.coverage.run]
-source = ["api", "shared"]
+# coverage-source-expansion (2026-06-15): measure api + shared + the tested
+# pure dashboard helper (_parsing.py). Render/UI code (app.py, views, render
+# components) needs a Streamlit runtime to exercise and is deliberately NOT
+# measured — only the extracted, unit-tested logic. `source` lists dirs +
+# the single helper file. (This intentionally lifts the earlier
+# "source unchanged" invariant from ci-and-env-standardization.)
+source = ["api", "shared", "dashboard"]
 branch = true
-omit = ["*/__pycache__/*", "tests/*"]
+# Only the extracted, unit-tested pure helper (_parsing.py) is measured in
+# dashboard/. Render/UI code needs a Streamlit runtime to exercise and is
+# excluded by listing it here (whitelist-via-omit: everything in dashboard
+# except _parsing.py). A new dashboard file is measured only after being
+# removed from this list — keeps the "measure what we test" intent explicit.
+omit = [
+    "*/__pycache__/*",
+    "tests/*",
+    "dashboard/app.py",
+    "dashboard/data.py",
+    "dashboard/views/*",
+    "dashboard/components/__init__.py",
+    "dashboard/components/ai_section.py",
+    "dashboard/components/charts.py",
+    "dashboard/components/kpi_cards.py",
+    "dashboard/components/layout.py",
+    "dashboard/components/loading.py",
+    "dashboard/components/notifications.py",
+    "dashboard/components/presets.py",
+    "dashboard/components/webhook_admin/*",
+]
 
 [tool.coverage.report]
 show_missing = true
