@@ -226,7 +226,7 @@ Server_API/
 │   ├── db_watcher.py        # manager 내장 워처 스레드
 │   ├── create_indexes.py    # 인덱스 생성 (REQUIRED_INDEXES SSOT 참조)
 │   └── backup_db.py         # DB 안전 백업 (mtime 안정화 후 실행)
-├── tests/                   # 24개 파일, 389 테스트
+├── tests/                   # 29개 파일, 489 테스트
 ├── webcloring-pdf/          # ⮑ git submodule (INTEROJO 포털 자동화, 별도 repo)
 ├── database/                # DB 파일 및 백업 (gitignore)
 ├── docs/                    # PDCA 문서 (01-plan ~ 04-report, archive)
@@ -241,7 +241,7 @@ Server_API/
 ## 테스트
 
 ```bash
-pytest tests/ -v        # 24개 파일, 389 테스트
+pytest tests/ -v        # 29개 파일, 489 테스트
 ```
 
 ### CI (GitHub Actions)
@@ -251,9 +251,9 @@ pytest tests/ -v        # 24개 파일, 389 테스트
 | Job | 내용 |
 |-----|------|
 | `lint` | `ruff check .` — 게이트 규칙(F/BLE001/I/UP/B/SIM/E501)은 `pyproject.toml`이 SSOT |
-| `test` | `pytest --cov --cov-fail-under=72` — coverage floor는 CI 전용(로컬 pytest는 floor 없음) |
+| `test` | `pytest --cov --cov-fail-under=88` — coverage floor는 CI 전용(로컬 pytest는 floor 없음) |
 
-- 측정 범위: `api` + `shared` + `dashboard/components/_parsing.py`, `kpi_cards.py`(테스트된 순수 로직만; 렌더/IO는 제외). 현재 약 76%.
+- 측정 범위: `api` + `shared` + `dashboard/components/_parsing.py`, `kpi_cards.py`(테스트된 순수 로직만; 렌더/IO는 제외). 현재 약 90%.
 - 의존성은 `requirements.lock.txt`로 설치된다(재현성). 의존성 변경 시 §3의 lock 재생성 절차를 따른다.
 - 게이트 램프 이력(R3→R7)은 `docs/archive/2026-06/` 참조.
 
@@ -279,7 +279,7 @@ SMOKE_INSTALL=1 SMOKE_RUN_HEALTH=1 tools/smoke_api.sh
 
 `requirements.txt` 전체 설치는 Streamlit/GUI 의존성까지 포함하므로, API 최소 검증만 필요할 때는 `requirements-smoke.txt` 경로를 우선 사용한다.
 
-> 테스트는 24개 파일/389 케이스로 SQL 안전성·Rate Limiter·입력 검증·캐시·DB 라우팅·인증/감사·SSE 스트리밍·webhook·AI 도구 스키마·대시보드 파서/KPI 등을 커버한다. (전체 목록은 `tests/` 참조)
+> 테스트는 29개 파일/489 케이스로 SQL 안전성·Rate Limiter·입력 검증·캐시·DB 라우팅·인증/감사·SSE 스트리밍·webhook·AI 도구(DB 백엔드)·집계 라우터·DB 유지보수(인덱스/ANALYZE/VACUUM)·UI 테마 헬퍼·대시보드 파서/KPI 등을 커버한다. (전체 목록은 `tests/` 참조)
 
 ---
 

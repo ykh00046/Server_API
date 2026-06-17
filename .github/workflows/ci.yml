@@ -64,5 +64,7 @@ jobs:
       # Baseline 2026-06-10: 71% -> floor 66. Raised 2026-06-15 to 72 after
       # dead-code removal (coverage-blindspots-v1, ->75%) + source expansion
       # (coverage-source-expansion: +dashboard _parsing.py). -3pp runner margin.
+      # Raised 2026-06-17 to 88 after coverage-to-90 (DB-backed AI tools +
+      # routers + db_maintenance + ui/theme tests, local ->90.4%). -2pp margin.
       - name: Pytest + coverage floor (CI-only)
-        run: python -m pytest tests/ -q --cov --cov-report=term --cov-fail-under=72
+        run: python -m pytest tests/ -q --cov --cov-report=term --cov-fail-under=88
