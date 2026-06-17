@@ -106,20 +106,21 @@ def health_check():
     # v7: API Cache stats
     status["cache"] = get_cache_stats()
 
-    # Disk space check
+    # Disk space check: statvfs on POSIX, shutil.disk_usage on Windows.
+    # (Previously the shutil fallback sat in an `except` guarded by
+    # `hasattr(os, 'statvfs')`, so on Windows it was dead code and
+    # disk_free_gb was silently never set. Branch explicitly instead.)
     try:
-        disk_stat = os.statvfs(str(DATABASE_DIR)) if hasattr(os, 'statvfs') else None
-        if disk_stat:
+        if hasattr(os, "statvfs"):
+            disk_stat = os.statvfs(str(DATABASE_DIR))
             free_gb = (disk_stat.f_frsize * disk_stat.f_bavail) / (1024**3)
             status["disk_free_gb"] = round(free_gb, 2)
-    except (AttributeError, OSError):
-        # Windows doesn't have statvfs, use shutil
-        try:
+        else:
             import shutil
-            total, used, free = shutil.disk_usage(str(DATABASE_DIR))
+            free = shutil.disk_usage(str(DATABASE_DIR)).free
             status["disk_free_gb"] = round(free / (1024**3), 2)
-        except (OSError, ValueError) as e:
-            logger.debug("disk_usage fallback failed: %s", e)
+    except (AttributeError, OSError, ValueError) as e:
+        logger.debug("disk space check failed: %s", e)
 
     return status
 
