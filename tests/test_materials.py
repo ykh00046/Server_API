@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 import shared.config as cfg
 from api.main import app
-from api.materials import store
+from api.materials import automation, runs, store
 from api.materials.schemas import MaterialRow
 
 
@@ -205,3 +205,96 @@ class TestRouter:
     def test_get_missing_returns_404(self, client):
         r = client.get("/materials/NOPE")
         assert r.status_code == 404
+
+
+# ==========================================================
+# Run history + manual automation trigger (materials-run-v1)
+# ==========================================================
+class _InlineThread:
+    """Run the thread target inline (deterministic, no real background thread)."""
+
+    def __init__(self, target, args=(), **kw):
+        self._target, self._args = target, args
+
+    def start(self):
+        self._target(*self._args)
+
+
+class TestRunsHistory:
+    def test_backup_records_run(self, client):
+        client.post("/materials/backup", json={"rows": [_row("DOC-1"), _row("DOC-2")]})
+        r = client.get("/materials/runs")
+        assert r.status_code == 200
+        body = r.json()
+        assert len(body) == 1
+        run = body[0]
+        assert run["kind"] == "backup"
+        assert run["status"] == "success"
+        assert (run["rows"], run["inserted"], run["updated"]) == (2, 2, 0)
+
+    def test_runs_kind_filter_and_get(self, materials_db):
+        runs.record_backup_run(1, 1, 0)
+        rid = runs.start_run("automation")
+        runs.finish_run(rid, "success", exit_code=0, message="ok")
+        autos = runs.list_runs(kind="automation")
+        assert [r.kind for r in autos] == ["automation"]
+        assert runs.get_run(rid).status == "success"
+        assert runs.get_run(99999) is None
+
+
+class TestTrigger:
+    def test_disabled_by_default(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "MATERIALS_RUN_ENABLED", False)
+        r = client.post("/materials/run")
+        assert r.status_code == 409
+        assert "MATERIALS_RUN_ENABLED" in r.json()["detail"]
+
+    def test_trigger_runs_and_records(self, client, monkeypatch, tmp_path):
+        # Enable, point bot dir at a dummy (avoids submodule dependency), and
+        # run the worker inline with a faked subprocess (exit 0).
+        bot = tmp_path / "bot"
+        bot.mkdir()
+        (bot / "main.py").write_text("# dummy")
+        monkeypatch.setattr(cfg, "MATERIALS_RUN_ENABLED", True)
+        monkeypatch.setattr(cfg, "MATERIALS_BOT_DIR", bot)
+        monkeypatch.setattr(automation.threading, "Thread", _InlineThread)
+        monkeypatch.setattr(automation, "_run_subprocess",
+                            lambda python, bot_dir: (0, "완료"))
+        r = client.post("/materials/run")
+        assert r.status_code == 200
+        run_id = r.json()["run_id"]
+        got = client.get(f"/materials/runs/{run_id}")
+        assert got.status_code == 200
+        run = got.json()
+        assert run["kind"] == "automation"
+        assert run["status"] == "success"
+        assert run["exit_code"] == 0
+
+    def test_trigger_failure_recorded(self, client, monkeypatch, tmp_path):
+        bot = tmp_path / "bot"
+        bot.mkdir()
+        (bot / "main.py").write_text("# dummy")
+        monkeypatch.setattr(cfg, "MATERIALS_RUN_ENABLED", True)
+        monkeypatch.setattr(cfg, "MATERIALS_BOT_DIR", bot)
+        monkeypatch.setattr(automation.threading, "Thread", _InlineThread)
+        monkeypatch.setattr(automation, "_run_subprocess",
+                            lambda python, bot_dir: (1, "에러"))
+        run_id = client.post("/materials/run").json()["run_id"]
+        run = client.get(f"/materials/runs/{run_id}").json()
+        assert run["status"] == "failed"
+        assert run["exit_code"] == 1
+
+    def test_concurrent_run_blocked(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "MATERIALS_RUN_ENABLED", True)
+        # A pre-existing 'running' automation blocks a new trigger.
+        runs.start_run("automation")
+        r = client.post("/materials/run")
+        assert r.status_code == 409
+        assert "이미 실행 중" in r.json()["detail"]
+
+    def test_missing_bot_entrypoint(self, client, monkeypatch, tmp_path):
+        monkeypatch.setattr(cfg, "MATERIALS_RUN_ENABLED", True)
+        monkeypatch.setattr(cfg, "MATERIALS_BOT_DIR", tmp_path / "nope")
+        r = client.post("/materials/run")
+        assert r.status_code == 409
+        assert "봇 진입점" in r.json()["detail"]
