@@ -137,6 +137,14 @@ WEBHOOK_USER_AGENT = os.getenv("WEBHOOK_USER_AGENT", "Server_API-Webhook/1.0")
 WEBHOOK_MAX_PAYLOAD_BYTES = int(os.getenv("WEBHOOK_MAX_PAYLOAD_BYTES", 65536))
 
 # ==========================================================
+# Material Requests intake (materials-api-v1)
+# ==========================================================
+# Separate DB file (materials.db) keeps webcloring-pdf 자재요청 backup data out
+# of production_analysis.db (ERP-rewritten) and notifications.db. Replaces the
+# prior Google Sheets backup target — see webcloring-pdf ApiBackupManager.
+MATERIALS_DB_FILE = DATABASE_DIR / "materials.db"
+
+# ==========================================================
 # Webhook Async Dispatch (webhook-async-dispatch-v2)
 # ==========================================================
 WEBHOOK_MAX_ATTEMPTS = int(os.getenv("WEBHOOK_MAX_ATTEMPTS", 5))

@@ -41,7 +41,7 @@ from ._http_helpers import (  # noqa: F401
     _validate_length,
 )
 from .notifications.worker import WebhookDispatchWorker
-from .routers import notifications, records, summary, system
+from .routers import materials, notifications, records, summary, system
 
 # ==========================================================
 # Logging Setup
@@ -91,6 +91,7 @@ app.include_router(system.router)
 app.include_router(records.router)
 app.include_router(summary.router)
 app.include_router(notifications.router)
+app.include_router(materials.router)
 
 
 # ==========================================================
