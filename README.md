@@ -54,23 +54,46 @@ pip freeze > requirements.lock.txt
 ```
 
 ### 4. 환경 변수 설정
-`.env` 파일 생성:
+`.env` 파일 생성(전체 항목은 `.env.example` 참조):
 ```env
 GEMINI_API_KEY=your_gemini_api_key_here
 DASHBOARD_PORT=8502
 API_PORT=8000
+
+# 자재 백업 수동 실행(materials-run-v1) — 대시보드 "지금 실행" 버튼.
+# 기본 false(웹에서 봇 프로세스 기동은 opt-in). true일 때만 동작.
+MATERIALS_RUN_ENABLED=false
+# (선택) 봇 디렉토리/파이썬 경로 — 미설정 시 repo의 webcloring-pdf + 현재 파이썬.
+# MATERIALS_BOT_DIR=
+# MATERIALS_BOT_PYTHON=
 ```
 
 ---
 
 ## 실행
 
-### 방법 1: Manager GUI (권장)
+### 방법 1: 헤드리스 — `start.bat` / `stop.bat` (운용 PC 권장)
+
+GUI 없이 24시간 켜두는 운용 PC용. **더블클릭만으로** API + 대시보드 기동:
+
+| 스크립트 | 동작 |
+|---|---|
+| `start.bat` | API(8000) + Dashboard(8502)를 최소화 창으로 실행 (로그 확인 가능) |
+| `stop.bat` | 8000/8502 포트 점유 프로세스 종료 |
+| `start_hidden.vbs` | 창 없이 백그라운드 실행 (부팅 자동 시작용 — 시작프로그램에 바로가기) |
+
+- 접속: 대시보드 http://localhost:8502 (좌측 **자재요청**), API 문서 http://localhost:8000/docs
+- 자재 데이터는 webcloring-pdf 봇이 자동화 종료 시 `POST /materials/backup`으로 전송(문서번호 upsert). 대시보드 **자재요청** 페이지에서 목록·실행 이력·CSV/Excel 다운로드(기존 Excel과 동일 레이아웃).
+- **봇 수동 실행**: 대시보드 **"지금 실행"** 버튼(`MATERIALS_RUN_ENABLED=true` 필요) 또는 봇에서 `python main.py --auto`(1회) / `--schedule`(예약). 상세는 [운영 매뉴얼 §11 자재 백업](docs/specs/operations_manual.md).
+
+### 방법 2: Manager GUI
+
+시스템 트레이 통합 관리 GUI (API/대시보드/워처 버튼 제어):
 ```bash
 python manager.py
 ```
 
-### 방법 2: 개별 실행
+### 방법 3: 개별 실행 (수동)
 ```bash
 # API 서버
 python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
@@ -78,10 +101,8 @@ python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
 # Dashboard
 python -m streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port 8502
 
-# DB Watcher (단발 실행)
+# DB Watcher (단발 실행 / 데몬 모드 1시간 간격)
 python tools/watcher.py
-
-# DB Watcher (데몬 모드, 1시간 간격)
 python tools/watcher.py --daemon --interval 3600
 ```
 
@@ -117,6 +138,11 @@ python tools/watcher.py --daemon --interval 3600
 | GET | `/summary/by_item` | 제품별 집계 |
 | GET | `/summary/monthly_by_item` | 제품별 월별 집계 |
 | POST | `/chat/` | AI 자연어 쿼리 |
+| POST | `/materials/backup` | 자재요청 백업 수신 (문서번호 upsert, webcloring-pdf 봇 → 서버) |
+| GET | `/materials` | 자재요청 목록 (문서번호 날짜 기준, 요청부서·날짜 필터) |
+| GET | `/materials/{doc_number}` | 자재요청 단건 조회 |
+| POST | `/materials/run` | 봇 자동화 수동 실행 (opt-in, `MATERIALS_RUN_ENABLED`) |
+| GET | `/materials/runs` | 백업/실행 이력 |
 | GET | `/healthz` | 서버 상태 확인 |
 | GET | `/healthz/ai` | AI API 상태 확인 |
 
@@ -202,12 +228,13 @@ Server_API/
 │   ├── _chat_stream.py      # /chat/stream SSE 스트리밍
 │   ├── _session_store.py    # 멀티턴 세션 저장소
 │   ├── _audit.py            # 접근 감사 로그
-│   ├── routers/             # records / summary / system / notifications
+│   ├── routers/             # records / summary / system / notifications / materials
 │   ├── tools/               # AI 도구 7개 (items / summary / custom)
-│   └── notifications/       # Webhook 비동기 디스패치 (큐+backoff worker)
+│   ├── notifications/       # Webhook 비동기 디스패치 (큐+backoff worker)
+│   └── materials/           # 자재요청 수신 (store/runs/automation, materials.db, 문서번호 upsert)
 ├── dashboard/
 │   ├── app.py               # Streamlit 진입점 (st.navigation, 사이드바 필터)
-│   ├── views/               # 페이지 (overview/trends/batches/products/webhooks)
+│   ├── views/               # 페이지 (overview/trends/batches/products/webhooks/materials)
 │   │                        #   ※ "pages/"가 아님 — 콜드 딥링크 v1 라우팅 회피 (nav-routing-fix-v1)
 │   └── components/          # kpi_cards / charts / ai_section / _parsing / layout / presets ...
 ├── shared/
@@ -226,7 +253,7 @@ Server_API/
 │   ├── db_watcher.py        # manager 내장 워처 스레드
 │   ├── create_indexes.py    # 인덱스 생성 (REQUIRED_INDEXES SSOT 참조)
 │   └── backup_db.py         # DB 안전 백업 (mtime 안정화 후 실행)
-├── tests/                   # 29개 파일, 489 테스트
+├── tests/                   # 30개 파일, 517 테스트
 ├── webcloring-pdf/          # ⮑ git submodule (INTEROJO 포털 자동화, 별도 repo)
 ├── database/                # DB 파일 및 백업 (gitignore)
 ├── docs/                    # PDCA 문서 (01-plan ~ 04-report, archive)
@@ -241,7 +268,7 @@ Server_API/
 ## 테스트
 
 ```bash
-pytest tests/ -v        # 29개 파일, 489 테스트
+pytest tests/ -v        # 30개 파일, 517 테스트
 ```
 
 ### CI (GitHub Actions)
@@ -279,7 +306,7 @@ SMOKE_INSTALL=1 SMOKE_RUN_HEALTH=1 tools/smoke_api.sh
 
 `requirements.txt` 전체 설치는 Streamlit/GUI 의존성까지 포함하므로, API 최소 검증만 필요할 때는 `requirements-smoke.txt` 경로를 우선 사용한다.
 
-> 테스트는 29개 파일/489 케이스로 SQL 안전성·Rate Limiter·입력 검증·캐시·DB 라우팅·인증/감사·SSE 스트리밍·webhook·AI 도구(DB 백엔드)·집계 라우터·DB 유지보수(인덱스/ANALYZE/VACUUM)·UI 테마 헬퍼·대시보드 파서/KPI 등을 커버한다. (전체 목록은 `tests/` 참조)
+> 테스트는 30개 파일/517 케이스로 SQL 안전성·Rate Limiter·입력 검증·캐시·DB 라우팅·인증/감사·SSE 스트리밍·webhook·AI 도구(DB 백엔드)·집계 라우터·DB 유지보수(인덱스/ANALYZE/VACUUM)·UI 테마 헬퍼·자재 백업(upsert·문서번호 날짜·실행 트리거)·대시보드 파서/KPI 등을 커버한다. (전체 목록은 `tests/` 참조)
 
 ---
 
@@ -302,6 +329,7 @@ python tools/backup_db.py --cleanup
 
 | 버전 | 날짜 | 변경사항 |
 |------|------|----------|
+| v10 | 2026-06 | 자재 백업 Google Sheets → Server_API 전환(`/materials`, 문서번호 upsert), 대시보드 "자재요청" 페이지(엑셀 레이아웃 리스트 + CSV/Excel 다운로드 + 실행 상태/이력 + "지금 실행" 트리거, opt-in), 커버리지 측정 확장(floor 88) |
 | v9 | 2026-06 | CI 파이프라인(GitHub Actions) + py3.12 정본 venv + lock 고정, 대시보드 블루/슬레이트 네이티브 테마, 콜드 딥링크 라우팅 픽스, flaky 제거(RateLimiter clock 주입), 커버리지 측정 확장(floor 72), ruff 게이트 B/SIM/E501 램프, webcloring-pdf submodule 분리 |
 | v8 | 2026-02-26 | AI 도구 2개 추가 (compare_periods, get_item_history), DB ANALYZE 자동화 |
 | v7 | 2026-01-23 | 성능 개선 (GZip, ORJSONResponse, TTLCache, Cursor Pagination, Thread-local 연결) |

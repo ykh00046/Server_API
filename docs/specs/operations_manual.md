@@ -18,6 +18,7 @@
 8. [연말 Archive 전환 절차](#8-연말-archive-전환-절차)
 9. [설정 변경](#9-설정-변경)
 10. [정기 점검 체크리스트](#10-정기-점검-체크리스트)
+11. [자재 백업 운영 (materials-api-v1)](#11-자재-백업-운영-materials-api-v1)
 
 ---
 
@@ -754,3 +755,90 @@ python scripts/perf_smoke.py --url http://localhost:8000 --path /healthz --n 100
 
 - 이 스모크는 CI 에 편입되지 않는다 (과도한 시간 소모 및 서버 기동 의존).
 - 회귀 관측에 사용할 때만 리눅스 운영 환경과 수치 비교.
+
+---
+
+## 11. 자재 백업 운영 (materials-api-v1)
+
+INTEROJO 포털 자재요청을 webcloring-pdf 봇이 스크랩 → Excel → **Server_API
+(`/materials/backup`)** 로 백업한다(구 Google Sheets 대체). 운용 PC는 GUI 없이
+24시간 켜두므로, 모니터링·이력·수동 실행은 **대시보드**로 처리한다.
+
+### 11.1 구성
+
+```
+[webcloring-pdf 봇]  --(자동화 종료 시 POST)-->  [API /materials/backup]  -->  materials.db
+        │                                              │
+   main.py --auto/--schedule                     [Dashboard "자재요청"]  (목록/이력/다운로드/지금 실행)
+```
+
+- 데이터 저장: `database/materials.db` (운영 DB와 분리). 문서번호(doc_number) 기준 upsert.
+- 날짜 기준: **문서번호 앞 8자리(YYYYMMDD)** = `doc_date`. 정렬·필터가 이 값 기준(스크랩 시각 아님).
+
+### 11.2 시작 / 중지 (헤드리스)
+
+루트의 배치 스크립트로 GUI 없이 시작/중지한다(봇은 봇 PC/세션에서 별도).
+
+| 스크립트 | 동작 |
+|---|---|
+| `start.bat` | API(8000) + Dashboard(8502)를 최소화 창으로 실행 (더블클릭) |
+| `stop.bat` | 8000/8502 포트 점유 프로세스 종료 |
+| `start_hidden.vbs` | 창 없이 백그라운드 실행 (부팅 자동 시작: 시작프로그램에 바로가기 등록) |
+
+내부적으로는 아래 두 명령과 동일하다(수동 실행 시):
+
+```bash
+python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
+python -m streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port 8502
+```
+
+대시보드 좌측 **자재요청** 페이지:
+- 상단: 마지막 실행 상태 카드, **"지금 실행"**/**"새로고침"** 버튼, **실행 이력** 펼치기
+- 본문: 자재요청 목록(기존 Excel과 동일한 한글 헤더·순서) + **CSV / Excel 다운로드**
+- 필터: 요청부서, 문서번호 날짜 범위
+
+### 11.3 봇 실행 방법
+
+| 방법 | 명령/조작 | 설명 |
+|---|---|---|
+| 1회 수동(콘솔) | `python main.py --auto` | 스크랩→Excel→백업 1회 (헤드리스) |
+| 예약 | `python main.py --schedule` | 매일 지정 시간 (`AUTO_ENABLED=true` 필요) |
+| 대시보드 트리거 | "지금 실행" 버튼 | 같은 PC에서 API가 `main.py --auto` 백그라운드 기동 |
+| GUI | `python main.py` (인자 없음) | 봇 GUI (운용 PC에서는 비권장) |
+
+### 11.4 대시보드 "지금 실행" 활성화 (선택)
+
+웹에서 봇 프로세스를 띄우는 기능이라 **기본 비활성**. 켜려면 API 서버 환경에:
+
+```env
+MATERIALS_RUN_ENABLED=true
+# uvicorn 파이썬에 봇 deps(selenium 등)가 없으면 봇 venv 파이썬 지정:
+# MATERIALS_BOT_PYTHON=C:\path\to\webcloring-pdf\.venv\Scripts\python.exe
+# 봇 위치가 repo의 webcloring-pdf 가 아니면:
+# MATERIALS_BOT_DIR=C:\path\to\webcloring-pdf
+```
+
+- 봇 쪽 `src/config/api_backup_settings.json` 에 `base_url`(예: `http://localhost:8000`) + `enabled=true` 가 설정돼 있어야 봇이 실제로 백업을 POST 한다(봇 GUI "API 백업" 창 또는 파일 직접 편집).
+- `MATERIALS_RUN_ENABLED` 가 false 면 "지금 실행"은 409(비활성)로 안전하게 거부된다. **목록·이력·다운로드는 설정과 무관하게 항상 동작**.
+
+### 11.5 확인 / 점검
+
+```bash
+# 최근 백업/실행 이력
+curl http://localhost:8000/materials/runs?limit=10
+
+# 자재요청 목록(문서번호 날짜 기준)
+curl "http://localhost:8000/materials?date_from=2026-06-01"
+```
+
+- "실행했는지"는 `GET /materials/runs` 또는 대시보드 상태 카드로 확인(kind=backup/automation, status=success/failed).
+- 봇 측 마지막 백업 시각·성공/실패 수: `src/config/api_backup_settings.json`, 실패 로그: `src/logs/backup_failures.log`.
+
+### 11.6 장애 대응
+
+| 증상 | 확인 | 조치 |
+|---|---|---|
+| 대시보드 목록 비어있음 | 봇이 백업을 보냈는가(`/materials/runs`) | 봇 `--auto` 실행, `api_backup_settings.json` base_url/enabled 확인 |
+| "지금 실행" 409(비활성) | `MATERIALS_RUN_ENABLED` | API 서버 env 에 true 설정 후 재기동 |
+| "지금 실행" 후 status=failed | run 의 `message`/exit_code, 봇 `automation.log` | `MATERIALS_BOT_PYTHON`(봇 deps 포함 venv) 지정, Chrome/Selenium 환경 확인 |
+| "이미 실행 중" 409 | 이전 자동화 미완료 | 완료 대기 또는 봇 프로세스 종료 후 재시도 |
