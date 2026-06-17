@@ -66,3 +66,52 @@ def test_last_access_updates_on_get():
     sstore.get_session_history("sid1", "1.1.1.1")
     second = sstore._sessions["sid1"]["last_access"]
     assert second > first
+
+
+def test_save_noop_without_session_id():
+    sstore.save_session_history(None, ["a"], "1.1.1.1")
+    assert sstore._sessions == {}
+
+
+def test_stats_shape():
+    sstore.save_session_history("sid1", ["a"], "1.1.1.1")
+    s = sstore.stats()
+    assert s["count"] == 1
+    assert {"ttl_sec", "max_per_ip", "max_total"} <= set(s)
+
+
+# ----------------------------------------------------------
+# cleanup_expired_sessions
+# ----------------------------------------------------------
+def test_cleanup_skips_until_interval():
+    sstore.save_session_history("sid1", ["a"], "1.1.1.1")
+    # Counter below interval -> early return, nothing removed.
+    sstore._cleanup_counter = 0
+    sstore.cleanup_expired_sessions()
+    assert "sid1" in sstore._sessions
+
+
+def test_cleanup_removes_expired(monkeypatch):
+    monkeypatch.setattr(sstore, "SESSION_TTL", 1)
+    sstore.save_session_history("old", ["a"], "1.1.1.1")
+    sstore.save_session_history("fresh", ["b"], "1.1.1.1")
+    # Age out "old" only.
+    sstore._sessions["old"]["last_access"] = time.time() - 100
+    # Trip the interval gate so cleanup actually runs this call.
+    sstore._cleanup_counter = sstore.SESSION_CLEANUP_INTERVAL - 1
+    sstore.cleanup_expired_sessions()
+    assert "old" not in sstore._sessions
+    assert "fresh" in sstore._sessions
+
+
+def test_cleanup_enforces_global_cap(monkeypatch):
+    monkeypatch.setattr(sstore, "SESSION_MAX_COUNT", 2)
+    monkeypatch.setattr(sstore, "SESSION_TTL", 10_000)  # keep all "fresh"
+    for i in range(5):
+        sstore.save_session_history(f"s{i}", [i], "1.1.1.1")
+        sstore._sessions[f"s{i}"]["last_access"] = time.time() + i  # s0 oldest
+    sstore._cleanup_counter = sstore.SESSION_CLEANUP_INTERVAL - 1
+    sstore.cleanup_expired_sessions()
+    # Trimmed down to the global cap, oldest dropped first.
+    assert len(sstore._sessions) == 2
+    assert "s0" not in sstore._sessions
