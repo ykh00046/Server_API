@@ -71,6 +71,9 @@ pages = {
         st.Page("views/batches.py", title="배치 내역", icon=":material/list_alt:"),
         st.Page("views/products.py", title="제품별 분석", icon=":material/inventory_2:"),
     ],
+    "자재": [
+        st.Page("views/materials.py", title="자재요청", icon=":material/receipt_long:"),
+    ],
     "운영": [
         st.Page("views/webhooks.py", title="Webhook 관리", icon=":material/notifications:"),
     ],
