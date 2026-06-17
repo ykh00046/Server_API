@@ -5,12 +5,14 @@ prior Google Sheets backup). Public surface is the `store` facade + schemas.
 """
 from __future__ import annotations
 
-from . import store
+from . import automation, runs, store
 from .schemas import (
     BackupResult,
     MaterialBackupRequest,
     MaterialPublic,
     MaterialRow,
+    MaterialRun,
+    RunTriggerResult,
 )
 
 __all__ = [
@@ -18,5 +20,9 @@ __all__ = [
     "MaterialBackupRequest",
     "MaterialPublic",
     "MaterialRow",
+    "MaterialRun",
+    "RunTriggerResult",
+    "automation",
+    "runs",
     "store",
 ]

@@ -37,6 +37,29 @@ class BackupResult(BaseModel):
     updated: int
 
 
+class MaterialRun(BaseModel):
+    """A backup or automation run record (materials-run-v1)."""
+
+    id: int
+    kind: str          # 'backup' | 'automation'
+    status: str        # 'running' | 'success' | 'failed'
+    started_at: str
+    finished_at: str | None = None
+    rows: int | None = None
+    inserted: int | None = None
+    updated: int | None = None
+    exit_code: int | None = None
+    message: str | None = None
+
+
+class RunTriggerResult(BaseModel):
+    """Response of POST /materials/run."""
+
+    run_id: int
+    status: str
+    message: str
+
+
 class MaterialPublic(MaterialRow):
     """Stored row enriched with server-derived fields.
 

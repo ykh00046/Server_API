@@ -8,6 +8,7 @@ Environment variables can override default values.
 
 import logging
 import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -143,6 +144,16 @@ WEBHOOK_MAX_PAYLOAD_BYTES = int(os.getenv("WEBHOOK_MAX_PAYLOAD_BYTES", 65536))
 # of production_analysis.db (ERP-rewritten) and notifications.db. Replaces the
 # prior Google Sheets backup target — see webcloring-pdf ApiBackupManager.
 MATERIALS_DB_FILE = DATABASE_DIR / "materials.db"
+
+# Manual automation trigger (materials-run-v1): the dashboard "지금 실행" button
+# spawns the webcloring-pdf 포털 자동화 (`main.py --auto`) on the SAME ops PC.
+# Disabled by default — spawning a process from a web request is opt-in.
+MATERIALS_RUN_ENABLED = os.getenv("MATERIALS_RUN_ENABLED", "0") not in {
+    "0", "false", "False", "no", "off", ""
+}
+# webcloring-pdf 디렉토리(기본: repo의 submodule)와 실행 파이썬(기본: 현재 인터프리터).
+MATERIALS_BOT_DIR = Path(os.getenv("MATERIALS_BOT_DIR", str(BASE_DIR / "webcloring-pdf")))
+MATERIALS_BOT_PYTHON = os.getenv("MATERIALS_BOT_PYTHON", sys.executable)
 
 # ==========================================================
 # Webhook Async Dispatch (webhook-async-dispatch-v2)

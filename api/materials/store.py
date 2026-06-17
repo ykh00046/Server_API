@@ -120,6 +120,23 @@ def _ensure_schema(conn: sqlite3.Connection, path: Path) -> None:
                 ON material_requests(request_dept);
             CREATE INDEX IF NOT EXISTS idx_material_doc_date
                 ON material_requests(doc_date DESC);
+
+            CREATE TABLE IF NOT EXISTS material_runs (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                kind         TEXT NOT NULL,        -- 'backup' | 'automation'
+                status       TEXT NOT NULL,        -- 'running' | 'success' | 'failed'
+                started_at   TEXT NOT NULL,
+                finished_at  TEXT,
+                rows         INTEGER,
+                inserted     INTEGER,
+                updated      INTEGER,
+                exit_code    INTEGER,
+                message      TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_material_runs_started
+                ON material_runs(started_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_material_runs_active
+                ON material_runs(kind, status);
             """
         )
         # Idempotent migration: add doc_date to DBs created before the
