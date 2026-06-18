@@ -12,7 +12,7 @@ import sqlite3
 import threading
 import time
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 
 from shared import (
     ARCHIVE_DB_FILE,
@@ -25,6 +25,7 @@ from shared import (
 from shared.metrics import performance_monitor
 
 from .. import _session_store as _sstore
+from ..notifications.metrics import render_prometheus
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -60,6 +61,19 @@ def metrics_cache():
         "api_cache": get_cache_stats(),
         "performance": performance_monitor.get_all_stats(),
     }
+
+
+@router.get(
+    "/metrics",
+    response_class=Response,
+    responses={200: {"content": {"text/plain": {}}}},
+)
+def metrics_prometheus() -> Response:
+    """Prometheus-compatible snapshot of webhook operational metrics."""
+    return Response(
+        content=render_prometheus(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
 
 
 @router.get("/healthz")

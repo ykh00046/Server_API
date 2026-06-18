@@ -21,6 +21,7 @@ env/
 *.db-shm
 *.db-wal
 database/.watcher_state.json
+database/.anomaly_state.json
 
 # Local agent / PDCA state
 .agents/

@@ -145,6 +145,7 @@ python tools/watcher.py --daemon --interval 3600
 | GET | `/materials/runs` | 백업/실행 이력 |
 | GET | `/healthz` | 서버 상태 확인 |
 | GET | `/healthz/ai` | AI API 상태 확인 |
+| GET | `/metrics` | Prometheus 호환 webhook 운영 메트릭 (인증 활성화 시 보호) |
 
 ### 주요 쿼리 파라미터 (`/records`)
 

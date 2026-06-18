@@ -185,3 +185,27 @@ def _load_archive_whitelist() -> tuple[Path, ...]:
 
 
 ARCHIVE_DB_WHITELIST: tuple[Path, ...] = _load_archive_whitelist()
+
+# ==========================================================
+# Anomaly Detection (anomaly-detection-v1)
+# ==========================================================
+# 생산 데이터를 주기 스캔해 급감/급증/장시간 미생산을 규칙 기반으로 탐지하고,
+# 신규 이상만 기존 webhook emit_event 로 비동기 발행한다. 스캔은 read-only.
+ANOMALY_ENABLED = os.getenv("ANOMALY_ENABLED", "1") not in {
+    "0", "false", "False", "no", "off", ""
+}
+# 후행 평균 기준선 산출에 사용할 일수(직전 완료일 제외, 그 이전 N일).
+ANOMALY_BASELINE_DAYS = int(os.getenv("ANOMALY_BASELINE_DAYS", 14))
+# 후행 평균 대비 하락/상승 비율(%) 임계치. 경계값(>=)에서 발동.
+ANOMALY_DROP_PCT = float(os.getenv("ANOMALY_DROP_PCT", 50.0))
+ANOMALY_SPIKE_PCT = float(os.getenv("ANOMALY_SPIKE_PCT", 100.0))
+# 활성 품목이 이 일수 이상 미생산이면 stale 로 판정.
+ANOMALY_STALE_DAYS = int(os.getenv("ANOMALY_STALE_DAYS", 7))
+# 기준선이 이 값 미만이면 급감/급증 판정을 건너뛴다(0 나눗셈·노이즈 방지).
+ANOMALY_MIN_BASELINE_QTY = float(os.getenv("ANOMALY_MIN_BASELINE_QTY", 1.0))
+# 동일 이상(key) 재발행 억제 쿨다운(초). 기본 24시간.
+ANOMALY_COOLDOWN_SEC = int(os.getenv("ANOMALY_COOLDOWN_SEC", 86400))
+# 스케줄 러너 데몬 기본 주기(초). 기본 1시간.
+ANOMALY_SCAN_INTERVAL_SEC = int(os.getenv("ANOMALY_SCAN_INTERVAL_SEC", 3600))
+# 쿨다운/마지막 스캔 시각을 저장하는 상태파일.
+ANOMALY_STATE_FILE = DATABASE_DIR / ".anomaly_state.json"

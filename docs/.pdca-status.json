@@ -1,9 +1,19 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-06-10T00:00:00.000Z",
+  "lastUpdated": "2026-06-19T00:00:00.000Z",
   "activeFeatures": [],
-  "primaryFeature": "coverage-blindspots-v2",
+  "primaryFeature": "webhook-metrics-v1",
   "features": {
+    "webhook-metrics-v1": {
+      "phase": "report",
+      "status": "completed",
+      "startedAt": "2026-06-19",
+      "completedAt": "2026-06-19",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "note": "Prometheus-compatible webhook metrics endpoint. 6 feature tests, 538 full-suite tests, 91.11% coverage, ruff clean."
+    },
     "coverage-blindspots-v2": {
       "phase": "archived",
       "status": "completed",
@@ -147,6 +157,14 @@
   },
   "history": [
     {
+      "feature": "webhook-metrics-v1",
+      "completedAt": "2026-06-19",
+      "matchRate": 100,
+      "iterations": 0,
+      "qa": "PASS",
+      "note": "Read-only webhook metrics snapshot + Prometheus /metrics; fixed-cardinality labels and existing auth policy."
+    },
+    {
       "feature": "coverage-blindspots-v2",
       "completedAt": "2026-06-15",
       "matchRate": 100,
@@ -154,6 +172,7 @@
       "qa": "PASS",
       "note": "kpi_cards 순수함수 측정 88% + watcher state test-only. 순수도가 측정 단위를 가름. 389 green, floor 72 유지"
     },
+    {
       "feature": "R7-ruff-e501-ramp",
       "completedAt": "2026-06-15",
       "matchRate": 100,
@@ -161,6 +180,7 @@
       "qa": "PASS",
       "note": "E501 게이트 추가. code/ascii ~45건 래핑(SQL concat 공백보존), 한글/JSON 문자열 파일 per-file-ignore. ruff format 미도입(blame 보존). 376 green"
     },
+    {
       "feature": "R6-ruff-bugbear-sim-ramp",
       "completedAt": "2026-06-15",
       "matchRate": 100,
@@ -168,6 +188,7 @@
       "qa": "PASS",
       "note": "ruff B+SIM 게이트 확장. B025 실버그 발견(db_maintenance 도달불가 except→Exception), SIM105 contextlib.suppress 17건. 376 green"
     },
+    {
       "feature": "coverage-source-expansion",
       "completedAt": "2026-06-15",
       "matchRate": 100,
