@@ -25,6 +25,7 @@ import asyncio
 import json
 import time
 from collections.abc import AsyncIterator
+from dataclasses import dataclass, field
 
 from fastapi.responses import StreamingResponse
 from google.genai import types
@@ -52,6 +53,33 @@ ERR_RATE_LIMITED = "rate_limited"
 ERR_INTERNAL = "internal"
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class _StreamOpenResult:
+    stream: object | None
+    model: str
+    fallback_used: bool = False
+    error_frame: str | None = None
+
+
+@dataclass
+class _StreamState:
+    full_text_parts: list[str] = field(default_factory=list)
+    tools_emitted: list[tuple[str, dict]] = field(default_factory=list)
+    token_buffer: list[str] = field(default_factory=list)
+    last_token_time: float = 0.0
+    first_token_sent: bool = False
+    failed: bool = False
+
+    def flush_buffer(self) -> str | None:
+        """Flush accumulated token text as one SSE frame."""
+        if not self.token_buffer:
+            return None
+        merged = "".join(self.token_buffer)
+        self.full_text_parts.append(merged)
+        self.token_buffer.clear()
+        return _sse("token", {"text": merged})
 
 
 def _sse(event: str, data: dict) -> str:
@@ -85,6 +113,131 @@ async def _iter_with_heartbeat(
             yield None  # heartbeat signal
 
 
+async def _open_model_stream(client_obj, contents, config, request_id, start) -> _StreamOpenResult:
+    """Open the primary model stream and use the configured fallback when eligible."""
+    try:
+        stream = await client_obj.aio.models.generate_content_stream(
+            model=GEMINI_MODEL, contents=contents, config=config,
+        )
+        return _StreamOpenResult(stream=stream, model=GEMINI_MODEL)
+    except (ClientError, ServerError) as error:
+        if not (GEMINI_FALLBACK_ENABLED and is_fallbackable(error)):
+            duration_ms = (time.perf_counter() - start) * 1000
+            logger.exception(
+                f"[ChatStream Error] request_id={request_id} | "
+                f"error={type(error).__name__}: {error} | duration_ms={duration_ms:.1f}"
+            )
+            return _StreamOpenResult(
+                stream=None,
+                model=GEMINI_MODEL,
+                error_frame=_sse("error", {"code": ERR_MODEL_ERROR, "message": str(error)[:500]}),
+            )
+
+        logger.warning(
+            f"[ChatStream Fallback] request_id={request_id} | "
+            f"{GEMINI_MODEL} → {GEMINI_FALLBACK_MODEL} | trigger={error}"
+        )
+        try:
+            stream = await client_obj.aio.models.generate_content_stream(
+                model=GEMINI_FALLBACK_MODEL, contents=contents, config=config,
+            )
+            return _StreamOpenResult(stream, GEMINI_FALLBACK_MODEL, fallback_used=True)
+        except Exception as fallback_error:  # noqa: BLE001 — provider SDK boundary
+            duration_ms = (time.perf_counter() - start) * 1000
+            logger.error(
+                f"[ChatStream Fallback Failed] request_id={request_id} | "
+                f"error={fallback_error} | duration_ms={duration_ms:.1f}"
+            )
+            return _StreamOpenResult(
+                stream=None,
+                model=GEMINI_FALLBACK_MODEL,
+                fallback_used=True,
+                error_frame=_sse(
+                    "error", {"code": ERR_MODEL_ERROR, "message": str(fallback_error)[:500]}
+                ),
+            )
+
+
+def _tool_calls_from_chunk(chunk) -> list[tuple[str, dict]]:
+    """Extract function calls from a provider chunk, tolerating malformed args."""
+    tool_calls: list[tuple[str, dict]] = []
+    for candidate in getattr(chunk, "candidates", None) or []:
+        content = getattr(candidate, "content", None)
+        for part in getattr(content, "parts", None) or []:
+            function_call = getattr(part, "function_call", None)
+            if not function_call or not getattr(function_call, "name", None):
+                continue
+            try:
+                args = dict(function_call.args) if getattr(function_call, "args", None) else {}
+            except (TypeError, ValueError):
+                args = {}
+            tool_calls.append((function_call.name, args))
+    return tool_calls
+
+
+def _frames_from_chunk(chunk, state: _StreamState, buffer_flush_sec: float) -> list[str]:
+    """Convert one provider chunk into ordered tool-call and token SSE frames."""
+    frames: list[str] = []
+    for name, args in _tool_calls_from_chunk(chunk):
+        state.tools_emitted.append((name, args))
+        frames.append(_sse("tool_call", {"name": name, "args": args}))
+
+    text = getattr(chunk, "text", None)
+    if not text:
+        return frames
+    now = time.perf_counter()
+    if not state.first_token_sent:
+        state.full_text_parts.append(text)
+        frames.append(_sse("token", {"text": text}))
+        state.first_token_sent = True
+        state.last_token_time = now
+        return frames
+
+    state.token_buffer.append(text)
+    if now - state.last_token_time >= buffer_flush_sec:
+        flushed = state.flush_buffer()
+        if flushed:
+            frames.append(flushed)
+        state.last_token_time = now
+    return frames
+
+
+async def _consume_stream(stream, state, request_id, start) -> AsyncIterator[str]:
+    """Consume the provider stream and translate it to SSE frames."""
+    buffer_flush_sec = STREAM_BUFFER_FLUSH_MS / 1000.0
+    try:
+        async with asyncio.timeout(STREAM_TIMEOUT_SEC):
+            async for chunk in _iter_with_heartbeat(stream, STREAM_HEARTBEAT_SEC):
+                if chunk is None:
+                    flushed = state.flush_buffer()
+                    if flushed:
+                        yield flushed
+                    yield ": heartbeat\n\n"
+                    continue
+                for frame in _frames_from_chunk(chunk, state, buffer_flush_sec):
+                    yield frame
+    except TimeoutError:
+        state.failed = True
+        duration_ms = (time.perf_counter() - start) * 1000
+        partial_chars = sum(len(part) for part in state.full_text_parts)
+        logger.warning(
+            f"[ChatStream Timeout] request_id={request_id} | "
+            f"partial_chars={partial_chars} | duration_ms={duration_ms:.1f}"
+        )
+        yield _sse(
+            "error",
+            {"code": ERR_TIMEOUT, "message": f"스트리밍 시간 초과 ({int(STREAM_TIMEOUT_SEC)}초)"},
+        )
+    except Exception as error:  # noqa: BLE001 — SSE provider boundary
+        state.failed = True
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.exception(
+            f"[ChatStream Error] request_id={request_id} | "
+            f"error={type(error).__name__}: {error} | duration_ms={duration_ms:.1f}"
+        )
+        yield _sse("error", {"code": ERR_INTERNAL, "message": str(error)[:500]})
+
+
 async def run_stream(
     query: str,
     session_id: str | None,
@@ -113,152 +266,43 @@ async def run_stream(
     query_preview = query[:100] + ("..." if len(query) > 100 else "")
     logger.info(f"[ChatStream Start] request_id={request_id} | query='{query_preview}'")
 
-    # Attempt primary model, fallback on 429/503
-    model_to_use = GEMINI_MODEL
-    fallback_used = False
     config = types.GenerateContentConfig(
         system_instruction=system_instruction,
         tools=PRODUCTION_TOOLS,
     )
-
-    try:
-        stream = await client_obj.aio.models.generate_content_stream(
-            model=model_to_use, contents=contents, config=config,
-        )
-    except (ClientError, ServerError) as e:
-        if GEMINI_FALLBACK_ENABLED and is_fallbackable(e):
-            model_to_use = GEMINI_FALLBACK_MODEL
-            fallback_used = True
-            logger.warning(
-                f"[ChatStream Fallback] request_id={request_id} | "
-                f"{GEMINI_MODEL} → {GEMINI_FALLBACK_MODEL} | trigger={e}"
-            )
-            try:
-                stream = await client_obj.aio.models.generate_content_stream(
-                    model=model_to_use, contents=contents, config=config,
-                )
-            except Exception as fb_err:  # noqa: BLE001 — SSE stream 내 fallback 실패 시 에러 이벤트 송출 후 종료
-                duration_ms = (time.perf_counter() - start) * 1000
-                logger.error(
-                    f"[ChatStream Fallback Failed] request_id={request_id} | error={fb_err} | "
-                    f"duration_ms={duration_ms:.1f}"
-                )
-                yield _sse("error", {"code": ERR_MODEL_ERROR, "message": str(fb_err)[:500]})
-                return
-        else:
-            duration_ms = (time.perf_counter() - start) * 1000
-            logger.exception(
-                f"[ChatStream Error] request_id={request_id} | "
-                f"error={type(e).__name__}: {e} | duration_ms={duration_ms:.1f}"
-            )
-            yield _sse("error", {"code": ERR_MODEL_ERROR, "message": str(e)[:500]})
-            return
+    opened = await _open_model_stream(client_obj, contents, config, request_id, start)
+    if opened.error_frame:
+        yield opened.error_frame
+        return
+    stream = opened.stream
 
     yield _sse("meta", {
         "request_id": request_id,
         "session_id": session_id,
-        "model": model_to_use,
-        "fallback": fallback_used,
+        "model": opened.model,
+        "fallback": opened.fallback_used,
     })
 
-    full_text_parts: list[str] = []
-    tools_emitted: list[tuple[str, dict]] = []
-
-    # Token buffering state
-    token_buffer: list[str] = []
-    last_token_time: float = 0.0
-    first_token_sent = False
-    buffer_flush_sec = STREAM_BUFFER_FLUSH_MS / 1000.0
-
-    def _flush_buffer():
-        """Flush accumulated token buffer as a single SSE event."""
-        if not token_buffer:
-            return None
-        merged = "".join(token_buffer)
-        full_text_parts.append(merged)
-        token_buffer.clear()
-        return _sse("token", {"text": merged})
-
-    try:
-        async with asyncio.timeout(STREAM_TIMEOUT_SEC):
-            async for chunk in _iter_with_heartbeat(stream, STREAM_HEARTBEAT_SEC):
-                if chunk is None:
-                    # Flush buffer before heartbeat
-                    flushed = _flush_buffer()
-                    if flushed:
-                        yield flushed
-                    yield ": heartbeat\n\n"
-                    continue
-
-                # 1) tool_call emission (duplicates allowed)
-                candidates = getattr(chunk, "candidates", None) or []
-                for cand in candidates:
-                    content = getattr(cand, "content", None)
-                    parts = getattr(content, "parts", None) or []
-                    for p in parts:
-                        fc = getattr(p, "function_call", None)
-                        if fc and getattr(fc, "name", None):
-                            try:
-                                args = dict(fc.args) if getattr(fc, "args", None) else {}
-                            except (TypeError, ValueError):
-                                args = {}
-                            tools_emitted.append((fc.name, args))
-                            yield _sse("tool_call", {"name": fc.name, "args": args})
-
-                # 2) token emission with buffering
-                text = getattr(chunk, "text", None)
-                if text:
-                    now = time.perf_counter()
-                    if not first_token_sent:
-                        # First token: emit immediately for TTFT
-                        full_text_parts.append(text)
-                        yield _sse("token", {"text": text})
-                        first_token_sent = True
-                        last_token_time = now
-                    else:
-                        token_buffer.append(text)
-                        elapsed = now - last_token_time
-                        if elapsed >= buffer_flush_sec:
-                            flushed = _flush_buffer()
-                            if flushed:
-                                yield flushed
-                            last_token_time = now
-
-    except TimeoutError:
-        duration_ms = (time.perf_counter() - start) * 1000
-        partial_chars = sum(len(p) for p in full_text_parts)
-        logger.warning(
-            f"[ChatStream Timeout] request_id={request_id} | "
-            f"partial_chars={partial_chars} | duration_ms={duration_ms:.1f}"
-        )
-        yield _sse(
-            "error",
-            {"code": ERR_TIMEOUT, "message": f"스트리밍 시간 초과 ({int(STREAM_TIMEOUT_SEC)}초)"},
-        )
-        return
-    except Exception as e:  # noqa: BLE001 — SSE top-level: 어떤 예외도 stream을 죽이지 않고 error 이벤트로 송출
-        duration_ms = (time.perf_counter() - start) * 1000
-        logger.exception(
-            f"[ChatStream Error] request_id={request_id} | "
-            f"error={type(e).__name__}: {e} | duration_ms={duration_ms:.1f}"
-        )
-        yield _sse("error", {"code": ERR_INTERNAL, "message": str(e)[:500]})
+    state = _StreamState()
+    async for frame in _consume_stream(stream, state, request_id, start):
+        yield frame
+    if state.failed:
         return
 
     # Flush remaining buffer after stream ends
-    flushed = _flush_buffer()
+    flushed = state.flush_buffer()
     if flushed:
         yield flushed
 
     duration_ms = (time.perf_counter() - start) * 1000
-    full_text = "".join(full_text_parts)
+    full_text = "".join(state.full_text_parts)
 
     # Persist session only on successful completion
     if session_id and full_text:
         model_content = types.Content(role="model", parts=[types.Part.from_text(text=full_text)])
         _sstore.save_session_history(session_id, history + [user_content, model_content], client_ip)
 
-    tool_names = [name for name, _ in tools_emitted]
+    tool_names = [name for name, _ in state.tools_emitted]
     logger.info(
         f"[ChatStream Done] request_id={request_id} | tools={tool_names} | "
         f"chars={len(full_text)} | duration_ms={duration_ms:.1f}"

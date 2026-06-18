@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from api.main import app
 from api.routers import system as system_router
+from api.routers.records import RecordsFilters, _build_records_filters
 
 
 # ==========================================================
@@ -167,6 +168,60 @@ class TestRecordsRouter:
         rows = r.json()
         assert len(rows) == 1
         assert rows[0]["record_count"] == 3
+
+
+# ==========================================================
+# _build_records_filters: WHERE/params builder (pure, no DB)
+# c901-complexity-refactor-v1 — clause/param order must be preserved
+# ==========================================================
+class TestBuildRecordsFilters:
+    def test_empty_filters_no_where(self):
+        where, params = _build_records_filters(RecordsFilters(), None, None, None)
+        assert where == []
+        assert params == []
+
+    def test_item_code(self):
+        where, params = _build_records_filters(
+            RecordsFilters(item_code="BW0021"), None, None, None
+        )
+        assert where == ["item_code = ?"]
+        assert params == ["BW0021"]
+
+    def test_search_q_expands_to_three_params(self):
+        where, params = _build_records_filters(RecordsFilters(q="green"), None, None, None)
+        assert len(where) == 1
+        assert "LIKE" in where[0]
+        assert len(params) == 3  # item_code / item_name / lot_number
+
+    def test_quantity_range(self):
+        where, params = _build_records_filters(
+            RecordsFilters(min_quantity=100, max_quantity=500), None, None, None
+        )
+        assert where == ["good_quantity >= ?", "good_quantity <= ?"]
+        assert params == [100, 500]
+
+    def test_dates_use_normalized_values_not_raw(self):
+        # The builder consumes the normalized dates passed by the route,
+        # not the raw model fields.
+        where, params = _build_records_filters(
+            RecordsFilters(date_from="2026-03-01"), "2026-03-01", "2026-04-02", None
+        )
+        assert "production_date >= ?" in where
+        assert "production_date < ?" in where
+        assert "2026-03-01" in params
+        assert "2026-04-02" in params
+
+    def test_cursor_clause_six_params(self):
+        cursor_data = {"d": "2026-05-01", "src": "live", "id": 42}
+        where, params = _build_records_filters(RecordsFilters(), None, None, cursor_data)
+        assert len(where) == 1
+        assert params == ["2026-05-01", "2026-05-01", "live", "2026-05-01", "live", 42]
+
+    def test_combined_order_preserved(self):
+        f = RecordsFilters(item_code="BW0021", min_quantity=10)
+        where, params = _build_records_filters(f, "2026-01-01", None, None)
+        assert where == ["item_code = ?", "production_date >= ?", "good_quantity >= ?"]
+        assert params == ["BW0021", "2026-01-01", 10]
 
 
 # ==========================================================

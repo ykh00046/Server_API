@@ -5,6 +5,7 @@ from api.tools import (
     _validate_custom_query_params,
     execute_custom_query,
 )
+from api.tools.custom import _validate_custom_query_sql
 
 
 class TestStripSqlComments:
@@ -133,6 +134,53 @@ class TestExecuteCustomQueryValidation:
                 assert "forbidden" not in result["message"].lower(), (
                     f"False positive on: {sql}"
                 )
+
+
+class TestValidateCustomQuerySql:
+    """_validate_custom_query_sql helper (c901-complexity-refactor-v1).
+
+    Extracted from execute_custom_query; returns an error message string on
+    the first violation or None when valid. Order/messages must match the
+    original inline checks.
+    """
+
+    def test_valid_returns_none(self):
+        sql = "SELECT * FROM production_records LIMIT 10"
+        assert _validate_custom_query_sql(sql, sql.upper()) is None
+
+    def test_semicolon_message(self):
+        sql = "SELECT 1 FROM production_records; DROP TABLE x"
+        msg = _validate_custom_query_sql(sql, sql.upper())
+        assert msg is not None
+        assert "semicolon" in msg.lower()
+
+    def test_non_select_message(self):
+        sql = "DELETE FROM production_records"
+        msg = _validate_custom_query_sql(sql, sql.upper())
+        assert msg is not None
+        assert "SELECT" in msg
+
+    def test_forbidden_keyword_message(self):
+        sql = "SELECT PRAGMA FROM production_records"
+        msg = _validate_custom_query_sql(sql, sql.upper())
+        assert msg is not None
+        assert "PRAGMA" in msg
+
+    def test_forbidden_substring_message(self):
+        sql = "SELECT load_extension('x') FROM production_records"
+        msg = _validate_custom_query_sql(sql, sql.upper())
+        assert msg is not None
+        assert "LOAD_EXTENSION" in msg
+
+    def test_table_reference_message(self):
+        sql = "SELECT 1 FROM users"
+        msg = _validate_custom_query_sql(sql, sql.upper())
+        assert msg is not None
+        assert "production_records" in msg
+
+    def test_word_boundary_no_false_positive(self):
+        sql = "SELECT last_updated FROM production_records LIMIT 1"
+        assert _validate_custom_query_sql(sql, sql.upper()) is None
 
 
 class TestValidateCustomQueryParams:

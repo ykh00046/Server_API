@@ -5,6 +5,8 @@ Gemini SDK requires actual type hints, not stringified ones.
 """
 
 import re
+import sqlite3
+import threading
 from typing import Any
 
 from shared import (
@@ -50,6 +52,96 @@ def _validate_custom_query_params(params) -> tuple:
     return tuple(params)
 
 
+def _validate_custom_query_sql(sql_clean: str, sql_upper: str) -> str | None:
+    """Validate a comment-stripped custom SQL string against the read-only policy.
+
+    Returns an error message string on the first violation, or None if the
+    query passes. Rule order is preserved from the original inline checks so
+    that error messages (asserted by tests as substrings) stay identical.
+    """
+    # Validation 1: No semicolons (prevent multi-statement execution)
+    if ";" in sql_clean:
+        return "Multiple statements are not allowed (semicolon detected)."
+
+    # Validation 2: SELECT only (checked after comment stripping)
+    if not sql_upper.startswith("SELECT"):
+        return "Only SELECT queries are allowed."
+
+    # Validation 3: No dangerous keywords (extra safety layer)
+    # Word-boundary check prevents false positives (e.g. LAST_UPDATED matching UPDATE)
+    _forbidden_words = [
+        "DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "TRUNCATE",
+        "CREATE", "REPLACE", "PRAGMA", "ATTACH", "DETACH", "VACUUM", "REINDEX",
+        "EXECUTE", "SYSTEM", "SCRIPT", "JAVASCRIPT", "EVAL",
+    ]
+    _forbidden_substrings = ["LOAD_EXTENSION", "SQLITE_", "EXEC("]
+    for word in _forbidden_words:
+        if re.search(r'\b' + word + r'\b', sql_upper):
+            return f"Forbidden keyword detected: {word}"
+    for pat in _forbidden_substrings:
+        if pat in sql_upper:
+            return f"Forbidden keyword detected: {pat}"
+
+    # Validation 4: Must reference production_records
+    if "PRODUCTION_RECORDS" not in sql_upper:
+        return "Query must reference 'production_records' table."
+
+    return None
+
+
+def _run_query_with_timeout(
+    conn: sqlite3.Connection,
+    sql_clean: str,
+    bound_params: tuple,
+    timeout_sec: float,
+) -> dict[str, Any]:
+    """Run a query on a daemon thread, enforcing a wall-clock timeout.
+
+    Returns {"rows", "columns", "error", "timed_out"}. On success or SQL error
+    the connection is closed here. On timeout the query is interrupted and the
+    connection is left for GC — the daemon thread may still be inside a
+    C-level fetchall(), so an explicit close() would race (M-NEW-1,
+    custom-query-thread-safety).
+    """
+    result: dict[str, Any] = {
+        "rows": [], "columns": [], "error": None, "timed_out": False,
+    }
+
+    def run_query(connection):
+        try:
+            cursor = connection.execute(sql_clean, bound_params)
+            rows = cursor.fetchall()
+            result["rows"] = [dict(r) for r in rows]
+            result["columns"] = (
+                [desc[0] for desc in cursor.description]
+                if cursor.description else []
+            )
+        except sqlite3.Error as e:  # noqa: BLE001 — Gemini tool boundary: 모든 예외를 error로 변환 (LLM 계약)
+            result["error"] = str(e)
+            logger.exception("[custom_query] run_query failed")
+
+    # daemon=True: if run_query gets stuck past timeout + 1s grace, the
+    # thread must not keep the Python process alive.
+    thread = threading.Thread(target=run_query, args=(conn,), daemon=True)
+    thread.start()
+    thread.join(timeout=timeout_sec)
+
+    if thread.is_alive():
+        conn.interrupt()  # Cancel the running SQLite query
+        thread.join(timeout=1.0)
+        # Do NOT close conn here — run_query may still be in C-level
+        # fetchall(). Daemon thread exits with process; GC releases conn.
+        logger.warning(
+            f"[custom_query] timeout after {timeout_sec}s; "
+            f"leaked connection pending GC (daemon thread still alive)"
+        )
+        result["timed_out"] = True
+        return result
+
+    conn.close()
+    return result
+
+
 def execute_custom_query(
     sql: str,
     params: list[str] | None = None,
@@ -86,9 +178,6 @@ def execute_custom_query(
                WHERE item_code = ? GROUP BY lot_number ORDER BY qty DESC LIMIT 10"
           params=["ABC001"]
     """
-    import sqlite3
-    import threading
-
     from shared.config import (
         CUSTOM_QUERY_TIMEOUT_SEC,
         DB_FILE,
@@ -111,47 +200,10 @@ def execute_custom_query(
         sql_clean = _strip_sql_comments(sql.strip())
         sql_upper = sql_clean.upper()
 
-        # Validation 1: No semicolons (prevent multi-statement execution)
-        if ";" in sql_clean:
-            return {
-                "status": "error",
-                "message": "Multiple statements are not allowed (semicolon detected)."
-            }
-
-        # Validation 2: SELECT only (checked after comment stripping)
-        if not sql_upper.startswith("SELECT"):
-            return {
-                "status": "error",
-                "message": "Only SELECT queries are allowed."
-            }
-
-        # Validation 3: No dangerous keywords (extra safety layer)
-        # Word-boundary check prevents false positives (e.g. LAST_UPDATED matching UPDATE)
-        _forbidden_words = [
-            "DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "TRUNCATE",
-            "CREATE", "REPLACE", "PRAGMA", "ATTACH", "DETACH", "VACUUM", "REINDEX",
-            "EXECUTE", "SYSTEM", "SCRIPT", "JAVASCRIPT", "EVAL",
-        ]
-        _forbidden_substrings = ["LOAD_EXTENSION", "SQLITE_", "EXEC("]
-        for word in _forbidden_words:
-            if re.search(r'\b' + word + r'\b', sql_upper):
-                return {
-                    "status": "error",
-                    "message": f"Forbidden keyword detected: {word}"
-                }
-        for pat in _forbidden_substrings:
-            if pat in sql_upper:
-                return {
-                    "status": "error",
-                    "message": f"Forbidden keyword detected: {pat}"
-                }
-
-        # Validation 4: Must reference production_records
-        if "PRODUCTION_RECORDS" not in sql_upper:
-            return {
-                "status": "error",
-                "message": "Query must reference 'production_records' table."
-            }
+        # Validations 1-4: semicolon / SELECT-only / forbidden keywords / table ref
+        validation_error = _validate_custom_query_sql(sql_clean, sql_upper)
+        if validation_error:
+            return {"status": "error", "message": validation_error}
 
         # Add LIMIT if not present
         if "LIMIT" not in sql_upper:
@@ -165,7 +217,6 @@ def execute_custom_query(
         ) as ql:
             ql.add_info("description", description or "custom query")
 
-            # Execute with timeout (CUSTOM_QUERY_TIMEOUT_SEC).
             # Dedicated connection required for conn.interrupt() — cannot use thread-local cache.
             # Apply PRAGMA settings so custom queries get same perf as regular API queries.
             # check_same_thread=False: conn is created on the main thread but
@@ -190,38 +241,12 @@ def execute_custom_query(
                         "message": f"Invalid archive DB: {e}",
                     }
 
-            result = {"rows": [], "error": None}
+            # Execute with timeout (CUSTOM_QUERY_TIMEOUT_SEC).
+            result = _run_query_with_timeout(
+                conn, sql_clean, bound_params, CUSTOM_QUERY_TIMEOUT_SEC
+            )
 
-            def run_query(connection):
-                try:
-                    cursor = connection.execute(sql_clean, bound_params)
-                    rows = cursor.fetchall()
-                    result["rows"] = [dict(r) for r in rows]
-                    result["columns"] = (
-                        [desc[0] for desc in cursor.description]
-                        if cursor.description else []
-                    )
-                except sqlite3.Error as e:  # noqa: BLE001 — Gemini tool boundary: 모든 예외를 error로 변환 (LLM 계약)
-                    result["error"] = str(e)
-                    logger.exception("[custom_query] run_query failed")
-
-            # daemon=True: if run_query gets stuck past timeout + 1s grace, the
-            # thread must not keep the Python process alive. Connection is left
-            # for GC rather than explicit close() to avoid a cross-thread
-            # close/execute race (M-NEW-1, custom-query-thread-safety).
-            thread = threading.Thread(target=run_query, args=(conn,), daemon=True)
-            thread.start()
-            thread.join(timeout=CUSTOM_QUERY_TIMEOUT_SEC)
-
-            if thread.is_alive():
-                conn.interrupt()  # Cancel the running SQLite query
-                thread.join(timeout=1.0)
-                # Do NOT close conn here — run_query may still be in C-level
-                # fetchall(). Daemon thread exits with process; GC releases conn.
-                logger.warning(
-                    f"[custom_query] timeout after {CUSTOM_QUERY_TIMEOUT_SEC}s; "
-                    f"leaked connection pending GC (daemon thread still alive)"
-                )
+            if result["timed_out"]:
                 return {
                     "status": "error",
                     "code": "QUERY_TIMEOUT",
@@ -230,8 +255,6 @@ def execute_custom_query(
                         "Please simplify your query."
                     )
                 }
-
-            conn.close()
 
             if result["error"]:
                 ql.set_row_count(0)

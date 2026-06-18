@@ -308,6 +308,17 @@ def test_stream_tool_call_duplicate_allowed(client, monkeypatch):
     assert done_events[0]["tools_used"] == ["get_production_summary", "get_production_summary"]
 
 
+def test_stream_malformed_tool_args_become_empty_object(client, monkeypatch):
+    """Malformed provider args must not terminate the SSE stream."""
+    malformed = _FakePart(function_call=_FakeFunctionCall("get_production_summary", object()))
+    _patch_client(monkeypatch, chunks=[_FakeChunk(parts=[malformed]), _FakeChunk(text="ok")])
+    response = client.post("/chat/stream", json={"query": "summary?"})
+    events = _parse_sse(response.text)
+    tool_events = [json.loads(data) for event, data in events if event == "tool_call"]
+    assert tool_events == [{"name": "get_production_summary", "args": {}}]
+    assert events[-1][0] == "done"
+
+
 # S1: heartbeat on slow stream
 def test_stream_heartbeat_emitted(client, monkeypatch):
     """Heartbeat comment emitted when chunk interval exceeds STREAM_HEARTBEAT_SEC."""

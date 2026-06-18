@@ -8,9 +8,10 @@ from __future__ import annotations
 import base64
 import binascii
 import json
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Query
+from pydantic import BaseModel, Field
 
 from shared import (
     ARCHIVE_DB_FILE,
@@ -46,55 +47,59 @@ def _decode_cursor(cursor: str) -> dict | None:
         return None
 
 
-@router.get("/records")
-def get_records(
-    item_code: str | None = Query(default=None, max_length=50, description="Item code filter"),
-    q: str | None = Query(default=None, max_length=100, description="Search query"),
-    lot_number: str | None = Query(
+class RecordsFilters(BaseModel):
+    """Query parameters for GET /records.
+
+    Modeled as a Pydantic dependency so the route signature stays small
+    (FastAPI 0.115+ flattens each field back into an individual query
+    parameter — the HTTP/OpenAPI contract is unchanged).
+    """
+
+    item_code: str | None = Field(default=None, max_length=50, description="Item code filter")
+    q: str | None = Field(default=None, max_length=100, description="Search query")
+    lot_number: str | None = Field(
         default=None, max_length=50, description="Lot number prefix filter (e.g., LT2026)"
-    ),
-    date_from: str | None = Query(default=None, description="YYYY-MM-DD (inclusive)"),
-    date_to: str | None = Query(default=None, description="YYYY-MM-DD (inclusive)"),
-    min_quantity: int | None = Query(default=None, ge=0, description="Minimum good_quantity"),
-    max_quantity: int | None = Query(default=None, ge=0, description="Maximum good_quantity"),
-    limit: int = Query(default=1000, ge=1, le=5000),
-    offset: int = Query(default=0, ge=0, description="Deprecated: Use cursor instead"),
-    cursor: str | None = Query(default=None, description="v7: Cursor for pagination (base64 JSON)"),
-):
+    )
+    date_from: str | None = Field(default=None, description="YYYY-MM-DD (inclusive)")
+    date_to: str | None = Field(default=None, description="YYYY-MM-DD (inclusive)")
+    min_quantity: int | None = Field(default=None, ge=0, description="Minimum good_quantity")
+    max_quantity: int | None = Field(default=None, ge=0, description="Maximum good_quantity")
+    limit: int = Field(default=1000, ge=1, le=5000)
+    offset: int = Field(default=0, ge=0, description="Deprecated: Use cursor instead")
+    cursor: str | None = Field(
+        default=None, description="v7: Cursor for pagination (base64 JSON)"
+    )
+
+
+def _build_records_filters(
+    f: RecordsFilters,
+    date_from_n: str | None,
+    date_to_n: str | None,
+    cursor_data: dict | None,
+) -> tuple[list[str], list[Any]]:
+    """Build the WHERE clauses and bind params for /records from filters.
+
+    Normalized dates and decoded cursor are passed in (the route owns date
+    normalization and cursor decoding). Clause/param order is preserved.
     """
-    Query production records with filters.
-    Automatically routes to Archive/Live DB based on date range.
-
-    v7 Enhancement:
-    - Cursor-based pagination (recommended for large datasets)
-    - offset is deprecated but still supported for backward compatibility
-    - Input validation for length constraints and date range
-    """
-    date_from_n = _normalize_date(date_from)
-    date_to_n = _normalize_date(date_to, add_days=1)
-
-    _validate_date_range(date_from_n, date_to_n if not date_to_n else date_to)
-
-    targets = DBRouter.pick_targets(date_from_n, date_to_n)
-
-    where = []
+    where: list[str] = []
     params: list[Any] = []
 
-    if item_code:
+    if f.item_code:
         where.append("item_code = ?")
-        params.append(item_code)
+        params.append(f.item_code)
 
-    if q:
-        like = f"%{escape_like_wildcards(q)}%"
+    if f.q:
+        like = f"%{escape_like_wildcards(f.q)}%"
         where.append(
             "(item_code LIKE ? ESCAPE '\\' OR item_name LIKE ? ESCAPE '\\' "
             "OR lot_number LIKE ? ESCAPE '\\')"
         )
         params.extend([like, like, like])
 
-    if lot_number:
+    if f.lot_number:
         where.append("lot_number LIKE ? ESCAPE '\\'")
-        params.append(f"{escape_like_wildcards(lot_number)}%")
+        params.append(f"{escape_like_wildcards(f.lot_number)}%")
 
     if date_from_n:
         where.append("production_date >= ?")
@@ -104,71 +109,76 @@ def get_records(
         where.append("production_date < ?")
         params.append(date_to_n)
 
-    if min_quantity is not None:
+    if f.min_quantity is not None:
         where.append("good_quantity >= ?")
-        params.append(min_quantity)
+        params.append(f.min_quantity)
 
-    if max_quantity is not None:
+    if f.max_quantity is not None:
         where.append("good_quantity <= ?")
-        params.append(max_quantity)
+        params.append(f.max_quantity)
 
-    cursor_data = None
-    if cursor:
-        cursor_data = _decode_cursor(cursor)
-        if cursor_data:
-            where.append(
-                "(production_date < ? OR "
-                "(production_date = ? AND source < ?) OR "
-                "(production_date = ? AND source = ? AND id < ?))"
-            )
-            params.extend([
-                cursor_data["d"],
-                cursor_data["d"], cursor_data["src"],
-                cursor_data["d"], cursor_data["src"], cursor_data["id"]
-            ])
+    if cursor_data:
+        where.append(
+            "(production_date < ? OR "
+            "(production_date = ? AND source < ?) OR "
+            "(production_date = ? AND source = ? AND id < ?))"
+        )
+        params.extend([
+            cursor_data["d"],
+            cursor_data["d"], cursor_data["src"],
+            cursor_data["d"], cursor_data["src"], cursor_data["id"]
+        ])
+
+    return where, params
+
+
+@router.get("/records")
+def get_records(filters: Annotated[RecordsFilters, Query()]):
+    """
+    Query production records with filters.
+    Automatically routes to Archive/Live DB based on date range.
+
+    v7 Enhancement:
+    - Cursor-based pagination (recommended for large datasets)
+    - offset is deprecated but still supported for backward compatibility
+    - Input validation for length constraints and date range
+    """
+    date_from_n = _normalize_date(filters.date_from)
+    date_to_n = _normalize_date(filters.date_to, add_days=1)
+
+    _validate_date_range(date_from_n, date_to_n if not date_to_n else filters.date_to)
+
+    targets = DBRouter.pick_targets(date_from_n, date_to_n)
+
+    cursor_data = _decode_cursor(filters.cursor) if filters.cursor else None
+    where, params = _build_records_filters(filters, date_from_n, date_to_n, cursor_data)
 
     where_clause = " AND ".join(where) if where else "1=1"
-
     select_columns = "id, production_date, lot_number, item_code, item_name, good_quantity"
 
     with QueryLogger("records", targets, logger) as ql:
-        sort_order = "production_date DESC, source DESC, id DESC"
-
-        if cursor_data:
-            sql, params_doubled = DBRouter.build_union_sql(
-                select_columns=select_columns,
-                where_clause=where_clause,
-                targets=targets,
-                order_by=sort_order,
-                limit=limit + 1,
-                include_source=True
+        sql, _ = DBRouter.build_union_sql(
+            select_columns=select_columns,
+            where_clause=where_clause,
+            targets=targets,
+            order_by="production_date DESC, source DESC, id DESC",
+            limit=filters.limit + 1,
+            include_source=True
+        )
+        # offset is deprecated and ignored when a cursor is supplied (matches
+        # the original cursor branch, which never appended OFFSET).
+        if not cursor_data and filters.offset > 0:
+            logger.warning(
+                f"[Deprecated] /records called with offset={int(filters.offset)} — "
+                f"use cursor pagination instead (cursor=...)"
             )
-            query_params = DBRouter.build_query_params(params, targets)
-            all_results = DBRouter.query(sql, query_params, use_archive=targets.use_archive)
+            sql += f" OFFSET {int(filters.offset)}"
 
-            has_more = len(all_results) > limit
-            results = all_results[:limit]
-        else:
-            if offset > 0:
-                logger.warning(
-                    f"[Deprecated] /records called with offset={int(offset)} — "
-                    f"use cursor pagination instead (cursor=...)"
-                )
-            sql, params_doubled = DBRouter.build_union_sql(
-                select_columns=select_columns,
-                where_clause=where_clause,
-                targets=targets,
-                order_by=sort_order,
-                limit=limit + 1,
-                include_source=True
-            )
-            if offset > 0:
-                sql += f" OFFSET {int(offset)}"
-            query_params = DBRouter.build_query_params(params, targets)
-            all_results = DBRouter.query(sql, query_params, use_archive=targets.use_archive)
+        query_params = DBRouter.build_query_params(params, targets)
+        all_results = DBRouter.query(sql, query_params, use_archive=targets.use_archive)
 
-            has_more = len(all_results) > limit
-            results = all_results[:limit]
+        has_more = len(all_results) > filters.limit
+        results = all_results[:filters.limit]
 
         ql.set_row_count(len(results))
 
