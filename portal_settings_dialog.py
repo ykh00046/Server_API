@@ -6,61 +6,18 @@ CustomTkinter dialog for editing webcloring-pdf/.env settings
 directly from the ServerManager. No dependency on webcloring-pdf code.
 
 Security Note:
-  Passwords are obfuscated (not encrypted) before storage.
-  For production use, consider using the 'keyring' library for proper encryption.
+  PORTAL_PASSWORD is stored in plaintext in webcloring-pdf/.env, because the
+  bot (webcloring-pdf settings.py) reads PORTAL_PASSWORD verbatim. The .env is
+  gitignored and never leaves the machine. Any obfuscation here would have to be
+  mirrored by the bot's reader, so the two MUST agree — previously they did not,
+  which silently corrupted the saved password. For real secret protection use
+  the 'keyring' library on BOTH sides.
 """
 
-import base64
-import binascii
 from pathlib import Path
 from tkinter import messagebox
 
 import customtkinter as ctk
-
-# ==========================================================
-# Simple Password Obfuscation (NOT encryption)
-# ==========================================================
-# For production: Use 'keyring' library instead
-# pip install keyring
-_OBFUSCATION_KEY = "PdHub2026"
-
-
-def _obfuscate_password(password: str) -> str:
-    """
-    Simple XOR-based obfuscation for password storage.
-    NOT secure encryption - just prevents plaintext storage.
-
-    For production use, replace with keyring library:
-        import keyring
-        keyring.set_password("ProductionDataHub", "portal", password)
-    """
-    if not password:
-        return ""
-    # XOR each character with the key (cycling)
-    result = []
-    for i, char in enumerate(password):
-        key_char = _OBFUSCATION_KEY[i % len(_OBFUSCATION_KEY)]
-        result.append(chr(ord(char) ^ ord(key_char)))
-    # Base64 encode for safe storage
-    return base64.b64encode("".join(result).encode()).decode()
-
-
-def _deobfuscate_password(obfuscated: str) -> str:
-    """Reverse the obfuscation to retrieve password."""
-    if not obfuscated:
-        return ""
-    try:
-        # Base64 decode
-        decoded = base64.b64decode(obfuscated.encode()).decode()
-        # XOR reverse
-        result = []
-        for i, char in enumerate(decoded):
-            key_char = _OBFUSCATION_KEY[i % len(_OBFUSCATION_KEY)]
-            result.append(chr(ord(char) ^ ord(key_char)))
-        return "".join(result)
-    except (binascii.Error, ValueError, UnicodeDecodeError):
-        # If deobfuscation fails, return as-is (backward compatibility)
-        return obfuscated
 
 
 # ==========================================================
@@ -126,12 +83,8 @@ class PortalSettingsDialog(ctk.CTkToplevel):
         self.transient(parent)
         self.grab_set()
 
-        # Load current values
+        # Load current values (PORTAL_PASSWORD is stored/read as plaintext)
         self.env_data = _read_env(self.env_path)
-
-        # Deobfuscate password for display
-        if "PORTAL_PASSWORD" in self.env_data:
-            self.env_data["PORTAL_PASSWORD"] = _deobfuscate_password(self.env_data["PORTAL_PASSWORD"])
 
         # Build UI
         self._build_ui()
@@ -255,7 +208,7 @@ class PortalSettingsDialog(ctk.CTkToplevel):
         updated = dict(self.env_data)  # preserve existing keys
 
         updated["PORTAL_USERNAME"] = username
-        updated["PORTAL_PASSWORD"] = _obfuscate_password(password)  # Obfuscate before storage
+        updated["PORTAL_PASSWORD"] = password  # plaintext — bot reads PORTAL_PASSWORD verbatim
         updated["SEARCH_KEYWORD"] = self.ent_keyword.get().strip() or "자재"
         updated["SEARCH_START_DATE"] = date_str or "2025.01.01"
         updated["DYNAMIC_FILTERING"] = str(bool(self.sw_dynamic.get()))
