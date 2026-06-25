@@ -91,7 +91,9 @@ app.include_router(system.router)
 app.include_router(records.router)
 app.include_router(summary.router)
 app.include_router(notifications.router)
-app.include_router(materials.router)
+# 데이터셋별 라우터 일괄 등록 (/materials 자재, /binder 액상바인더출고 …)
+for _materials_router in materials.ROUTERS:
+    app.include_router(_materials_router)
 app.include_router(anomaly.router)
 
 
