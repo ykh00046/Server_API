@@ -116,6 +116,58 @@ class TestStoreQuery:
 
 
 # ==========================================================
+# keyword (시간대별 멀티 프로필 크롤링 구분)
+# ==========================================================
+class TestKeyword:
+    def test_keyword_roundtrip(self, materials_db):
+        store.upsert_materials([MaterialRow(**_row("DOC-001", keyword="비품"))])
+        assert store.get_material("DOC-001").keyword == "비품"
+
+    def test_keyword_defaults_none(self, materials_db):
+        store.upsert_materials([MaterialRow(**_row("DOC-001"))])
+        assert store.get_material("DOC-001").keyword is None
+
+    def test_list_filters_by_keyword(self, materials_db):
+        store.upsert_materials([
+            MaterialRow(**_row("DOC-001", keyword="자재")),
+            MaterialRow(**_row("DOC-002", keyword="비품")),
+        ])
+        rows = store.list_materials(keyword="비품")
+        assert [r.doc_number for r in rows] == ["DOC-002"]
+
+
+# ==========================================================
+# 데이터셋 분리 (binder = 액상바인더출고, 별도 테이블/엔드포인트)
+# ==========================================================
+class TestBinderDataset:
+    def test_binder_table_isolated_from_materials(self, materials_db):
+        # 같은 doc_number라도 데이터셋이 다르면 서로 다른 테이블에 따로 저장.
+        store.upsert_materials(
+            [MaterialRow(**_row("DOC-1", reason="자재용"))], table="material_requests"
+        )
+        store.upsert_materials(
+            [MaterialRow(**_row("DOC-1", reason="바인더용"))], table="binder_requests"
+        )
+        assert store.get_material("DOC-1", table="material_requests").reason == "자재용"
+        assert store.get_material("DOC-1", table="binder_requests").reason == "바인더용"
+        assert store.count_materials(table="material_requests") == 1
+        assert store.count_materials(table="binder_requests") == 1
+
+    def test_binder_backup_endpoint(self, client):
+        r = client.post("/binder/backup", json={"rows": [_row("PB-1"), _row("PB-2")]})
+        assert r.status_code == 200
+        assert r.json()["upserted"] == 2
+        # /binder 목록에는 보이고 /materials 목록에는 안 보인다.
+        assert len(client.get("/binder").json()) == 2
+        assert client.get("/materials").json() == []
+
+    def test_binder_runs_isolated(self, client):
+        client.post("/binder/backup", json={"rows": [_row("PB-1")]})
+        assert len(client.get("/binder/runs").json()) == 1
+        assert client.get("/materials/runs").json() == []
+
+
+# ==========================================================
 # doc_date (문서번호 날짜 기준)
 # ==========================================================
 class TestDocDate:
@@ -259,7 +311,7 @@ class TestTrigger:
         monkeypatch.setattr(cfg, "MATERIALS_BOT_DIR", bot)
         monkeypatch.setattr(automation.threading, "Thread", _InlineThread)
         monkeypatch.setattr(automation, "_run_subprocess",
-                            lambda python, bot_dir: (0, "완료"))
+                            lambda python, bot_dir, keyword=None: (0, "완료"))
         r = client.post("/materials/run")
         assert r.status_code == 200
         run_id = r.json()["run_id"]
@@ -278,7 +330,7 @@ class TestTrigger:
         monkeypatch.setattr(cfg, "MATERIALS_BOT_DIR", bot)
         monkeypatch.setattr(automation.threading, "Thread", _InlineThread)
         monkeypatch.setattr(automation, "_run_subprocess",
-                            lambda python, bot_dir: (1, "에러"))
+                            lambda python, bot_dir, keyword=None: (1, "에러"))
         run_id = client.post("/materials/run").json()["run_id"]
         run = client.get(f"/materials/runs/{run_id}").json()
         assert run["status"] == "failed"
