@@ -73,6 +73,7 @@ pages = {
     ],
     "자재": [
         st.Page("views/materials.py", title="자재요청", icon=":material/receipt_long:"),
+        st.Page("views/binder.py", title="액상바인더출고", icon=":material/water_drop:"),
     ],
     "운영": [
         st.Page("views/webhooks.py", title="Webhook 관리", icon=":material/notifications:"),
