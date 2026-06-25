@@ -90,6 +90,77 @@ class TestStoreUpsert:
 
 
 # ==========================================================
+# 다품목 문서 (한 문서 = 여러 품목, (doc_number, seq) 복합키)
+# 회귀: 과거 doc_number 단독 PK가 품목을 마지막 1개로 뭉개던 버그
+# ==========================================================
+class TestMultiItemDocument:
+    def test_all_items_preserved(self, materials_db):
+        # 한 문서에 품목 3개 (순번 1,2,3) — 전부 저장되어야 한다.
+        rows = [
+            MaterialRow(**_row("20260101P227-0001", seq=1, material_name="품목A")),
+            MaterialRow(**_row("20260101P227-0001", seq=2, material_name="품목B")),
+            MaterialRow(**_row("20260101P227-0001", seq=3, material_name="품목C")),
+        ]
+        res = store.upsert_materials(rows)
+        assert (res.upserted, res.inserted, res.updated) == (3, 3, 0)
+        items = store.get_document("20260101P227-0001")
+        assert [i.seq for i in items] == [1, 2, 3]
+        assert [i.material_name for i in items] == ["품목A", "품목B", "품목C"]
+        assert store.count_materials() == 3
+
+    def test_reupsert_updates_per_item_not_collapse(self, materials_db):
+        base = [
+            MaterialRow(**_row("D-1", seq=1, reason="초안1")),
+            MaterialRow(**_row("D-1", seq=2, reason="초안2")),
+        ]
+        store.upsert_materials(base)
+        # 같은 문서 재전송 (한 품목 수정) → 행 수 유지, 해당 품목만 갱신.
+        again = [
+            MaterialRow(**_row("D-1", seq=1, reason="초안1")),
+            MaterialRow(**_row("D-1", seq=2, reason="수정2")),
+        ]
+        res = store.upsert_materials(again)
+        assert (res.upserted, res.inserted, res.updated) == (2, 0, 2)
+        items = store.get_document("D-1")
+        assert [i.reason for i in items] == ["초안1", "수정2"]
+        assert store.count_materials() == 2
+
+    def test_missing_seq_normalized_to_zero(self, materials_db):
+        store.upsert_materials([MaterialRow(**_row("D-9", seq=None))])
+        assert store.get_document("D-9")[0].seq == 0
+
+
+class TestLegacyMigration:
+    def test_legacy_single_pk_rebuilt_to_composite(self, materials_db):
+        import sqlite3
+        # 구 스키마(doc_number 단독 PK, keyword/doc_date 없음) 직접 생성 + 1행.
+        conn = sqlite3.connect(str(materials_db))
+        conn.executescript(
+            """
+            CREATE TABLE material_requests (
+                doc_number TEXT PRIMARY KEY, seq INTEGER, material_code TEXT,
+                material_name TEXT, request_qty_g TEXT, reason TEXT,
+                request_dept TEXT, drafter TEXT, processed_at TEXT,
+                received_at TEXT NOT NULL, updated_at TEXT NOT NULL
+            );
+            INSERT INTO material_requests VALUES
+                ('OLD-1', 5, 'C', '기존품목', '10', 'r', 'D팀', 'drf', 'p', 'n', 'n');
+            """
+        )
+        conn.commit()
+        conn.close()
+        store.reset_for_tests()  # 스키마 init 캐시 비우기 → 다음 호출 시 마이그레이션
+
+        # 구 PK였다면 같은 doc_number 추가가 충돌했을 것 — 이제 품목별로 쌓인다.
+        store.upsert_materials([
+            MaterialRow(**_row("OLD-1", seq=1, material_name="새품목1")),
+            MaterialRow(**_row("OLD-1", seq=2, material_name="새품목2")),
+        ])
+        items = store.get_document("OLD-1")
+        assert sorted(i.seq for i in items) == [1, 2, 5]  # 기존 보존 + 신규 추가
+
+
+# ==========================================================
 # store: query
 # ==========================================================
 class TestStoreQuery:
@@ -241,9 +312,10 @@ class TestRouter:
         r = client.get("/materials/20251127P001")
         assert r.status_code == 200
         body = r.json()
-        assert body["doc_number"] == "20251127P001"
-        assert body["doc_date"] == "2025-11-27"   # 문서번호 날짜 기준
-        assert "received_at" in body and "updated_at" in body
+        assert isinstance(body, list) and len(body) == 1   # 품목 행 리스트
+        assert body[0]["doc_number"] == "20251127P001"
+        assert body[0]["doc_date"] == "2025-11-27"   # 문서번호 날짜 기준
+        assert "received_at" in body[0] and "updated_at" in body[0]
 
     def test_list_date_filter(self, client):
         client.post("/materials/backup", json={"rows": [
