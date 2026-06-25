@@ -107,13 +107,13 @@ def make_router(ds: Dataset) -> APIRouter:
             date_from=date_from, date_to=date_to, limit=limit,
         )
 
-    @router.get("/{doc_number}", response_model=MaterialPublic)
-    def get_row(doc_number: str) -> MaterialPublic:
-        """Fetch one row by 문서번호."""
-        mat = store.get_material(doc_number, table=ds.table)
-        if mat is None:
+    @router.get("/{doc_number}", response_model=list[MaterialPublic])
+    def get_row(doc_number: str) -> list[MaterialPublic]:
+        """한 문서(문서번호)의 모든 품목 행을 순번순으로 반환."""
+        items = store.get_document(doc_number, table=ds.table)
+        if not items:
             raise HTTPException(status_code=404, detail=f"document {doc_number} not found")
-        return mat
+        return items
 
     return router
 

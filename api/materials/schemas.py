@@ -9,10 +9,14 @@ from pydantic import BaseModel, Field
 
 
 class MaterialRow(BaseModel):
-    """A single 자재요청 row. Keyed by `doc_number`."""
+    """A single 자재요청 품목 row. Keyed by (doc_number, seq).
 
-    doc_number: str = Field(min_length=1, max_length=100, description="문서번호 (upsert key)")
-    seq: int | None = Field(default=None, description="순번 (per-run row order, not stable)")
+    한 문서(doc_number)는 품목마다 순번(seq)이 다른 여러 행을 가진다 — upsert
+    키는 (doc_number, seq) 복합키다. seq 미지정 시 0으로 정규화된다.
+    """
+
+    doc_number: str = Field(min_length=1, max_length=100, description="문서번호 (upsert 키의 일부)")
+    seq: int | None = Field(default=None, description="순번 (upsert 키의 일부, 품목 식별)")
     material_code: str | None = Field(default=None, max_length=100, description="자재코드")
     material_name: str | None = Field(default=None, max_length=300, description="품명")
     # 요청수량(g단위): source may be numeric or string; kept loose for fidelity.
