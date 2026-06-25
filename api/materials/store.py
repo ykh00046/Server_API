@@ -21,6 +21,7 @@ from pathlib import Path
 import shared.config as _cfg
 from shared import get_logger
 
+from .datasets import DEFAULT_DATASET, all_datasets
 from .schemas import BackupResult, MaterialPublic, MaterialRow
 
 logger = get_logger(__name__)
@@ -40,6 +41,7 @@ _ROW_COLUMNS = (
     "request_dept",
     "drafter",
     "processed_at",
+    "keyword",
 )
 
 
@@ -95,62 +97,79 @@ def _get_conn() -> sqlite3.Connection:
     return conn
 
 
+def _dataset_schema_sql(table: str, runs_table: str) -> str:
+    """CREATE 문 생성 (데이터 테이블 + 실행이력 테이블). table/runs_table은
+    registry에서 온 신뢰된 식별자이므로 f-string 보간이 안전하다."""
+    return f"""
+        CREATE TABLE IF NOT EXISTS {table} (
+            doc_number     TEXT PRIMARY KEY,
+            seq            INTEGER,
+            material_code  TEXT,
+            material_name  TEXT,
+            request_qty_g  TEXT,
+            reason         TEXT,
+            request_dept   TEXT,
+            drafter        TEXT,
+            processed_at   TEXT,
+            keyword        TEXT,
+            doc_date       TEXT,
+            received_at    TEXT NOT NULL,
+            updated_at     TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_{table}_dept ON {table}(request_dept);
+        CREATE INDEX IF NOT EXISTS idx_{table}_doc_date ON {table}(doc_date DESC);
+        CREATE INDEX IF NOT EXISTS idx_{table}_keyword ON {table}(keyword);
+
+        CREATE TABLE IF NOT EXISTS {runs_table} (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            kind         TEXT NOT NULL,        -- 'backup' | 'automation'
+            status       TEXT NOT NULL,        -- 'running' | 'success' | 'failed'
+            started_at   TEXT NOT NULL,
+            finished_at  TEXT,
+            rows         INTEGER,
+            inserted     INTEGER,
+            updated      INTEGER,
+            exit_code    INTEGER,
+            message      TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_{runs_table}_started
+            ON {runs_table}(started_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_{runs_table}_active
+            ON {runs_table}(kind, status);
+    """
+
+
+def _migrate_table(conn: sqlite3.Connection, table: str) -> None:
+    """기존 DB(데이터셋 도입 전)에 누락된 컬럼을 멱등 추가한다.
+
+    materials-api-v1 시절의 material_requests는 doc_date/keyword가 없었다.
+    새로 생성되는 데이터셋 테이블은 풀스키마라 이 마이그레이션이 no-op이다.
+    """
+    existing = {
+        r["name"] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()
+    }
+    if "doc_date" not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN doc_date TEXT")
+        conn.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_{table}_doc_date "
+            f"ON {table}(doc_date DESC)"
+        )
+    if "keyword" not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN keyword TEXT")
+        conn.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_{table}_keyword ON {table}(keyword)"
+        )
+
+
 def _ensure_schema(conn: sqlite3.Connection, path: Path) -> None:
     key = str(path)
     with _schema_lock:
         if key in _schema_initialized:
             return
-        conn.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS material_requests (
-                doc_number     TEXT PRIMARY KEY,
-                seq            INTEGER,
-                material_code  TEXT,
-                material_name  TEXT,
-                request_qty_g  TEXT,
-                reason         TEXT,
-                request_dept   TEXT,
-                drafter        TEXT,
-                processed_at   TEXT,
-                doc_date       TEXT,
-                received_at    TEXT NOT NULL,
-                updated_at     TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_material_dept
-                ON material_requests(request_dept);
-            CREATE INDEX IF NOT EXISTS idx_material_doc_date
-                ON material_requests(doc_date DESC);
-
-            CREATE TABLE IF NOT EXISTS material_runs (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                kind         TEXT NOT NULL,        -- 'backup' | 'automation'
-                status       TEXT NOT NULL,        -- 'running' | 'success' | 'failed'
-                started_at   TEXT NOT NULL,
-                finished_at  TEXT,
-                rows         INTEGER,
-                inserted     INTEGER,
-                updated      INTEGER,
-                exit_code    INTEGER,
-                message      TEXT
-            );
-            CREATE INDEX IF NOT EXISTS idx_material_runs_started
-                ON material_runs(started_at DESC);
-            CREATE INDEX IF NOT EXISTS idx_material_runs_active
-                ON material_runs(kind, status);
-            """
-        )
-        # Idempotent migration: add doc_date to DBs created before the
-        # 문서번호-date basis change (materials-api-v1 had processed_at only).
-        existing = {
-            r["name"]
-            for r in conn.execute("PRAGMA table_info(material_requests)").fetchall()
-        }
-        if "doc_date" not in existing:
-            conn.execute("ALTER TABLE material_requests ADD COLUMN doc_date TEXT")
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_material_doc_date "
-                "ON material_requests(doc_date DESC)"
-            )
+        # 등록된 모든 데이터셋의 테이블을 한 DB 파일에 생성한다.
+        for ds in all_datasets():
+            conn.executescript(_dataset_schema_sql(ds.table, ds.runs_table))
+            _migrate_table(conn, ds.table)
         conn.commit()
         _schema_initialized.add(key)
 
@@ -169,11 +188,14 @@ def _row_values(row: MaterialRow) -> tuple:
         row.request_dept,
         row.drafter,
         row.processed_at,
+        row.keyword,
     )
 
 
-def upsert_materials(rows: list[MaterialRow]) -> BackupResult:
-    """Batch upsert by doc_number. Returns counts of inserted vs updated.
+def upsert_materials(
+    rows: list[MaterialRow], table: str = DEFAULT_DATASET.table
+) -> BackupResult:
+    """Batch upsert by doc_number into `table`. Returns inserted vs updated.
 
     Within a single batch, later rows with a duplicate doc_number overwrite
     earlier ones (last-write-wins), matching the full-snapshot intent.
@@ -196,18 +218,18 @@ def upsert_materials(rows: list[MaterialRow]) -> BackupResult:
         existing.update(
             r["doc_number"]
             for r in conn.execute(
-                f"SELECT doc_number FROM material_requests "
+                f"SELECT doc_number FROM {table} "
                 f"WHERE doc_number IN ({placeholders})",
                 chunk,
             ).fetchall()
         )
 
-    sql = """
-        INSERT INTO material_requests
+    sql = f"""
+        INSERT INTO {table}
             (doc_number, seq, material_code, material_name, request_qty_g,
-             reason, request_dept, drafter, processed_at, doc_date,
+             reason, request_dept, drafter, processed_at, keyword, doc_date,
              received_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(doc_number) DO UPDATE SET
             seq           = excluded.seq,
             material_code = excluded.material_code,
@@ -217,6 +239,7 @@ def upsert_materials(rows: list[MaterialRow]) -> BackupResult:
             request_dept  = excluded.request_dept,
             drafter       = excluded.drafter,
             processed_at  = excluded.processed_at,
+            keyword       = excluded.keyword,
             doc_date      = excluded.doc_date,
             updated_at    = excluded.updated_at
     """
@@ -241,31 +264,36 @@ def _row_to_public(row: sqlite3.Row) -> MaterialPublic:
         request_dept=row["request_dept"],
         drafter=row["drafter"],
         processed_at=row["processed_at"],
+        keyword=row["keyword"],
         doc_date=row["doc_date"],
         received_at=row["received_at"],
         updated_at=row["updated_at"],
     )
 
 
-def get_material(doc_number: str) -> MaterialPublic | None:
+def get_material(
+    doc_number: str, table: str = DEFAULT_DATASET.table
+) -> MaterialPublic | None:
     row = _get_conn().execute(
-        "SELECT * FROM material_requests WHERE doc_number = ?", (doc_number,)
+        f"SELECT * FROM {table} WHERE doc_number = ?", (doc_number,)
     ).fetchone()
     return _row_to_public(row) if row else None
 
 
 def list_materials(
     *,
+    table: str = DEFAULT_DATASET.table,
     request_dept: str | None = None,
+    keyword: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
     limit: int = 1000,
 ) -> list[MaterialPublic]:
     """List rows ordered by 문서번호 date (doc_date) descending.
 
-    Filters (all optional): department, and a doc_date range (YYYY-MM-DD,
-    inclusive). doc_date is the document business date derived from doc_number
-    — the primary date basis, not the scrape time.
+    Filters (all optional): department, 수집 키워드, and a doc_date range
+    (YYYY-MM-DD, inclusive). doc_date is the document business date derived
+    from doc_number — the primary date basis, not the scrape time.
     """
     limit = max(1, min(limit, 5000))
     where: list[str] = []
@@ -273,6 +301,9 @@ def list_materials(
     if request_dept:
         where.append("request_dept = ?")
         params.append(request_dept)
+    if keyword:
+        where.append("keyword = ?")
+        params.append(keyword)
     if date_from:
         where.append("doc_date >= ?")
         params.append(date_from)
@@ -282,16 +313,16 @@ def list_materials(
     clause = (" WHERE " + " AND ".join(where)) if where else ""
     params.append(limit)
     rows = _get_conn().execute(
-        f"SELECT * FROM material_requests{clause} "
+        f"SELECT * FROM {table}{clause} "
         "ORDER BY doc_date DESC, doc_number DESC LIMIT ?",
         params,
     ).fetchall()
     return [_row_to_public(r) for r in rows]
 
 
-def count_materials() -> int:
+def count_materials(table: str = DEFAULT_DATASET.table) -> int:
     return _get_conn().execute(
-        "SELECT COUNT(*) AS n FROM material_requests"
+        f"SELECT COUNT(*) AS n FROM {table}"
     ).fetchone()["n"]
 
 

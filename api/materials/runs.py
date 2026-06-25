@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sqlite3
 
+from .datasets import DEFAULT_DATASET
 from .schemas import MaterialRun
 from .store import _get_conn, _now_iso
 
@@ -28,12 +29,15 @@ def _row_to_run(row: sqlite3.Row) -> MaterialRun:
     )
 
 
-def record_backup_run(rows: int, inserted: int, updated: int) -> int:
-    """Record a completed backup (POST /materials/backup) as a success run."""
+def record_backup_run(
+    rows: int, inserted: int, updated: int,
+    runs_table: str = DEFAULT_DATASET.runs_table,
+) -> int:
+    """Record a completed backup as a success run in `runs_table`."""
     now = _now_iso()
     conn = _get_conn()
     cur = conn.execute(
-        "INSERT INTO material_runs "
+        f"INSERT INTO {runs_table} "
         "(kind, status, started_at, finished_at, rows, inserted, updated) "
         "VALUES ('backup', 'success', ?, ?, ?, ?, ?)",
         (now, now, rows, inserted, updated),
@@ -42,12 +46,12 @@ def record_backup_run(rows: int, inserted: int, updated: int) -> int:
     return cur.lastrowid
 
 
-def start_run(kind: str) -> int:
+def start_run(kind: str, runs_table: str = DEFAULT_DATASET.runs_table) -> int:
     """Create a 'running' run and return its id."""
     now = _now_iso()
     conn = _get_conn()
     cur = conn.execute(
-        "INSERT INTO material_runs (kind, status, started_at) VALUES (?, 'running', ?)",
+        f"INSERT INTO {runs_table} (kind, status, started_at) VALUES (?, 'running', ?)",
         (kind, now),
     )
     conn.commit()
@@ -58,44 +62,50 @@ def finish_run(
     run_id: int,
     status: str,
     *,
+    runs_table: str = DEFAULT_DATASET.runs_table,
     exit_code: int | None = None,
     message: str | None = None,
 ) -> None:
     """Mark a run finished (status 'success' | 'failed')."""
     conn = _get_conn()
     conn.execute(
-        "UPDATE material_runs SET status = ?, finished_at = ?, exit_code = ?, "
+        f"UPDATE {runs_table} SET status = ?, finished_at = ?, exit_code = ?, "
         "message = ? WHERE id = ?",
         (status, _now_iso(), exit_code, message, run_id),
     )
     conn.commit()
 
 
-def has_active_automation() -> bool:
+def has_active_automation(runs_table: str = DEFAULT_DATASET.runs_table) -> bool:
     """True if an automation run is currently 'running' (concurrency guard)."""
     row = _get_conn().execute(
-        "SELECT 1 FROM material_runs WHERE kind = 'automation' AND status = 'running' "
+        f"SELECT 1 FROM {runs_table} WHERE kind = 'automation' AND status = 'running' "
         "LIMIT 1"
     ).fetchone()
     return row is not None
 
 
-def get_run(run_id: int) -> MaterialRun | None:
+def get_run(
+    run_id: int, runs_table: str = DEFAULT_DATASET.runs_table
+) -> MaterialRun | None:
     row = _get_conn().execute(
-        "SELECT * FROM material_runs WHERE id = ?", (run_id,)
+        f"SELECT * FROM {runs_table} WHERE id = ?", (run_id,)
     ).fetchone()
     return _row_to_run(row) if row else None
 
 
-def list_runs(*, kind: str | None = None, limit: int = 50) -> list[MaterialRun]:
+def list_runs(
+    *, runs_table: str = DEFAULT_DATASET.runs_table,
+    kind: str | None = None, limit: int = 50,
+) -> list[MaterialRun]:
     limit = max(1, min(limit, 500))
     if kind:
         rows = _get_conn().execute(
-            "SELECT * FROM material_runs WHERE kind = ? ORDER BY id DESC LIMIT ?",
+            f"SELECT * FROM {runs_table} WHERE kind = ? ORDER BY id DESC LIMIT ?",
             (kind, limit),
         ).fetchall()
     else:
         rows = _get_conn().execute(
-            "SELECT * FROM material_runs ORDER BY id DESC LIMIT ?", (limit,)
+            f"SELECT * FROM {runs_table} ORDER BY id DESC LIMIT ?", (limit,)
         ).fetchall()
     return [_row_to_run(r) for r in rows]

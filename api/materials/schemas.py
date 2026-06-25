@@ -21,6 +21,8 @@ class MaterialRow(BaseModel):
     request_dept: str | None = Field(default=None, max_length=200, description="요청부서")
     drafter: str | None = Field(default=None, max_length=100, description="기안자")
     processed_at: str | None = Field(default=None, max_length=40, description="처리일시")
+    # 수집 키워드 (시간대별 멀티 프로필 크롤링 구분용). 미지정 시 None.
+    keyword: str | None = Field(default=None, max_length=100, description="수집 키워드")
 
 
 class MaterialBackupRequest(BaseModel):
