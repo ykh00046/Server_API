@@ -775,17 +775,18 @@ INTEROJO 포털 자재요청을 webcloring-pdf 봇이 스크랩 → Excel → **
 - 데이터 저장: `database/materials.db` (운영 DB와 분리). 문서번호(doc_number) 기준 upsert.
 - 날짜 기준: **문서번호 앞 8자리(YYYYMMDD)** = `doc_date`. 정렬·필터가 이 값 기준(스크랩 시각 아님).
 
-### 11.2 시작 / 중지 (헤드리스)
+### 11.2 시작 / 중지 / 업데이트 (매니저)
 
-루트의 배치 스크립트로 GUI 없이 시작/중지한다(봇은 봇 PC/세션에서 별도).
+루트 배치 스크립트로 운용한다. 매니저가 API·대시보드·포털을 한 곳에서 관리.
 
 | 스크립트 | 동작 |
 |---|---|
-| `start.bat` | API(8000) + Dashboard(8502)를 최소화 창으로 실행 (더블클릭) |
-| `stop.bat` | 8000/8502 포트 점유 프로세스 종료 |
-| `start_hidden.vbs` | 창 없이 백그라운드 실행 (부팅 자동 시작: 시작프로그램에 바로가기 등록) |
+| `manager.bat` | 매니저 실행(트레이, 콘솔 없음). API·대시보드·포털 자식 관리 |
+| `stop.bat` | API(8000)·대시보드(8502) 포트 점유 프로세스 종료 |
+| `update.bat` | 이 레포 프로세스 정지 → `git pull` + 서브모듈 + deps (끝나면 `manager.bat`) |
+| `install.bat` | (최초 1회) 의존성 설치 |
 
-내부적으로는 아래 두 명령과 동일하다(수동 실행 시):
+API/대시보드만 수동으로 띄울 때는 아래 두 명령과 동일하다:
 
 ```bash
 python -m uvicorn api.main:app --host 0.0.0.0 --port 8000

@@ -72,28 +72,22 @@ MATERIALS_RUN_ENABLED=false
 
 ## 실행
 
-### 방법 1: 헤드리스 — `start.bat` / `stop.bat` (운용 PC 권장)
+### 방법 1: 매니저 (운용 PC 권장)
 
-GUI 없이 24시간 켜두는 운용 PC용. **더블클릭만으로** API + 대시보드 기동:
+트레이 통합 관리 GUI. API·대시보드·포털(봇)을 한 곳에서 제어. **더블클릭만으로** 기동:
 
 | 스크립트 | 동작 |
 |---|---|
-| `start.bat` | API(8000) + Dashboard(8502)를 최소화 창으로 실행 (로그 확인 가능) |
-| `stop.bat` | 8000/8502 포트 점유 프로세스 종료 |
-| `start_hidden.vbs` | 창 없이 백그라운드 실행 (부팅 자동 시작용 — 시작프로그램에 바로가기) |
+| `manager.bat` | 매니저 실행(트레이). API·대시보드·포털을 자식으로 관리. (콘솔 없음) |
+| `stop.bat` | API(8000)·대시보드(8502) 포트 점유 프로세스 종료 |
+| `update.bat` | 이 레포 프로세스 정지 → `git pull` + 서브모듈 + deps. 끝나면 `manager.bat`로 실행 |
+| `install.bat` | (최초 1회) 의존성 설치 |
 
-- 접속: 대시보드 http://localhost:8502 (좌측 **자재요청**), API 문서 http://localhost:8000/docs
-- 자재 데이터는 webcloring-pdf 봇이 자동화 종료 시 `POST /materials/backup`으로 전송(문서번호 upsert). 대시보드 **자재요청** 페이지에서 목록·실행 이력·CSV/Excel 다운로드(기존 Excel과 동일 레이아웃).
-- **봇 수동 실행**: 대시보드 **"지금 실행"** 버튼(`MATERIALS_RUN_ENABLED=true` 필요) 또는 봇에서 `python main.py --auto`(1회) / `--schedule`(예약). 상세는 [운영 매뉴얼 §11 자재 백업](docs/specs/operations_manual.md).
+- 접속: 대시보드 http://localhost:8502 (좌측 **자재요청 / 액상바인더출고**), API 문서 http://localhost:8000/docs
+- **포털 봇 설정·검색 프로필(시간대별 멀티 키워드)·수동 실행**은 매니저 **⚙️ Settings** / **Portal 패널**에서. (봇 단독 GUI는 제거됨 — CLI는 `main.py --schedule`/`--auto`)
+- 자재·바인더 데이터는 봇이 종료 시 `POST /materials/backup`·`/binder/backup`으로 전송(문서번호 upsert). 대시보드에서 목록·실행 이력·CSV/Excel 다운로드. 상세는 [운영 매뉴얼 §11](docs/specs/operations_manual.md).
 
-### 방법 2: Manager GUI
-
-시스템 트레이 통합 관리 GUI (API/대시보드/워처 버튼 제어):
-```bash
-python manager.py
-```
-
-### 방법 3: 개별 실행 (수동)
+### 방법 2: 개별 실행 (수동/디버그)
 ```bash
 # API 서버
 python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
@@ -102,7 +96,6 @@ python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
 python -m streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port 8502
 
 # DB Watcher (단발 실행 / 데몬 모드 1시간 간격)
-python tools/watcher.py
 python tools/watcher.py --daemon --interval 3600
 ```
 
