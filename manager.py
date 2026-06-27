@@ -1,4 +1,5 @@
 import atexit
+import json
 import os
 import queue
 import signal
@@ -598,21 +599,98 @@ class ServerManager(ctk.CTk):
         if dialog.result:
             self.portal_panel.append_log("⚙️ Settings saved.", "SUCCESS")
 
+    def _portal_job_keywords(self) -> list[str]:
+        """봇 config.json(search.jobs)의 키워드 목록. 폴백: 구 profiles → .env SEARCH_KEYWORD."""
+        cfg_path = BASE_DIR / "webcloring-pdf" / "src" / "config" / "config.json"
+        try:
+            if cfg_path.exists():
+                with open(cfg_path, encoding="utf-8") as f:
+                    sec = (json.load(f).get("search", {}) or {})
+                jobs = sec.get("jobs")
+                if jobs:
+                    ks = [str(j.get("keyword", "")).strip()
+                          for j in jobs if isinstance(j, dict)]
+                    ks = [k for k in ks if k]
+                    if ks:
+                        return ks
+                seen: list[str] = []
+                for p in (sec.get("profiles") or []):
+                    if isinstance(p, dict):
+                        k = str(p.get("keyword", "")).strip()
+                        if k and k not in seen:
+                            seen.append(k)
+                if seen:
+                    return seen
+        except (OSError, json.JSONDecodeError):
+            pass
+        # 폴백: .env SEARCH_KEYWORD
+        try:
+            env_path = BASE_DIR / "webcloring-pdf" / ".env"
+            if env_path.exists():
+                with open(env_path, encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("SEARCH_KEYWORD") and "=" in line:
+                            v = line.split("=", 1)[1].strip()
+                            if v:
+                                return [v]
+        except OSError:
+            pass
+        return ["자재"]
+
     def run_portal_now(self):
-        """Run portal automation once (non-blocking)."""
+        """Run portal automation once. 작업이 여럿이면 키워드를 고르게 한다."""
+        if self.portal_panel.process and self.portal_panel.process.poll() is None:
+            self.portal_panel.append_log("⚠️ Already running.", "WARN")
+            return
+        keywords = self._portal_job_keywords()
+        if len(keywords) <= 1:
+            self._launch_portal_auto(keywords[0] if keywords else None)
+        else:
+            self._pick_keyword_dialog(keywords)
+
+    def _pick_keyword_dialog(self, keywords: list[str]):
+        """수동 1회 실행할 키워드 선택 모달."""
+        win = ctk.CTkToplevel(self)
+        win.title("수동 실행 — 키워드 선택")
+        win.geometry(f"320x{90 + len(keywords) * 44 + 60}")
+        win.resizable(False, False)
+        win.transient(self)
+        win.grab_set()
+        ctk.CTkLabel(
+            win, text="어느 키워드를 1회 실행할까요?",
+            font=ctk.CTkFont(size=14, weight="bold"),
+        ).pack(pady=(16, 12))
+
+        def choose(kw):
+            win.destroy()
+            self._launch_portal_auto(kw)
+
+        for k in keywords:
+            ctk.CTkButton(win, text=f"🚀 {k}", width=260,
+                          command=lambda kw=k: choose(kw)).pack(pady=4)
+        ctk.CTkButton(win, text="취소", width=260, fg_color="#546e7a",
+                      command=win.destroy).pack(pady=(10, 14))
+
+    def _launch_portal_auto(self, keyword: str | None = None):
+        """`main.py --auto [--keyword K]` 1회 실행 (non-blocking)."""
         if self.portal_panel.process and self.portal_panel.process.poll() is None:
             self.portal_panel.append_log("⚠️ Already running.", "WARN")
             return
 
-        # Custom status for one-shot mode
+        label = keyword or "기본"
         self.portal_panel.btn_start.configure(state="disabled")
         self.portal_panel.btn_stop.configure(state="normal")
-        self.portal_panel.lbl_status.configure(text="Running (1-shot)", text_color="#ffb74d")
+        self.portal_panel.lbl_status.configure(
+            text=f"Running 1-shot ({label})", text_color="#ffb74d")
         self.portal_panel.status_bar.configure(fg_color="#ffb74d")
-        self.portal_panel.append_log(">>> Running Portal Automation (1-shot)...", "INFO")
+        self.portal_panel.append_log(
+            f">>> Running Portal Automation (1-shot, 키워드={label})...", "INFO")
 
         portal_dir = str(BASE_DIR / "webcloring-pdf")
         cmd = [PY, "main.py", "--auto"]
+        if keyword:
+            cmd += ["--keyword", keyword]
         self.portal_panel.process = self._start_process(cmd, self.portal_panel, cwd=portal_dir)
 
         # Monitor for completion and reset UI (thread-safe via self.after)

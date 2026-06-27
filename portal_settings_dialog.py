@@ -88,10 +88,10 @@ class PortalSettingsDialog(ctk.CTkToplevel):
         # Load current values (PORTAL_PASSWORD is stored/read as plaintext)
         self.env_data = _read_env(self.env_path)
 
-        # 검색 프로필(시간대별 멀티 키워드)은 봇 config.json에 저장된다.
+        # 수집 작업(키워드 단위 대칭 모델)은 봇 config.json에 저장된다.
         # env_path = webcloring-pdf/.env → config.json = webcloring-pdf/src/config/config.json
         self.config_path = self.env_path.parent / "src" / "config" / "config.json"
-        self.profiles = self._read_profiles()
+        self.jobs = self._read_jobs()
 
         # Build UI
         self._build_ui()
@@ -118,10 +118,9 @@ class PortalSettingsDialog(ctk.CTkToplevel):
         self.ent_username = self._labeled_entry("사용자명", self._get("PORTAL_USERNAME"))
         self.ent_password = self._labeled_entry("비밀번호", self._get("PORTAL_PASSWORD"), show="•")
 
-        # ── Search Section ──
-        self._section_label("🔍 검색 설정")
+        # ── Search Section ── (키워드는 아래 '수집 작업'에서 작업별로 지정)
+        self._section_label("🔍 검색 설정 (공통)")
 
-        self.ent_keyword = self._labeled_entry("검색 키워드", self._get("SEARCH_KEYWORD", "자재"))
         self.ent_start_date = self._labeled_entry("시작 날짜 (YYYY.MM.DD)", self._get("SEARCH_START_DATE", "2025.01.01"))
 
         row = ctk.CTkFrame(self, fg_color="transparent")
@@ -138,36 +137,29 @@ class PortalSettingsDialog(ctk.CTkToplevel):
         self.ent_days_back.pack(side="left")
         self.ent_days_back.insert(0, self._get("DAYS_BACK", "0"))
 
-        # ── Search Profiles Section (시간대별 멀티 키워드) ──
-        self._section_label("🗂️ 검색 프로필 (시간대별 멀티 키워드)")
+        # ── Collection Jobs Section (키워드 단위 대칭 작업) ──
+        self._section_label("🗂️ 수집 작업 (키워드별)")
         ctk.CTkLabel(
             self,
-            text="시간마다 다른 키워드를 같은 방식으로 수집합니다. 비우면 위 '검색 키워드' 단일 실행.\n"
-                 "예: 09:00 자재 · 13:00 PBHAv1.0",
+            text="키워드마다 독립된 수집 작업입니다(자재·PBHAv1.0 등 동등). 시각은 쉼표로\n"
+                 "여러 개, 비우면 수동 전용. 예: 자재 → 09:00 / PBHAv1.0 → 13:00,17:00",
             font=ctk.CTkFont(size=11), text_color="#9e9e9e", justify="left",
         ).pack(anchor="w", padx=20, pady=(0, 4))
 
-        self.profile_list_frame = ctk.CTkScrollableFrame(self, height=100, fg_color="#1e1e1e")
-        self.profile_list_frame.pack(fill="x", padx=20, pady=(0, 5))
+        self.job_list_frame = ctk.CTkScrollableFrame(self, height=110, fg_color="#1e1e1e")
+        self.job_list_frame.pack(fill="x", padx=20, pady=(0, 5))
 
         add_row = ctk.CTkFrame(self, fg_color="transparent")
         add_row.pack(fill="x", padx=20, pady=(0, 5))
-        self.ent_profile_time = ctk.CTkEntry(add_row, width=70, placeholder_text="13:00")
-        self.ent_profile_time.pack(side="left")
-        self.ent_profile_keyword = ctk.CTkEntry(add_row, width=220, placeholder_text="키워드 (예: PBHAv1.0)")
-        self.ent_profile_keyword.pack(side="left", padx=(8, 8))
-        ctk.CTkButton(add_row, text="추가", width=60, command=self._add_profile).pack(side="left")
-        self._refresh_profile_list()
+        self.ent_job_keyword = ctk.CTkEntry(add_row, width=150, placeholder_text="키워드 (예: PBHAv1.0)")
+        self.ent_job_keyword.pack(side="left")
+        self.ent_job_times = ctk.CTkEntry(add_row, width=150, placeholder_text="시각 09:00,13:00 (비우면 수동)")
+        self.ent_job_times.pack(side="left", padx=(8, 8))
+        ctk.CTkButton(add_row, text="추가", width=60, command=self._add_job).pack(side="left")
+        self._refresh_job_list()
 
-        # ── Schedule Section ──
-        self._section_label("⏰ 스케줄 설정")
-
-        sched_row = ctk.CTkFrame(self, fg_color="transparent")
-        sched_row.pack(fill="x", **pad)
-        ctk.CTkLabel(sched_row, text="실행 시간:", font=ctk.CTkFont(size=13)).pack(side="left", padx=(20, 10))
-        self.ent_schedule = ctk.CTkEntry(sched_row, width=80, placeholder_text="09:00")
-        self.ent_schedule.pack(side="left")
-        self.ent_schedule.insert(0, self._get("SCHEDULE_TIME", "09:00"))
+        # ── Run Options Section ── (시각은 위 '수집 작업'에서 작업별로 지정)
+        self._section_label("⏰ 실행 옵션")
 
         switch_frame = ctk.CTkFrame(self, fg_color="transparent")
         switch_frame.pack(fill="x", **pad)
@@ -210,89 +202,110 @@ class PortalSettingsDialog(ctk.CTkToplevel):
         entry.insert(0, value)
         return entry
 
-    # ── Search profiles (config.json) ──
-    def _read_profiles(self) -> list[dict]:
-        """봇 config.json의 search.profiles 로드 (없으면 빈 리스트)."""
+    # ── Collection jobs (config.json: search.jobs) ──
+    def _read_jobs(self) -> list[dict]:
+        """봇 config.json의 search.jobs 로드. 없으면 구 profiles에서 마이그레이션."""
         try:
             if self.config_path.exists():
                 with open(self.config_path, encoding="utf-8") as f:
                     cfg = json.load(f)
-                raw = (cfg.get("search", {}) or {}).get("profiles") or []
-                return [
-                    {"time": str(p.get("time", "")).strip(),
-                     "keyword": str(p.get("keyword", "")).strip()}
-                    for p in raw
-                    if isinstance(p, dict) and p.get("time") and p.get("keyword")
-                ]
+                sec = cfg.get("search", {}) or {}
+                raw = sec.get("jobs")
+                if raw:
+                    return [
+                        {"keyword": str(j.get("keyword", "")).strip(),
+                         "times": [str(t).strip() for t in (j.get("times") or []) if str(t).strip()]}
+                        for j in raw
+                        if isinstance(j, dict) and str(j.get("keyword", "")).strip()
+                    ]
+                # 구 profiles({time,keyword}) → 키워드별 그룹
+                grouped: dict[str, list] = {}
+                for p in (sec.get("profiles") or []):
+                    if not isinstance(p, dict):
+                        continue
+                    kw = str(p.get("keyword", "")).strip()
+                    t = str(p.get("time", "")).strip()
+                    if kw and t and t not in grouped.setdefault(kw, []):
+                        grouped[kw].append(t)
+                if grouped:
+                    return [{"keyword": k, "times": sorted(v)} for k, v in grouped.items()]
         except (OSError, json.JSONDecodeError):
             pass
         return []
 
-    def _write_profiles(self) -> bool:
-        """현재 프로필을 config.json의 search.profiles에 저장(다른 키 보존)."""
+    def _write_jobs(self) -> bool:
+        """현재 작업을 config.json의 search.jobs에 저장(다른 키 보존, profiles 비움)."""
         try:
             cfg = {}
             if self.config_path.exists():
                 with open(self.config_path, encoding="utf-8") as f:
                     cfg = json.load(f)
-            cfg.setdefault("search", {})["profiles"] = self.profiles
+            sec = cfg.setdefault("search", {})
+            sec["jobs"] = self.jobs
+            sec["profiles"] = []  # 레거시 일원화
             with open(self.config_path, "w", encoding="utf-8") as f:
                 json.dump(cfg, f, ensure_ascii=False, indent=2)
             return True
         except (OSError, json.JSONDecodeError) as e:
-            messagebox.showwarning("경고", f"프로필 저장 실패: {e}", parent=self)
+            messagebox.showwarning("경고", f"작업 저장 실패: {e}", parent=self)
             return False
 
-    def _refresh_profile_list(self):
-        """프로필 리스트 UI를 현재 self.profiles로 다시 그린다."""
-        for w in self.profile_list_frame.winfo_children():
+    def _refresh_job_list(self):
+        """작업 리스트 UI를 현재 self.jobs로 다시 그린다."""
+        for w in self.job_list_frame.winfo_children():
             w.destroy()
-        if not self.profiles:
+        if not self.jobs:
             ctk.CTkLabel(
-                self.profile_list_frame,
-                text="(등록된 프로필 없음 — 단일 '검색 키워드'로 동작)",
+                self.job_list_frame,
+                text="(작업 없음 — 키워드를 추가하세요. 예: 자재 09:00)",
                 font=ctk.CTkFont(size=11), text_color="#757575",
             ).pack(anchor="w", padx=6, pady=4)
             return
-        for p in sorted(self.profiles, key=lambda x: x["time"]):
-            row = ctk.CTkFrame(self.profile_list_frame, fg_color="transparent")
+        for j in sorted(self.jobs, key=lambda x: x["keyword"]):
+            row = ctk.CTkFrame(self.job_list_frame, fg_color="transparent")
             row.pack(fill="x", pady=1)
-            ctk.CTkLabel(row, text=p["time"], width=56,
+            ctk.CTkLabel(row, text=j["keyword"], width=120, anchor="w",
                          font=ctk.CTkFont(size=12, weight="bold")).pack(side="left")
-            ctk.CTkLabel(row, text=p["keyword"],
+            times_txt = ", ".join(j["times"]) if j["times"] else "(수동 전용)"
+            ctk.CTkLabel(row, text=times_txt,
                          font=ctk.CTkFont(size=12)).pack(side="left", padx=(8, 0))
             ctk.CTkButton(row, text="✕", width=28, fg_color="#7f3b3b",
                           hover_color="#a04444",
-                          command=lambda k=p: self._remove_profile(k)).pack(side="right")
+                          command=lambda k=j: self._remove_job(k)).pack(side="right")
 
-    def _add_profile(self):
-        t = self.ent_profile_time.get().strip()
-        k = self.ent_profile_keyword.get().strip()
-        if not re.match(r"^\d{1,2}:\d{2}$", t):
-            messagebox.showwarning("경고", "시간 형식은 HH:MM (예: 13:00)", parent=self)
-            return
-        hh, mm = (int(x) for x in t.split(":"))
-        if not (0 <= hh <= 23 and 0 <= mm <= 59):
-            messagebox.showwarning("경고", "시간 범위 오류 (00:00~23:59)", parent=self)
-            return
-        t = f"{hh:02d}:{mm:02d}"
+    def _add_job(self):
+        k = self.ent_job_keyword.get().strip()
+        raw_times = self.ent_job_times.get().strip()
         if not k:
             messagebox.showwarning("경고", "키워드를 입력하세요.", parent=self)
-            self.ent_profile_keyword.focus()
+            self.ent_job_keyword.focus()
             return
-        if any(p["time"] == t for p in self.profiles):
-            messagebox.showwarning("경고", f"{t} 시간 프로필이 이미 있습니다.", parent=self)
+        # 시각 파싱 (쉼표 구분, 비우면 수동 전용)
+        times = []
+        for part in raw_times.replace(" ", "").split(","):
+            if not part:
+                continue
+            if not re.match(r"^\d{1,2}:\d{2}$", part):
+                messagebox.showwarning("경고", f"시각 형식 오류: '{part}' (HH:MM, 쉼표 구분)", parent=self)
+                return
+            hh, mm = (int(x) for x in part.split(":"))
+            if not (0 <= hh <= 23 and 0 <= mm <= 59):
+                messagebox.showwarning("경고", f"시각 범위 오류: '{part}'", parent=self)
+                return
+            t = f"{hh:02d}:{mm:02d}"
+            if t not in times:
+                times.append(t)
+        if any(j["keyword"] == k for j in self.jobs):
+            messagebox.showwarning("경고", f"'{k}' 작업이 이미 있습니다. 삭제 후 다시 추가하세요.", parent=self)
             return
-        self.profiles.append({"time": t, "keyword": k})
-        self.ent_profile_keyword.delete(0, "end")
-        self._refresh_profile_list()
+        self.jobs.append({"keyword": k, "times": sorted(times)})
+        self.ent_job_keyword.delete(0, "end")
+        self.ent_job_times.delete(0, "end")
+        self._refresh_job_list()
 
-    def _remove_profile(self, target: dict):
-        self.profiles = [
-            p for p in self.profiles
-            if not (p["time"] == target["time"] and p["keyword"] == target["keyword"])
-        ]
-        self._refresh_profile_list()
+    def _remove_job(self, target: dict):
+        self.jobs = [j for j in self.jobs if j["keyword"] != target["keyword"]]
+        self._refresh_job_list()
 
     def _save(self):
         """Collect values and write to .env."""
@@ -321,16 +334,16 @@ class PortalSettingsDialog(ctk.CTkToplevel):
 
         updated["PORTAL_USERNAME"] = username
         updated["PORTAL_PASSWORD"] = password  # plaintext — bot reads PORTAL_PASSWORD verbatim
-        updated["SEARCH_KEYWORD"] = self.ent_keyword.get().strip() or "자재"
         updated["SEARCH_START_DATE"] = date_str or "2025.01.01"
         updated["DYNAMIC_FILTERING"] = str(bool(self.sw_dynamic.get()))
         updated["DAYS_BACK"] = self.ent_days_back.get().strip() or "0"
-        updated["SCHEDULE_TIME"] = self.ent_schedule.get().strip() or "09:00"
         updated["AUTO_ENABLED"] = str(bool(self.sw_auto.get()))
         updated["WEEKDAYS_ONLY"] = str(bool(self.sw_weekdays.get()))
         updated["HEADLESS_MODE"] = str(bool(self.sw_headless.get()))
+        # SEARCH_KEYWORD/SCHEDULE_TIME은 더 이상 UI에서 안 다룬다(작업 목록으로 일원화).
+        # 기존 .env 값은 보존(레거시 폴백 앵커) — updated가 env_data 복사본이라 유지됨.
 
         _write_env(self.env_path, updated)
-        self._write_profiles()  # 검색 프로필 → config.json
+        self._write_jobs()  # 수집 작업 → config.json (search.jobs)
         self.result = True
         self.destroy()
