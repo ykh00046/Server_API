@@ -406,6 +406,28 @@ def test_4xx_response_marks_failure_no_retry(client, isolated_db, captured):
 
 
 # ==========================================================
+# Response body cap (full-review-202607 H-3) — a huge/malicious
+# response must not be buffered whole into memory
+# ==========================================================
+def test_dispatch_caps_huge_response_body():
+    big = b"x" * (4 * 1024 * 1024)  # 4 MB
+    transport = httpx.MockTransport(
+        lambda req: httpx.Response(200, content=big)
+    )
+    res = dispatcher.send(
+        url="https://example.com/hook",
+        secret="s",
+        event_type="evt",
+        delivery_id=1,
+        payload={"a": 1},
+        transport=transport,
+    )
+    assert res.status == "success"
+    assert res.response_body is not None
+    assert len(res.response_body) <= dispatcher.MAX_BODY_CAPTURE
+
+
+# ==========================================================
 # in_flight reaper (full-review-202607 H-1) — orphaned claims
 # must be recoverable, never stuck forever
 # ==========================================================

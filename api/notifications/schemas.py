@@ -6,6 +6,7 @@ host whitelists, etc.) without affecting the generic HTTP helpers.
 """
 from __future__ import annotations
 
+import ipaddress
 import os
 from typing import Any
 from urllib.parse import urlparse
@@ -13,6 +14,45 @@ from urllib.parse import urlparse
 from pydantic import BaseModel, Field
 
 ALLOWED_SCHEMES = {"http", "https"}
+
+# Hostnames that always resolve to the local machine.
+_LOOPBACK_HOSTNAMES = {"localhost"}
+
+_TRUTHY = {"1", "true", "yes", "on"}
+
+
+def _blocked_ip_reason(hostname: str) -> str | None:
+    """SSRF guard for IP-literal hosts (full-review-202607 H).
+
+    Loopback / link-local (cloud metadata 169.254.169.254) / unspecified /
+    reserved / multicast addresses are always rejected. Private ranges
+    (10/8, 172.16/12, 192.168/16) are allowed by default — webhook receivers
+    on this deployment live on the internal network — but can be rejected
+    with WEBHOOK_BLOCK_PRIVATE_IPS=1.
+
+    DNS names are deliberately NOT resolved here: validation must stay
+    offline (no network in tests / no latency on create), so a DNS name
+    pointing at a blocked IP is out of scope for this layer.
+    """
+    try:
+        ip = ipaddress.ip_address(hostname)
+    except ValueError:
+        return None  # not an IP literal
+    mapped = getattr(ip, "ipv4_mapped", None)
+    if mapped is not None:  # ::ffff:127.0.0.1 style
+        ip = mapped
+    if ip.is_loopback or ip.is_unspecified:
+        return "loopback/unspecified IP is not allowed"
+    if ip.is_link_local:
+        return "link-local IP is not allowed"
+    if ip.is_multicast or ip.is_reserved:
+        return "multicast/reserved IP is not allowed"
+    block_private = (
+        os.getenv("WEBHOOK_BLOCK_PRIVATE_IPS", "0").strip().lower() in _TRUTHY
+    )
+    if block_private and ip.is_private:
+        return "private-range IP is blocked (WEBHOOK_BLOCK_PRIVATE_IPS)"
+    return None
 
 
 def validate_webhook_url(url: str) -> str:
@@ -22,6 +62,7 @@ def validate_webhook_url(url: str) -> str:
     - scheme must be http or https
     - netloc (host) must be present
     - host must not appear in WEBHOOK_BLOCKED_HOSTS env (comma-separated)
+    - IP-literal hosts must pass the SSRF guard (_blocked_ip_reason)
     """
     if not isinstance(url, str) or not url:
         raise ValueError("url must be a non-empty string")
@@ -32,10 +73,16 @@ def validate_webhook_url(url: str) -> str:
         raise ValueError("url scheme must be http or https")
     if not parsed.netloc:
         raise ValueError("url must include a host")
+    hostname = (parsed.hostname or "").rstrip(".").lower()
+    if hostname in _LOOPBACK_HOSTNAMES:
+        raise ValueError("loopback host is not allowed")
+    reason = _blocked_ip_reason(hostname)
+    if reason:
+        raise ValueError(reason)
     blocked_raw = os.getenv("WEBHOOK_BLOCKED_HOSTS", "")
     blocked = {h.strip().lower() for h in blocked_raw.split(",") if h.strip()}
-    if blocked and parsed.hostname and parsed.hostname.lower() in blocked:
-        raise ValueError(f"host {parsed.hostname!r} is blocked")
+    if blocked and hostname in blocked:
+        raise ValueError(f"host {hostname!r} is blocked")
     return url
 
 

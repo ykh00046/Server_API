@@ -27,6 +27,9 @@ EVENT_HEADER = "X-Webhook-Event"
 DELIVERY_HEADER = "X-Webhook-Delivery"
 TIMESTAMP_HEADER = "X-Webhook-Timestamp"
 MAX_BODY_CAPTURE = 1024  # response body chars persisted
+# Bytes read off the wire before aborting — resp.text would buffer an
+# unbounded (potentially GB-scale) body in memory first (full-review-202607).
+MAX_BODY_READ_BYTES = 16 * 1024
 
 
 @dataclass
@@ -82,18 +85,30 @@ def send(
         client_kwargs: dict[str, Any] = {"timeout": effective_timeout}
         if transport is not None:
             client_kwargs["transport"] = transport
-        with httpx.Client(**client_kwargs) as cli:
-            resp = cli.post(url, content=body, headers=headers)
-        captured = (resp.text or "")[:MAX_BODY_CAPTURE]
-        ok = 200 <= resp.status_code < 300
-        return DispatchResult(
-            status="success" if ok else "failure",
-            response_status=resp.status_code,
-            response_body=captured,
-            error=None,
-            duration_ms=int((time.perf_counter() - started) * 1000),
-            retry_after_sec=_parse_retry_after_header(resp.headers.get("Retry-After")),
-        )
+        with httpx.Client(**client_kwargs) as cli, cli.stream(
+            "POST", url, content=body, headers=headers
+        ) as resp:
+            raw = bytearray()
+            for chunk in resp.iter_bytes():
+                raw += chunk
+                if len(raw) >= MAX_BODY_READ_BYTES:
+                    break  # leaving the stream context closes the connection
+            captured = (
+                bytes(raw[:MAX_BODY_READ_BYTES])
+                .decode(resp.encoding or "utf-8", errors="replace")
+                [:MAX_BODY_CAPTURE]
+            )
+            ok = 200 <= resp.status_code < 300
+            return DispatchResult(
+                status="success" if ok else "failure",
+                response_status=resp.status_code,
+                response_body=captured,
+                error=None,
+                duration_ms=int((time.perf_counter() - started) * 1000),
+                retry_after_sec=_parse_retry_after_header(
+                    resp.headers.get("Retry-After")
+                ),
+            )
     except (httpx.HTTPError, OSError, ValueError) as e:
         msg = f"{type(e).__name__}: {e}"[:1024]
         logger.warning(

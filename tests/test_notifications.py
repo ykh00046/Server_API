@@ -148,6 +148,46 @@ def test_blocked_host(client, isolated_db, monkeypatch):
 
 
 # ----------------------------------------------------------
+# SSRF guard (full-review-202607): IP-literal hosts
+# ----------------------------------------------------------
+@pytest.mark.parametrize(
+    "bad_url",
+    [
+        "http://127.0.0.1/x",
+        "http://localhost:9000/x",
+        "http://0.0.0.0/x",
+        "http://169.254.169.254/latest/meta-data/",  # cloud metadata
+        "http://[::1]/x",
+        "http://[::ffff:127.0.0.1]/x",  # IPv4-mapped loopback
+    ],
+)
+def test_ssrf_blocked_ip_literals(client, isolated_db, bad_url):
+    r = client.post(
+        "/notifications/webhooks", json={"url": bad_url, "event_types": []}
+    )
+    assert r.status_code == 400, bad_url
+
+
+def test_private_ip_allowed_by_default(client, isolated_db, monkeypatch):
+    # Webhook receivers on this deployment live on the internal network.
+    monkeypatch.delenv("WEBHOOK_BLOCK_PRIVATE_IPS", raising=False)
+    r = client.post(
+        "/notifications/webhooks",
+        json={"url": "http://192.168.200.50:9000/hook", "event_types": []},
+    )
+    assert r.status_code == 201
+
+
+def test_private_ip_blocked_when_opted_in(client, isolated_db, monkeypatch):
+    monkeypatch.setenv("WEBHOOK_BLOCK_PRIVATE_IPS", "1")
+    r = client.post(
+        "/notifications/webhooks",
+        json={"url": "http://10.0.0.5/hook", "event_types": []},
+    )
+    assert r.status_code == 400
+
+
+# ----------------------------------------------------------
 # /test endpoint: signature + history
 # ----------------------------------------------------------
 def test_test_endpoint_signs_payload_and_records_delivery(
