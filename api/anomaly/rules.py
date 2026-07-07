@@ -38,7 +38,9 @@ def detect_volume_anomalies(
     Returns:
         Zero or one Finding (a day cannot be both a drop and a spike).
     """
-    if baseline_avg < min_baseline_qty:
+    # `<= 0` 가드: 운영자가 min_baseline_qty를 0으로 낮추면 baseline 0에서
+    # ZeroDivisionError → /anomaly/scan 500 으로 전파된다.
+    if baseline_avg <= 0 or baseline_avg < min_baseline_qty:
         return []
 
     change_pct = (latest_qty - baseline_avg) / baseline_avg * 100.0

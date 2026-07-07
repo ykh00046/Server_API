@@ -98,8 +98,9 @@ def collect_findings(today: date | None = None) -> list[Finding]:
     # "completed" = strictly before today, so partial current-day ERP data
     # never triggers a false drop.
     completed = [d for d in daily if d["date"] < today_str]
-    if completed:
+    if completed and cfg.ANOMALY_BASELINE_DAYS > 0:
         latest = completed[-1]
+        # [-0:]은 빈 슬라이스가 아니라 전체라서 0일 설정 시 의도와 반대가 된다
         window = completed[:-1][-cfg.ANOMALY_BASELINE_DAYS:]
         if window:
             baseline_avg = sum(d["qty"] for d in window) / len(window)
@@ -158,20 +159,28 @@ def _emit_new(findings: list[Finding], now: float) -> list[str]:
     fresh = store_state.filter_new(
         findings, state, now=now, cooldown_sec=cfg.ANOMALY_COOLDOWN_SEC
     )
+    emitted: list[Finding] = []
     for f in fresh:
         try:
             emit_event(f.event_type, f.to_dict())
         except Exception as e:  # noqa: BLE001 — 발행 실패가 스캔을 중단시키지 않는다
-            logger.warning("[anomaly.detector] emit failed key=%s: %s", f.key, e)
+            # 실패분은 마킹하지 않는다 — 마킹하면 쿨다운(기본 1일) 동안
+            # 재시도되지 않아 알림이 조용히 유실된다.
+            logger.warning(
+                "[anomaly.detector] emit failed key=%s (다음 스캔에서 재시도): %s",
+                f.key, e,
+            )
+            continue
+        emitted.append(f)
 
-    store_state.mark_emitted(fresh, state, now=now)
+    store_state.mark_emitted(emitted, state, now=now)
     state["last_scan_ts"] = now
     # Keep the state file from growing without bound.
     store_state.prune(state, now=now, max_age_sec=cfg.ANOMALY_COOLDOWN_SEC * 7)
     store_state.save_state(state)
 
-    if fresh:
+    if emitted:
         logger.info(
-            "[anomaly.detector] emitted %d/%d findings", len(fresh), len(findings)
+            "[anomaly.detector] emitted %d/%d findings", len(emitted), len(findings)
         )
-    return [f.key for f in fresh]
+    return [f.key for f in emitted]

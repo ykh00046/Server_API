@@ -8,6 +8,7 @@ a missing/corrupt file is treated as empty state.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from shared import DATABASE_DIR, get_logger
@@ -39,12 +40,18 @@ def load_state(path: Path | None = None) -> dict:
 
 
 def save_state(state: dict, path: Path | None = None) -> None:
-    """Persist state; failures are logged, never raised."""
+    """Persist state atomically; failures are logged, never raised.
+
+    temp 파일에 쓰고 os.replace로 교체 — 쓰기 중 크래시로 파일이
+    손상되면 load_state가 빈 상태로 리셋해 모든 쿨다운이 소실되고
+    다음 스캔에서 알림이 재발행 폭주할 수 있다."""
     path = _state_path(path)
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
     try:
         DATABASE_DIR.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
+        with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(state, f)
+        os.replace(tmp_path, path)
     except OSError as e:
         logger.warning("[anomaly.state] save failed: %s", e)
 
