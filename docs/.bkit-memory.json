@@ -1,14 +1,13 @@
 {
-  "sessionCount": 29,
+  "sessionCount": 33,
   "lastSession": {
-    "startedAt": "2026-06-18T17:16:58.171Z",
-    "platform": "claude",
+    "startedAt": "2026-07-07T06:03:03.220Z",
+    "platform": "gemini",
     "level": "Dynamic"
   },
   "currentFeature": {
-    "name": "anomaly-detection-v1",
-    "phase": "completed",
-    "matchRate": 100,
-    "completedAt": "2026-06-19"
+    "name": "roadmap-2026h2",
+    "phase": "plan",
+    "startedAt": "2026-07-07"
   }
 }
