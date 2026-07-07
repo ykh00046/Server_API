@@ -76,6 +76,28 @@ def test_auth_on_public_paths_open(client, enable_auth, path):
 
 
 # ----------------------------------------------------------
+# Auth ON — sensitive admin surface stays protected
+# (full-review-202607: secret 노출·파괴적 엔드포인트 회귀 고정)
+# ----------------------------------------------------------
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("POST", "/notifications/webhooks"),          # 응답에 secret 1회 노출
+        ("GET", "/notifications/webhooks"),
+        ("PATCH", "/notifications/webhooks/1"),       # rotate_secret 경로
+        ("DELETE", "/notifications/webhooks/1"),
+        ("POST", "/notifications/deliveries/bulk-retry"),
+        ("POST", "/materials/run"),                   # 서버 PC 프로세스 spawn
+    ],
+)
+def test_auth_on_admin_endpoints_401(client, enable_auth, method, path):
+    """인증 활성 배포에서 admin 표면은 자격 없이 절대 열리지 않는다.
+    (미들웨어가 라우트 로직 이전에 차단하므로 DB 준비 불필요)"""
+    r = client.request(method, path)
+    assert r.status_code == 401
+
+
+# ----------------------------------------------------------
 # Audit logging
 # ----------------------------------------------------------
 def test_audit_deny_logged(client, enable_auth, caplog):
