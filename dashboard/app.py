@@ -76,6 +76,7 @@ pages = {
         st.Page("views/binder.py", title="액상바인더출고", icon=":material/water_drop:"),
     ],
     "운영": [
+        st.Page("views/anomaly.py", title="이상탐지", icon=":material/monitor_heart:"),
         st.Page("views/webhooks.py", title="Webhook 관리", icon=":material/notifications:"),
     ],
 }

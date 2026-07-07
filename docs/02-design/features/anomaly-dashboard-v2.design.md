@@ -207,7 +207,7 @@ st.Page("views/anomaly.py", title="이상탐지", icon=":material/monitor_heart:
 
 - httpx 헬퍼는 dataset_page 관례(`_headers()` API 키 지원 포함, timeout 15s, `httpx.HTTPError` → `st.error` + `st.stop()` 아님 — 섹션별 독립 실패 허용: 실패한 섹션만 warning).
 - `@st.cache_data(ttl=60)` for scan/findings/state fetch. what-if 호출은 캐시 없음(버튼 트리거).
-- 순수 변환(타임라인 집계, 남은 시간 휴먼 포맷)은 `dashboard/components/_parsing.py`에 streamlit-free로 추가: `findings_to_daily_counts(findings: list[dict]) -> pd.DataFrame`, `humanize_remaining(sec: float) -> str`.
+- 순수 변환(타임라인 집계, 남은 시간 휴먼 포맷)은 `dashboard/components/anomaly_view_helpers.py`(신규, streamlit-free)에 배치: `findings_to_daily_counts(findings: list[dict]) -> pd.DataFrame`, `humanize_remaining(sec: float) -> str`. (구현 시 변경: `_parsing.py`는 AI 섹션 특성화 테스트 전용 모듈이라 오염 방지 차원에서 전용 모듈로 분리 — 정책 취지는 동일)
 
 ## 6. Error Handling
 
@@ -260,7 +260,7 @@ api/anomaly/store_findings.py           # 신규 (F1/F6)
 api/anomaly/schemas.py                  # +RuleOverrides
 api/anomaly/detector.py                 # collect_findings/run_detection overrides + _emit_new 훅
 api/routers/anomaly.py                  # +/findings +/state, GET /scan 확장
-dashboard/components/_parsing.py        # +findings_to_daily_counts, humanize_remaining
+dashboard/components/anomaly_view_helpers.py  # 신규: findings_to_daily_counts, humanize_remaining
 dashboard/views/anomaly.py              # 신규 페이지
 dashboard/app.py                        # nav 1줄
 tests/test_anomaly_findings_store.py    # 신규
@@ -280,3 +280,4 @@ tests/{test_anomaly_api,test_anomaly_state,test_audit}.py  # 확장
 | Version | Date | Changes |
 |---------|------|---------|
 | 0.1 | 2026-07-07 | 최초 작성 — plan F1~F6 전체 구체화 |
+| 0.2 | 2026-07-08 | 구현 반영: 순수 헬퍼를 _parsing.py 대신 전용 anomaly_view_helpers.py로 분리(특성화 모듈 오염 방지). 헬퍼 테스트는 디스크 직접 로드 경계 패턴 |
