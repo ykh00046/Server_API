@@ -17,8 +17,8 @@ from typing import Any
 from shared import DBRouter, get_logger
 from shared import config as cfg
 
-from . import rules, store_state
-from .schemas import Finding
+from . import rules, store_findings, store_state
+from .schemas import Finding, RuleOverrides
 
 logger = get_logger(__name__)
 
@@ -68,19 +68,40 @@ def _days_between(a: str, b: date) -> int | None:
     return (b - d).days
 
 
-def collect_findings(today: date | None = None) -> list[Finding]:
+def collect_findings(
+    today: date | None = None,
+    overrides: RuleOverrides | None = None,
+) -> list[Finding]:
     """Query data and run all rules. Returns findings without emitting.
 
     Pure-of-side-effects except for the read-only DB query; safe for the
-    dry-run API path.
+    dry-run API path. ``overrides`` (what-if, dashboard-v2 F5) replaces
+    individual thresholds for THIS call only — config stays the SSOT.
     """
     if not cfg.ANOMALY_ENABLED:
         return []
 
+    ov = overrides or RuleOverrides()
+    baseline_days = (
+        ov.baseline_days if ov.baseline_days is not None
+        else cfg.ANOMALY_BASELINE_DAYS
+    )
+    drop_pct = ov.drop_pct if ov.drop_pct is not None else cfg.ANOMALY_DROP_PCT
+    spike_pct = (
+        ov.spike_pct if ov.spike_pct is not None else cfg.ANOMALY_SPIKE_PCT
+    )
+    stale_days = (
+        ov.stale_days if ov.stale_days is not None else cfg.ANOMALY_STALE_DAYS
+    )
+    min_baseline_qty = (
+        ov.min_baseline_qty if ov.min_baseline_qty is not None
+        else cfg.ANOMALY_MIN_BASELINE_QTY
+    )
+
     today = today or _today()
     # Look back far enough to cover the baseline window plus the latest day,
     # with a small buffer for gaps (non-production days).
-    lookback_days = cfg.ANOMALY_BASELINE_DAYS + max(cfg.ANOMALY_STALE_DAYS, 1) + 7
+    lookback_days = baseline_days + max(stale_days, 1) + 7
     since = (today - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
     today_str = today.strftime("%Y-%m-%d")
 
@@ -98,19 +119,19 @@ def collect_findings(today: date | None = None) -> list[Finding]:
     # "completed" = strictly before today, so partial current-day ERP data
     # never triggers a false drop.
     completed = [d for d in daily if d["date"] < today_str]
-    if completed and cfg.ANOMALY_BASELINE_DAYS > 0:
+    if completed and baseline_days > 0:
         latest = completed[-1]
         # [-0:]은 빈 슬라이스가 아니라 전체라서 0일 설정 시 의도와 반대가 된다
-        window = completed[:-1][-cfg.ANOMALY_BASELINE_DAYS:]
+        window = completed[:-1][-baseline_days:]
         if window:
             baseline_avg = sum(d["qty"] for d in window) / len(window)
             findings += rules.detect_volume_anomalies(
                 latest_date=latest["date"],
                 latest_qty=float(latest["qty"]),
                 baseline_avg=float(baseline_avg),
-                drop_pct=cfg.ANOMALY_DROP_PCT,
-                spike_pct=cfg.ANOMALY_SPIKE_PCT,
-                min_baseline_qty=cfg.ANOMALY_MIN_BASELINE_QTY,
+                drop_pct=drop_pct,
+                spike_pct=spike_pct,
+                min_baseline_qty=min_baseline_qty,
             )
 
     # --- Stale rule: active items not produced for STALE_DAYS+ -----------
@@ -122,25 +143,35 @@ def collect_findings(today: date | None = None) -> list[Finding]:
         stale_input.append({**it, "days_idle": days_idle})
     findings += rules.detect_stale_items(
         items=stale_input,
-        stale_days=cfg.ANOMALY_STALE_DAYS,
+        stale_days=stale_days,
     )
 
     return findings
 
 
-def run_detection(emit: bool = True, today: date | None = None) -> dict[str, Any]:
+def run_detection(
+    emit: bool = True,
+    today: date | None = None,
+    overrides: RuleOverrides | None = None,
+) -> dict[str, Any]:
     """Full scan. When emit=True, fire webhook events for new findings only.
 
     Returns a summary dict (scan timestamp, counts, findings as dicts).
+    ``overrides`` is preview-only: the router exposes it on GET alone, and
+    this guard rejects the combination outright so a what-if experiment can
+    never distort a real emission decision (defense in depth).
     """
+    if emit and overrides is not None and overrides.to_dict():
+        raise ValueError("overrides are preview-only — emit must be False")
+
     now = time.time()
-    findings = collect_findings(today=today)
+    findings = collect_findings(today=today, overrides=overrides)
 
     emitted_keys: list[str] = []
     if emit and findings:
         emitted_keys = _emit_new(findings, now)
 
-    return {
+    result = {
         "scanned_at": datetime.now().isoformat(timespec="seconds"),
         "enabled": cfg.ANOMALY_ENABLED,
         "emitted": bool(emitted_keys),
@@ -148,6 +179,9 @@ def run_detection(emit: bool = True, today: date | None = None) -> dict[str, Any
         "count": len(findings),
         "findings": [f.to_dict() for f in findings],
     }
+    if overrides is not None and overrides.to_dict():
+        result["overrides"] = overrides.to_dict()  # what-if임을 UI에 표시
+    return result
 
 
 def _emit_new(findings: list[Finding], now: float) -> list[str]:
@@ -178,6 +212,12 @@ def _emit_new(findings: list[Finding], now: float) -> list[str]:
     # Keep the state file from growing without bound.
     store_state.prune(state, now=now, max_age_sec=cfg.ANOMALY_COOLDOWN_SEC * 7)
     store_state.save_state(state)
+
+    # Dashboard history (dashboard-v2 F1/F6) — fire-and-forget: both calls
+    # swallow their own errors, so history can never break emission.
+    if emitted:
+        store_findings.record_findings(emitted)
+        store_findings.prune_findings()
 
     if emitted:
         logger.info(

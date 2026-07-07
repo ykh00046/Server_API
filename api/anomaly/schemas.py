@@ -33,6 +33,25 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
 SEVERITY_ORDER: dict[str, int] = {"info": 0, "warning": 1, "critical": 2}
 
 
+@dataclass(frozen=True)
+class RuleOverrides:
+    """What-if threshold overrides (anomaly-dashboard-v2 F5).
+
+    None = use the config value. Only the GET (preview) path may carry
+    overrides — run_detection rejects emit=True + overrides as defense in
+    depth, so what-if can never distort a real emission decision."""
+
+    drop_pct: float | None = None
+    spike_pct: float | None = None
+    stale_days: int | None = None
+    min_baseline_qty: float | None = None
+    baseline_days: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Non-None overrides only — echoed in the scan response."""
+        return {k: v for k, v in asdict(self).items() if v is not None}
+
+
 @dataclass
 class Finding:
     """A single detected anomaly."""

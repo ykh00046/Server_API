@@ -1,8 +1,10 @@
 """Unit tests for cooldown state persistence + dedup filtering."""
 from __future__ import annotations
 
+import pytest
+
 from api.anomaly import store_state
-from api.anomaly.schemas import Finding
+from api.anomaly.schemas import Finding, RuleOverrides
 
 
 def _finding(key="volume_drop:2026-06-18"):
@@ -96,3 +98,61 @@ def test_emit_failure_not_marked(tmp_path, monkeypatch):
     state = store_state.load_state(state_file)
     assert "volume_drop:ok" in state["cooldowns"]
     assert "volume_drop:fail" not in state["cooldowns"]
+
+
+def test_run_detection_rejects_emit_with_overrides():
+    """심층 방어: what-if 오버라이드는 emit 경로에 절대 못 들어간다."""
+    from api.anomaly import detector
+
+    with pytest.raises(ValueError, match="preview-only"):
+        detector.run_detection(emit=True, overrides=RuleOverrides(drop_pct=10.0))
+    # 빈 오버라이드는 emit과 공존 가능 (None과 동등)
+    assert "scanned_at" in detector.run_detection(
+        emit=False, overrides=RuleOverrides()
+    )
+
+
+def test_emit_records_history_success_only(tmp_path, monkeypatch):
+    """dashboard-v2 F1: 성공 발행분만 이력에 기록된다."""
+    import api.notifications
+    from api.anomaly import detector, store_findings
+    from shared import config as cfg
+
+    monkeypatch.setattr(cfg, "ANOMALY_STATE_FILE", tmp_path / "state.json")
+    monkeypatch.setattr(cfg, "ANOMALY_DB_FILE", tmp_path / "anomaly.db")
+    store_findings.reset_for_tests()
+
+    def flaky_emit(event_type, payload):
+        if payload["key"] == "volume_drop:fail":
+            raise RuntimeError("enqueue failed")
+        return []
+
+    monkeypatch.setattr(api.notifications, "emit_event", flaky_emit)
+    now = float(cfg.ANOMALY_COOLDOWN_SEC * 10)
+    detector._emit_new(
+        [_finding("volume_drop:ok"), _finding("volume_drop:fail")], now=now
+    )
+
+    keys = {r["key"] for r in store_findings.list_findings()}
+    assert keys == {"volume_drop:ok"}
+    store_findings.reset_for_tests()
+
+
+def test_emit_survives_history_failure(tmp_path, monkeypatch):
+    """FR-6: 이력 기록이 터져도 발행 결과(emitted)는 불변."""
+    import api.notifications
+    from api.anomaly import detector, store_findings
+    from shared import config as cfg
+
+    monkeypatch.setattr(cfg, "ANOMALY_STATE_FILE", tmp_path / "state.json")
+    monkeypatch.setattr(api.notifications, "emit_event", lambda et, p: [])
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("history db on fire")
+
+    # record_findings 내부가 아니라 아예 함수 자체가 폭발하는 최악 케이스는
+    # 계약 위반이므로, 계약대로 '내부 격리'가 동작함을 _get_conn 폭발로 검증
+    monkeypatch.setattr(store_findings, "_get_conn", boom)
+    now = float(cfg.ANOMALY_COOLDOWN_SEC * 10)
+    emitted = detector._emit_new([_finding("volume_drop:x")], now=now)
+    assert emitted == ["volume_drop:x"]
