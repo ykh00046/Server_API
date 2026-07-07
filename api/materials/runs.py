@@ -7,11 +7,18 @@ materials.db connection + schema from store.py.
 """
 from __future__ import annotations
 
+import datetime as dt
 import sqlite3
 
 from .datasets import DEFAULT_DATASET
 from .schemas import MaterialRun
 from .store import _get_conn, _now_iso
+
+# A bot run takes minutes; a 'running' row this old can only be an orphan
+# (server killed/rebooted before the worker thread could finish_run). Kept
+# generous because the spawned bot child process can outlive an API restart —
+# reaping too early would allow a second bot alongside a surviving one.
+STALE_RUNNING_SEC = 6 * 3600
 
 
 def _row_to_run(row: sqlite3.Row) -> MaterialRun:
@@ -74,6 +81,30 @@ def finish_run(
         (status, _now_iso(), exit_code, message, run_id),
     )
     conn.commit()
+
+
+def reap_stale_running(
+    runs_table: str = DEFAULT_DATASET.runs_table,
+    *,
+    older_than_sec: float = STALE_RUNNING_SEC,
+) -> int:
+    """Mark orphaned 'running' automation rows as failed.
+
+    A running row is finalized only by its worker thread; if the process dies
+    first, the row stays 'running' forever and has_active_automation blocks
+    every future trigger with 409. Returns # of rows reaped."""
+    cutoff = (
+        dt.datetime.now() - dt.timedelta(seconds=older_than_sec)
+    ).isoformat(timespec="seconds")
+    conn = _get_conn()
+    cur = conn.execute(
+        f"UPDATE {runs_table} SET status = 'failed', finished_at = ?, "
+        "message = 'stale running run reaped (server restart?)' "
+        "WHERE kind = 'automation' AND status = 'running' AND started_at <= ?",
+        (_now_iso(), cutoff),
+    )
+    conn.commit()
+    return cur.rowcount or 0
 
 
 def has_active_automation(runs_table: str = DEFAULT_DATASET.runs_table) -> bool:

@@ -5,6 +5,8 @@ query) and the HTTP router (POST /materials/backup, GET /materials).
 """
 from __future__ import annotations
 
+import datetime as dt
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -422,3 +424,44 @@ class TestTrigger:
         r = client.post("/materials/run")
         assert r.status_code == 409
         assert "봇 진입점" in r.json()["detail"]
+
+    def test_stale_running_reaped_and_trigger_unblocked(
+        self, client, monkeypatch, tmp_path
+    ):
+        """서버 강제 종료로 남은 오래된 'running' 행은 트리거를 영구 차단하지
+        않는다 — 트리거 시 failed로 정리되고 새 실행이 시작된다."""
+        bot = tmp_path / "bot"
+        bot.mkdir()
+        (bot / "main.py").write_text("# dummy")
+        monkeypatch.setattr(cfg, "MATERIALS_RUN_ENABLED", True)
+        monkeypatch.setattr(cfg, "MATERIALS_BOT_DIR", bot)
+        monkeypatch.setattr(automation.threading, "Thread", _InlineThread)
+        monkeypatch.setattr(automation, "_run_subprocess",
+                            lambda python, bot_dir, keyword=None: (0, "완료"))
+        # Orphan: a running row older than the stale window.
+        stale_id = runs.start_run("automation")
+        old = (
+            dt.datetime.now()
+            - dt.timedelta(seconds=runs.STALE_RUNNING_SEC + 60)
+        ).isoformat(timespec="seconds")
+        conn = store._get_conn()
+        conn.execute(
+            f"UPDATE {runs.DEFAULT_DATASET.runs_table} "
+            "SET started_at = ? WHERE id = ?",
+            (old, stale_id),
+        )
+        conn.commit()
+
+        r = client.post("/materials/run")
+        assert r.status_code == 200, r.text
+        reaped = runs.get_run(stale_id)
+        assert reaped.status == "failed"
+        assert "stale" in (reaped.message or "")
+
+    def test_fresh_running_not_reaped(self, client, monkeypatch):
+        """정상 진행 중(신선한 running)은 reap 대상이 아니어서 계속 409."""
+        monkeypatch.setattr(cfg, "MATERIALS_RUN_ENABLED", True)
+        rid = runs.start_run("automation")
+        r = client.post("/materials/run")
+        assert r.status_code == 409
+        assert runs.get_run(rid).status == "running"

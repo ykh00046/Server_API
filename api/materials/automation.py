@@ -30,6 +30,11 @@ class TriggerError(RuntimeError):
     """Raised when a run cannot be started (disabled / already running)."""
 
 
+# Makes the check-then-insert in trigger_automation atomic — two nearly
+# simultaneous 지금 실행 clicks both saw "no active run" and spawned two bots.
+_trigger_lock = threading.Lock()
+
+
 def _run_subprocess(python: str, bot_dir: str, keyword: str | None = None) -> tuple[int, str]:
     """Run `python main.py --auto [--keyword KW]` in bot_dir.
 
@@ -87,10 +92,16 @@ def trigger_automation(
     bot_dir = _cfg.MATERIALS_BOT_DIR
     if not (bot_dir / "main.py").exists():
         raise TriggerError(f"봇 진입점을 찾을 수 없습니다: {bot_dir / 'main.py'}")
-    if runs.has_active_automation(runs_table=runs_table):
-        raise TriggerError("이미 실행 중인 자동화가 있습니다.")
-
-    run_id = runs.start_run("automation", runs_table=runs_table)
+    with _trigger_lock:
+        reaped = runs.reap_stale_running(runs_table=runs_table)
+        if reaped:
+            logger.warning(
+                "[materials] reaped %d stale running run(s) in %s",
+                reaped, runs_table,
+            )
+        if runs.has_active_automation(runs_table=runs_table):
+            raise TriggerError("이미 실행 중인 자동화가 있습니다.")
+        run_id = runs.start_run("automation", runs_table=runs_table)
     threading.Thread(
         target=_worker, args=(run_id, keyword, runs_table),
         name=f"MaterialsAutomation-{run_id}", daemon=True,
