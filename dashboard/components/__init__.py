@@ -34,11 +34,7 @@ from .layout import (
     render_ai_column,
     render_page_header,
 )
-from .loading import (
-    render_cache_status,
-    render_last_update,
-    show_loading_status,
-)
+from .loading import render_last_update
 from .presets import (
     apply_pending_preset,
     delete_preset,
@@ -51,9 +47,7 @@ from .presets import (
 
 __all__ = [
     # loading
-    "show_loading_status",
     "render_last_update",
-    "render_cache_status",
     # kpi_cards
     "calculate_kpis",
     "render_kpi_cards",

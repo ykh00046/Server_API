@@ -231,7 +231,7 @@ def _ensure_ai_enabled(request_id: str):
 
 
 
-async def _generate_with_retry(client_obj, contents, system_instruction, request_id, query_preview):
+async def _generate_with_retry(client_obj, contents, system_instruction, request_id):
     """Run Gemini call with retry/backoff + fallback. Returns (response, model_used)."""
     last_error: Exception | None = None
     total_delay = 0.0
@@ -317,7 +317,7 @@ async def chat_with_data(request: ChatRequest, http_request: Request):
 
     try:
         response, model_used = await _generate_with_retry(
-            client_obj, contents, _build_system_instruction(), request_id, query_preview
+            client_obj, contents, _build_system_instruction(), request_id
         )
     except Exception as e:  # noqa: BLE001 — top-level chat handler: 모든 예외를 user-friendly 응답으로 변환
         duration_ms = (time.perf_counter() - start_time) * 1000

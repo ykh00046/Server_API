@@ -469,16 +469,6 @@ class ServerManager(ctk.CTk):
             self.lbl_watcher_status.configure(text="Active (1h)", text_color=COLOR_SUCCESS)
             self.db_status_bar.configure(fg_color=COLOR_SUCCESS)
 
-    def manual_db_check(self):
-        """Trigger manual DB check (auto-start watcher if not running)."""
-        if not self.watcher or not self.watcher.is_alive():
-            self.toggle_watcher()
-        if self.watcher:
-            self.log_queue.put(("INFO", "🛠️ Manual Check Triggered..."))
-            self.watcher.manual_trigger()
-        else:
-            self.log_queue.put(("WARN", "Watcher is paused."))
-
     def _stream_output(self, proc: subprocess.Popen, panel: ServicePanel) -> None:
         """Stream subprocess output to panel log with timeout protection."""
         try:
