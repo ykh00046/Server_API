@@ -19,7 +19,7 @@ import streamlit as st
 # Add parent directory for shared imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from components import init_presets, render_preset_manager
+from components import apply_pending_preset, init_presets, render_preset_manager
 from components.layout import init_ai_panel_state
 from data import get_db_mtime, load_item_list, run_self_check
 
@@ -95,21 +95,35 @@ with st.sidebar:
 
     current_db_ver = get_db_mtime()
 
-    limit = st.slider("최대 레코드 수", 500, 50000, 5000, 500)
-    keyword = st.text_input("키워드 (코드/명칭/LOT)", value="").strip() or None
+    items_df = load_item_list(db_ver=current_db_ver)
+    labels = items_df["label"].tolist()
+    label_to_code = dict(zip(labels, items_df["item_code"].tolist(), strict=True))
+
+    # Preset 적용 값을 위젯 생성 전에 flt_* 세션 키로 주입 (생성 후엔 금지)
+    apply_pending_preset({code: label for label, code in label_to_code.items()})
 
     today = date.today()
-    date_range = st.date_input(
-        "날짜 범위 (생산일)", value=(today - timedelta(days=90), today)
+    st.session_state.setdefault("flt_limit", 5000)
+    st.session_state.setdefault("flt_keyword", "")
+    st.session_state.setdefault("flt_dates", (today - timedelta(days=90), today))
+    st.session_state.setdefault("flt_products", [])
+    # DB 교체로 사라진 제품 라벨이 남아 있으면 multiselect가 죽는다
+    _label_set = set(labels)
+    st.session_state["flt_products"] = [
+        x for x in st.session_state["flt_products"] if x in _label_set
+    ]
+
+    limit = st.slider(
+        "최대 레코드 수", min_value=500, max_value=50000, step=500, key="flt_limit"
     )
+    keyword = st.text_input("키워드 (코드/명칭/LOT)", key="flt_keyword").strip() or None
+
+    date_range = st.date_input("날짜 범위 (생산일)", key="flt_dates")
     date_from, date_to = None, None
     if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
         date_from, date_to = date_range[0], date_range[1]
 
-    items_df = load_item_list(db_ver=current_db_ver)
-    labels = items_df["label"].tolist()
-    label_to_code = dict(zip(labels, items_df["item_code"].tolist(), strict=True))
-    selected_labels = st.multiselect("제품 선택", options=labels, default=[])
+    selected_labels = st.multiselect("제품 선택", options=labels, key="flt_products")
     item_codes = (
         [label_to_code[x] for x in selected_labels] if selected_labels else None
     )
@@ -123,16 +137,14 @@ with st.sidebar:
         "limit": limit,
     }
 
-    # Preset manager
-    loaded_preset = render_preset_manager(
+    # Preset manager — 적용은 _pending_preset 큐잉 + rerun으로 위 flt_* 키에 반영
+    render_preset_manager(
         current_item_codes=item_codes,
         current_date_from=date_from,
         current_date_to=date_to,
         current_keyword=keyword,
         current_limit=limit,
     )
-    if loaded_preset:
-        st.info("프리셋 로드됨. 필터 조정 후 새로고침하세요.")
 
     if st.button("새로고침", icon=":material/refresh:", width="stretch"):
         st.cache_data.clear()

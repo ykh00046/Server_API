@@ -40,6 +40,7 @@ from .loading import (
     show_loading_status,
 )
 from .presets import (
+    apply_pending_preset,
     delete_preset,
     get_preset_names,
     init_presets,
@@ -65,6 +66,7 @@ __all__ = [
     "get_chart_config",
     # presets
     "init_presets",
+    "apply_pending_preset",
     "get_preset_names",
     "save_preset",
     "load_preset",

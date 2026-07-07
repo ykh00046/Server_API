@@ -10,6 +10,7 @@ Features:
 
 import io
 import time
+import uuid
 from collections.abc import Iterator
 
 import httpx
@@ -39,6 +40,22 @@ _ERROR_MESSAGES = {
 
 _MAX_RETRIES = 1
 _RETRY_DELAY_SEC = 2.0
+
+
+def _get_session_id() -> str:
+    """Client-generated multi-turn session id. The server never mints one —
+    it persists history only under the id the client sends, so sending None
+    every turn (the pre-fix behavior) silently disabled multi-turn context."""
+    if "chat_session_id" not in st.session_state:
+        st.session_state["chat_session_id"] = str(uuid.uuid4())
+    return st.session_state["chat_session_id"]
+
+
+def _reset_chat() -> None:
+    """Clear history AND rotate the server-side session id — keeping the old
+    id would make the next question answer with the previous conversation."""
+    st.session_state.messages = []
+    st.session_state["chat_session_id"] = str(uuid.uuid4())
 
 STARTER_PROMPTS = [
     {
@@ -164,7 +181,7 @@ def _process_pending_user_message(chat_container, api_url: str) -> None:
     with target, st.chat_message("assistant", avatar=":material/smart_toy:"):
         payload = {
             "query": latest_prompt,
-            "session_id": st.session_state.get("chat_session_id"),
+            "session_id": _get_session_id(),
         }
         full_answer = st.write_stream(_stream_chat_tokens(api_url, payload))
         if isinstance(full_answer, list):
@@ -301,7 +318,7 @@ def render_ai_chat(api_url: str | None = None) -> None:
         col1, col2 = st.columns([1, 5])
         with col1:
             if st.button("새로운 대화 시작", icon=":material/add_comment:", help="대화 기록을 지우고 초기 화면으로 돌아갑니다."):
-                st.session_state.messages = []
+                _reset_chat()
                 st.rerun()
 
 
@@ -416,5 +433,5 @@ def render_ai_section_compact(api_url: str | None = None) -> None:
     if len(st.session_state.messages) > 0 and st.button(
         "새 대화", icon=":material/add_comment:", key="compact_new_chat", width="stretch"
     ):
-        st.session_state.messages = []
+        _reset_chat()
         st.rerun()

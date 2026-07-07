@@ -62,9 +62,8 @@ def save_preset(
     name = name.strip()
     presets = st.session_state.get("filter_presets", {})
 
-    # Enforce maximum presets limit
+    # Enforce maximum presets limit (pure: the caller renders the warning)
     if len(presets) >= MAX_PRESETS and name not in presets:
-        st.warning(f"프리셋은 최대 {MAX_PRESETS}개까지 저장 가능합니다. 기존 프리셋을 삭제해 주세요.")
         return False
 
     # Store preset
@@ -132,13 +131,61 @@ def delete_preset(name: str) -> bool:
     return False
 
 
+def apply_pending_preset(label_by_code: dict[str, str]) -> None:
+    """Consume the preset queued by the 적용 button into the filter-widget
+    session keys (flt_*). Must run BEFORE those widgets are instantiated —
+    Streamlit forbids assigning a widget's session key after instantiation.
+
+    Args:
+        label_by_code: item_code → multiselect label mapping for the current
+            product list; preset codes that no longer exist are dropped.
+    """
+    pending = st.session_state.pop("_pending_preset", None)
+    if not pending:
+        return
+    st.session_state["flt_limit"] = int(pending.get("limit") or 5000)
+    st.session_state["flt_keyword"] = pending.get("keyword") or ""
+    if pending.get("date_from") and pending.get("date_to"):
+        st.session_state["flt_dates"] = (pending["date_from"], pending["date_to"])
+    st.session_state["flt_products"] = [
+        label_by_code[c]
+        for c in (pending.get("item_codes") or [])
+        if c in label_by_code
+    ]
+
+
+def _on_save_click(
+    item_codes: list[str] | None,
+    date_from: date | None,
+    date_to: date | None,
+    keyword: str | None,
+    limit: int,
+) -> None:
+    """on_click callback for the save button. Callbacks run before the next
+    script run, so clearing the text_input widget key here is legal — the old
+    in-script `st.session_state.new_preset_name = ""` raised
+    StreamlitAPIException on every save."""
+    name = (st.session_state.get("new_preset_name") or "").strip()
+    if not name:
+        st.session_state["_preset_msg"] = ("warning", "프리셋 이름을 입력하세요")
+    elif save_preset(name, item_codes, date_from, date_to, keyword, limit):
+        st.session_state["_preset_msg"] = ("success", f"프리셋 '{name}' 저장됨!")
+        st.session_state.new_preset_name = ""
+    else:
+        st.session_state["_preset_msg"] = (
+            "warning",
+            f"프리셋은 최대 {MAX_PRESETS}개까지 저장 가능합니다. "
+            "기존 프리셋을 삭제해 주세요.",
+        )
+
+
 def render_preset_manager(
     current_item_codes: list[str] | None,
     current_date_from: date | None,
     current_date_to: date | None,
     current_keyword: str | None,
     current_limit: int
-) -> dict[str, Any] | None:
+) -> None:
     """
     Render preset management UI in sidebar.
 
@@ -148,21 +195,12 @@ def render_preset_manager(
     - Input for new preset name
     - Save button for current filter settings
 
-    Args:
-        current_item_codes: Currently selected product codes
-        current_date_from: Current start date
-        current_date_to: Current end date
-        current_keyword: Current search keyword
-        current_limit: Current row limit
-
-    Returns:
-        Loaded preset dict if user clicked Apply, None otherwise.
-        The caller should apply these values to the filter controls.
+    적용 queues the preset into st.session_state["_pending_preset"] and
+    reruns; the app consumes it via apply_pending_preset() before the filter
+    widgets are created, so the widgets actually reflect the preset.
     """
     st.sidebar.divider()
     with st.sidebar.expander("필터 프리셋", icon=":material/folder:", expanded=False):
-        loaded_preset = None
-
         # Load preset section
         preset_names = get_preset_names()
         if preset_names:
@@ -179,7 +217,13 @@ def render_preset_manager(
 
                 with col_a:
                     if st.button("적용", key="apply_preset", width="stretch"):
-                        loaded_preset = load_preset(selected_preset)
+                        loaded = load_preset(selected_preset)
+                        if loaded:
+                            st.session_state["_pending_preset"] = loaded
+                            st.session_state["_preset_msg"] = (
+                                "success", f"프리셋 '{selected_preset}' 적용됨"
+                            )
+                            st.rerun()
 
                 with col_b:
                     if st.button(
@@ -196,25 +240,26 @@ def render_preset_manager(
             help="현재 필터 설정을 저장할 이름을 입력하세요",
         )
 
-        if st.button("현재 필터 저장", key="save_preset", width="stretch"):
-            name = st.session_state.get("new_preset_name", "").strip()
-            if name:
-                if save_preset(
-                    name,
-                    current_item_codes,
-                    current_date_from,
-                    current_date_to,
-                    current_keyword,
-                    current_limit
-                ):
-                    st.success(f"프리셋 '{name}' 저장됨!")
-                    st.session_state.new_preset_name = ""
-                    st.rerun()
-            else:
-                st.warning("프리셋 이름을 입력하세요")
+        st.button(
+            "현재 필터 저장",
+            key="save_preset",
+            width="stretch",
+            on_click=_on_save_click,
+            args=(
+                current_item_codes,
+                current_date_from,
+                current_date_to,
+                current_keyword,
+                current_limit,
+            ),
+        )
+
+        # Deferred feedback from the save callback / apply rerun
+        msg = st.session_state.pop("_preset_msg", None)
+        if msg:
+            level, text = msg
+            getattr(st, level)(text)
 
         # Show preset count
         preset_count = len(get_preset_names())
         st.caption(f"프리셋: {preset_count}/{MAX_PRESETS}")
-
-    return loaded_preset
