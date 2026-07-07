@@ -19,6 +19,7 @@ import httpx
 from shared import get_logger
 from shared.config import (
     WEBHOOK_MAX_ATTEMPTS,
+    WEBHOOK_TIMEOUT_SEC,
     WEBHOOK_WORKER_BATCH,
     WEBHOOK_WORKER_TICK_SEC,
 )
@@ -28,6 +29,10 @@ from .backoff import next_delay
 from .dispatcher import DispatchResult
 
 logger = get_logger(__name__)
+
+# A live worker finalizes a claimed row within one dispatch timeout, so any
+# in_flight row older than this lease is an orphan from a killed process.
+IN_FLIGHT_LEASE_SEC = max(60.0, WEBHOOK_TIMEOUT_SEC * 4)
 
 
 class WebhookDispatchWorker:
@@ -60,6 +65,9 @@ class WebhookDispatchWorker:
     def start(self) -> None:
         if self._thread is not None and self._thread.is_alive():
             return
+        # Single-process assumption: at start no dispatch can be in flight,
+        # so every in_flight row is an orphan from the previous run.
+        store.recover_stale_in_flight(older_than_sec=0.0)
         self._shutdown.clear()
         t = threading.Thread(
             target=self._run, name="WebhookDispatchWorker", daemon=True
@@ -71,7 +79,11 @@ class WebhookDispatchWorker:
             self.tick_sec, self.batch_size, self.max_attempts,
         )
 
-    def stop(self, *, timeout: float = 2.0) -> None:
+    def stop(self, *, timeout: float | None = None) -> None:
+        # Default join window must outlast one in-flight HTTP attempt —
+        # a shorter join abandons the batch mid-dispatch (orphaned in_flight).
+        if timeout is None:
+            timeout = WEBHOOK_TIMEOUT_SEC + 2.0
         self._shutdown.set()
         t = self._thread
         if t is not None:
@@ -88,10 +100,19 @@ class WebhookDispatchWorker:
 
     # ----- single iteration (public for tests) -----
     def tick_once(self) -> int:
-        """Process one batch of due deliveries. Returns # claimed."""
+        """Process one batch of due deliveries. Returns # finalized."""
         now = store._now_iso()
+        store.recover_stale_in_flight(
+            older_than_sec=IN_FLIGHT_LEASE_SEC, now_iso=now
+        )
         claimed = store.claim_due_deliveries(now_iso=now, limit=self.batch_size)
-        for cd in claimed:
+        done = 0
+        for i, cd in enumerate(claimed):
+            if self._shutdown.is_set():
+                # Shutdown mid-batch: hand unprocessed claims back to the
+                # queue so the next start redelivers them immediately.
+                store.release_claims([c.id for c in claimed[i:]])
+                break
             try:
                 outcome = dispatcher.send(
                     url=cd.url,
@@ -111,7 +132,8 @@ class WebhookDispatchWorker:
                     duration_ms=0,
                 )
             self._finalize(cd, outcome)
-        return len(claimed)
+            done += 1
+        return done
 
     def _finalize(self, cd, outcome: DispatchResult) -> None:
         # Success path

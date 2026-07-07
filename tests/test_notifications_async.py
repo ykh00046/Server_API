@@ -406,6 +406,96 @@ def test_4xx_response_marks_failure_no_retry(client, isolated_db, captured):
 
 
 # ==========================================================
+# in_flight reaper (full-review-202607 H-1) — orphaned claims
+# must be recoverable, never stuck forever
+# ==========================================================
+def test_orphaned_in_flight_recovered_and_redelivered(client, isolated_db, captured):
+    """A row stuck in_flight (killed process) is requeued by the reaper and
+    then delivered on the next tick."""
+    wh = _create_wh(client)
+    events.emit_event("evt.async", {"x": 1})
+    # Simulate a crash: claim transitions the row to in_flight, then nothing
+    # finalizes it.
+    orphans = store.claim_due_deliveries(now_iso=store._now_iso(), limit=10)
+    assert len(orphans) == 1
+    assert store.list_deliveries(wh["id"])[0].status == "in_flight"
+
+    transport = _make_ok_transport(captured)
+    worker = WebhookDispatchWorker(transport=transport, random_fn=lambda: 0.5)
+
+    # A fresh in_flight row is inside the lease — the per-tick reaper must
+    # NOT touch it (that would double-dispatch a genuinely in-flight row).
+    assert worker.tick_once() == 0
+    assert store.list_deliveries(wh["id"])[0].status == "in_flight"
+
+    # Past the lease (age 0 here) the row is an orphan — requeue + deliver.
+    assert store.recover_stale_in_flight(older_than_sec=0.0) == 1
+    assert store.list_deliveries(wh["id"])[0].status == "queued"
+    assert worker.tick_once() == 1
+    assert store.list_deliveries(wh["id"])[0].status == "success"
+    assert len(captured["requests"]) == 1
+
+
+def test_worker_start_recovers_orphans(client, isolated_db, captured):
+    """start() runs the startup reaper: an orphaned in_flight row from the
+    previous process is never left stuck."""
+    wh = _create_wh(client)
+    events.emit_event("evt.async", {"x": 1})
+    store.claim_due_deliveries(now_iso=store._now_iso(), limit=10)
+    assert store.list_deliveries(wh["id"])[0].status == "in_flight"
+
+    transport = _make_ok_transport(captured)
+    worker = WebhookDispatchWorker(
+        transport=transport, tick_sec=0.05, random_fn=lambda: 0.5
+    )
+    worker.start()
+    try:
+        # Recovery happens synchronously inside start(); the loop may or may
+        # not have delivered it yet — either way it is no longer stuck.
+        assert store.list_deliveries(wh["id"])[0].status in ("queued", "success")
+        # Bounded poll: the running loop must deliver the recovered row.
+        deadline = time.time() + 5.0
+        while (
+            time.time() < deadline
+            and store.list_deliveries(wh["id"])[0].status != "success"
+        ):
+            time.sleep(0.02)
+        assert store.list_deliveries(wh["id"])[0].status == "success"
+    finally:
+        worker.stop()
+
+
+def test_shutdown_mid_batch_releases_unprocessed_claims(client, isolated_db, captured):
+    """tick_once observes the shutdown flag and hands claimed-but-unprocessed
+    rows back to the queue instead of orphaning them."""
+    wh = _create_wh(client)
+    events.emit_event("evt.async", {"x": 1})
+    events.emit_event("evt.async", {"x": 2})
+    transport = _make_ok_transport(captured)
+    worker = WebhookDispatchWorker(transport=transport, random_fn=lambda: 0.5)
+    worker._shutdown.set()
+    assert worker.tick_once() == 0
+    assert len(captured["requests"]) == 0
+    statuses = [d.status for d in store.list_deliveries(wh["id"])]
+    assert statuses == ["queued", "queued"]
+
+
+def test_stop_default_timeout_outlasts_http_dispatch(client, isolated_db, captured):
+    """stop() without an explicit timeout waits out an in-flight HTTP attempt
+    (WEBHOOK_TIMEOUT_SEC + grace) so the batch is finalized, not abandoned."""
+    wh = _create_wh(client)
+    events.emit_event("evt.async", {"x": 1})
+    transport = _make_slow_handler_transport(captured, delay_sec=1.0)
+    worker = WebhookDispatchWorker(
+        transport=transport, tick_sec=0.05, random_fn=lambda: 0.5
+    )
+    worker.start()
+    time.sleep(0.3)  # let the tick claim the row and enter the slow handler
+    worker.stop()  # default timeout must cover the 1.0s handler
+    assert store.list_deliveries(wh["id"])[0].status == "success"
+
+
+# ==========================================================
 # Extra — OpenAPI exposes the 2 new v2 paths
 # ==========================================================
 def test_openapi_includes_v2_paths(client):

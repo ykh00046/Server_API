@@ -45,6 +45,8 @@ from .deliveries_repo import (  # noqa: F401
     list_retryable_delivery_ids,
     queue_stats,
     record_attempt,
+    recover_stale_in_flight,
+    release_claims,
     requeue_deliveries,
     requeue_delivery,
 )
@@ -77,6 +79,8 @@ __all__ = [
     "list_retryable_delivery_ids",
     "queue_stats",
     "record_attempt",
+    "recover_stale_in_flight",
+    "release_claims",
     "requeue_deliveries",
     "requeue_delivery",
     "reset_for_tests",

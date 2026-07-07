@@ -30,6 +30,8 @@ logger = get_logger(__name__)
 #   failure : 4xx permanent failure or v1 sync single-shot failure
 # queued/in_flight/retrying/success/skipped are deliberately excluded —
 # re-queuing in_flight risks double-dispatch and success risks re-sending.
+# Orphaned in_flight rows (process killed mid-dispatch) are recovered by
+# recover_stale_in_flight() below, not by bulk retry.
 RETRYABLE_TERMINAL_STATUSES: tuple[str, ...] = ("dead", "failure")
 
 _BULK_LIMIT_MAX = 5000
@@ -147,10 +149,12 @@ def claim_due_deliveries(*, now_iso: str, limit: int) -> list[ClaimedDelivery]:
             (now_iso, limit),
         ).fetchall()
         for r in rows:
+            # attempted_at doubles as the claim timestamp — the lease that
+            # recover_stale_in_flight() measures orphan age against.
             upd = conn.execute(
-                "UPDATE webhook_deliveries SET status='in_flight' "
+                "UPDATE webhook_deliveries SET status='in_flight', attempted_at=? "
                 "WHERE id = ? AND status IN ('queued','retrying')",
-                (r["id"],),
+                (now_iso, r["id"]),
             )
             if upd.rowcount == 0:
                 continue
@@ -204,6 +208,69 @@ def record_attempt(
         ),
     )
     conn.commit()
+
+
+# ----- crash recovery (in_flight reaper) -----------------------------------
+def recover_stale_in_flight(
+    *, older_than_sec: float, now_iso: str | None = None
+) -> int:
+    """Requeue 'in_flight' rows whose claim is older than ``older_than_sec``.
+
+    claim_due_deliveries stamps attempted_at at claim time, and a live worker
+    finalizes every claimed row within the dispatch timeout — so an in_flight
+    row older than the lease can only be an orphan from a killed process.
+    claim never re-selects in_flight, so without this the row would be stuck
+    forever (and bulk retry deliberately excludes it). Requeueing keeps the
+    attempt count; a rare double-send is covered by the X-Webhook-Delivery
+    dedup header (at-least-once).
+    """
+    now = now_iso or _now_iso()
+    cutoff = (
+        dt.datetime.fromisoformat(now) - dt.timedelta(seconds=float(older_than_sec))
+    ).isoformat()
+    conn = _get_conn()
+    try:
+        cur = conn.execute(
+            """
+            UPDATE webhook_deliveries
+            SET status='queued', next_attempt_at=?
+            WHERE status='in_flight' AND attempted_at <= ?
+            """,
+            (now, cutoff),
+        )
+        conn.commit()
+    except sqlite3.Error as e:
+        conn.rollback()
+        logger.warning("[notifications.store] in_flight recovery failed: %s", e)
+        return 0
+    n = int(cur.rowcount or 0)
+    if n:
+        logger.warning(
+            "[notifications.store] requeued %d orphaned in_flight deliveries", n
+        )
+    return n
+
+
+def release_claims(ids: list[int]) -> int:
+    """Return claimed-but-unprocessed rows to 'queued' (shutdown mid-batch).
+
+    next_attempt_at is left as-is: the rows were already due when claimed."""
+    if not ids:
+        return 0
+    conn = _get_conn()
+    placeholders = ",".join("?" for _ in ids)
+    try:
+        cur = conn.execute(
+            f"UPDATE webhook_deliveries SET status='queued' "
+            f"WHERE status='in_flight' AND id IN ({placeholders})",
+            [int(i) for i in ids],
+        )
+        conn.commit()
+        return int(cur.rowcount or 0)
+    except sqlite3.Error as e:
+        conn.rollback()
+        logger.warning("[notifications.store] release_claims failed: %s", e)
+        return 0
 
 
 def queue_stats() -> dict[str, int]:
