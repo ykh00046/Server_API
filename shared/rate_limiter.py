@@ -162,9 +162,11 @@ class RateLimiter:
             removed = 0
             ips_to_remove = []
 
-            for ip, timestamps in self._requests.items():
-                if removed > max_ips:
-                    # Safety: stop if too many IPs processed
+            # Safety: bound the scan itself — the old guard checked `removed`
+            # (always 0 during the scan loop), so it never fired and the lock
+            # was held for a full scan regardless of max_ips.
+            for i, (ip, timestamps) in enumerate(self._requests.items()):
+                if i >= max_ips:
                     break
 
                 # Deque is sorted ascending; if newest (rightmost) is expired, all are expired

@@ -19,7 +19,6 @@ Key Design:
 
 from __future__ import annotations
 
-import contextlib
 import logging
 import sqlite3
 from dataclasses import dataclass
@@ -30,6 +29,7 @@ from ._db_connection import (  # noqa: F401 (back-compat)
     _all_connections,
     _apply_pragma_settings,
     _connection_lock,
+    _discard_connection,
     _get_db_mtime,
     _local,
 )
@@ -147,15 +147,13 @@ class DBRouter:
                 cached_conn.execute("SELECT 1")
                 return cached_conn
             except sqlite3.Error:
-                with contextlib.suppress(sqlite3.Error):
-                    cached_conn.close()
+                _discard_connection(cached_conn)
 
         if cached_conn is not None and cached_mtime != current_mtime:
             logger.debug(
                 f"DB mtime changed, reconnecting... (old={cached_mtime}, new={current_mtime})"
             )
-            with contextlib.suppress(sqlite3.Error):
-                cached_conn.close()
+            _discard_connection(cached_conn)
 
         mode = "ro" if read_only else "rw"
         db_uri = f"file:{DB_FILE.absolute()}?mode={mode}"

@@ -202,6 +202,20 @@ class TestRateLimiterCleanup:
         removed = limiter.cleanup()
         assert removed == 3
 
+    def test_cleanup_max_ips_bounds_scan(self):
+        """max_ips는 스캔 자체를 제한한다 — 과거엔 removed(스캔 중 항상 0)를
+        검사해 가드가 절대 발동하지 않았다 (full-review-202607)."""
+        clock = FakeClock()
+        limiter = RateLimiter(max_requests=5, window_seconds=1, clock=clock)
+        for i in range(10):
+            limiter.is_allowed(f"10.0.1.{i}")
+        clock.advance(1.1)
+
+        # 만료 IP 10개 중 스캔 상한 3개까지만 제거
+        assert limiter.cleanup(max_ips=3) == 3
+        # 다음 호출이 이어서 정리
+        assert limiter.cleanup() == 7
+
     def test_cleanup_keeps_active_ips(self):
         """활성 IP는 유지됨"""
         limiter = RateLimiter(max_requests=5, window_seconds=60)

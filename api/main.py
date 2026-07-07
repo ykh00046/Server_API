@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from shared import (
     api_rate_limiter,
     authenticate,
+    chat_rate_limiter,
     get_logger,
     is_public_path,
     load_auth_settings,
@@ -209,7 +210,9 @@ async def add_request_id_and_rate_limit(request, call_next):
     should_cleanup = next(_request_counter) % _CLEANUP_INTERVAL == 0
 
     if should_cleanup:
-        removed = api_rate_limiter.cleanup()
+        # chat 리미터도 함께 정리 — /chat 경로는 이 미들웨어를 우회하므로
+        # 여기서 정리하지 않으면 IP별 deque가 무한히 쌓인다.
+        removed = api_rate_limiter.cleanup() + chat_rate_limiter.cleanup()
         if removed > 0:
             logger.debug(f"[Rate Limiter Cleanup] Removed {removed} expired IPs")
 

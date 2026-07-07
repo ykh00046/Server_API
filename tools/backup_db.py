@@ -56,6 +56,8 @@ def backup_database(source_path: Path, backup_path: Path) -> bool:
     Backup a SQLite database using the backup API.
     Returns True on success, False on failure.
     """
+    source_conn = None
+    backup_conn = None
     try:
         log("INFO", f"Starting backup: {source_path.name} -> {backup_path.name}")
 
@@ -75,15 +77,15 @@ def backup_database(source_path: Path, backup_path: Path) -> bool:
         # Use SQLite backup API
         source_conn.backup(backup_conn)
 
-        source_conn.close()
-        backup_conn.close()
-
         log("INFO", f"Backup created: {backup_path}")
         return True
 
     except sqlite3.Error as e:
         log("ERROR", f"SQLite error during backup: {e}")
-        # Clean up partial backup if it exists
+        # Close BEFORE unlink — Windows cannot delete an open file
+        # (WinError 32), which left corrupt partial backups in retention.
+        _close_quietly(backup_conn)
+        backup_conn = None
         if backup_path.exists():
             with contextlib.suppress(OSError):
                 backup_path.unlink()
@@ -93,12 +95,23 @@ def backup_database(source_path: Path, backup_path: Path) -> bool:
         log("ERROR", f"Unexpected error during backup: {e}")
         return False
 
+    finally:
+        _close_quietly(source_conn)
+        _close_quietly(backup_conn)
+
+
+def _close_quietly(conn: sqlite3.Connection | None) -> None:
+    if conn is not None:
+        with contextlib.suppress(sqlite3.Error):
+            conn.close()
+
 
 def verify_backup(backup_path: Path) -> bool:
     """
     Verify backup integrity using PRAGMA quick_check.
     Returns True if valid, False otherwise.
     """
+    conn = None
     try:
         log("INFO", f"Verifying backup: {backup_path.name}")
 
@@ -111,6 +124,7 @@ def verify_backup(backup_path: Path) -> bool:
         cursor.execute("PRAGMA quick_check;")
         result = cursor.fetchone()
         conn.close()
+        conn = None
 
         if result and result[0] == "ok":
             log("INFO", f"Backup verification passed: {backup_path.name}")
@@ -122,6 +136,8 @@ def verify_backup(backup_path: Path) -> bool:
     except sqlite3.Error as e:
         log("ERROR", f"Error verifying backup: {e}")
         return False
+    finally:
+        _close_quietly(conn)
 
 
 def cleanup_old_backups(prefix: str, retention: int):

@@ -36,6 +36,18 @@ def _cleanup_all_connections() -> None:
     logger.debug("All database connections cleaned up")
 
 
+def _discard_connection(conn: sqlite3.Connection) -> None:
+    """Close a dead/stale cached connection and drop it from the registry.
+
+    Without the remove, every ERP DB-file swap appended a fresh connection
+    per thread while the closed one stayed in _all_connections forever —
+    unbounded growth on a long-running server."""
+    with contextlib.suppress(sqlite3.Error):
+        conn.close()
+    with _connection_lock, contextlib.suppress(ValueError):
+        _all_connections.remove(conn)
+
+
 atexit.register(_cleanup_all_connections)
 
 

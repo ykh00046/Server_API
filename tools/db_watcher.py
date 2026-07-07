@@ -54,8 +54,14 @@ class DBWatcher(threading.Thread):
                     break
                 self._check_and_heal()
 
-            except sqlite3.Error as e:
+            except (sqlite3.Error, OSError) as e:
+                # OSError 포함: ERP가 DB 파일을 교체하는 바로 그 타이밍에
+                # getmtime/getsize가 던지면 워처 스레드가 조용히 죽어
+                # 자동 치유가 영구 중단됐다 (UI는 Active 표시 유지).
                 self.log_queue.put(("ERROR", f"Watcher Error: {e}"))
+                time.sleep(60)
+            except Exception as e:  # noqa: BLE001 — 감시 스레드는 어떤 예외에도 살아남는다
+                self.log_queue.put(("ERROR", f"Watcher Unexpected Error: {e}"))
                 time.sleep(60)
 
     def stop(self):
