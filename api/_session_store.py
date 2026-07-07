@@ -31,6 +31,11 @@ SESSION_CLEANUP_INTERVAL = 100
 _sessions: dict[str, dict] = {}
 _cleanup_counter = 0
 
+# Test seam (rate_limiter의 clock 주입과 동일 취지): Windows time.time()
+# 해상도(~15.6ms)보다 짧은 sleep으로 last_access 순서를 보장하는 테스트는
+# 타임스탬프 동률로 flaky해질 수 있어, 시간을 주입 가능하게 둔다.
+_clock = time.time
+
 
 def get_session_history(session_id: str | None, owner_ip: str = "unknown") -> list:
     """Return history for session bound to owner_ip. Empty on miss or IP mismatch."""
@@ -43,7 +48,7 @@ def get_session_history(session_id: str | None, owner_ip: str = "unknown") -> li
             f"owner={session.get('owner_ip')} — isolated"
         )
         return []
-    session["last_access"] = time.time()
+    session["last_access"] = _clock()
     return session["history"]
 
 
@@ -74,7 +79,7 @@ def save_session_history(
 
     _sessions[session_id] = {
         "history": history,
-        "last_access": time.time(),
+        "last_access": _clock(),
         "owner_ip": owner_ip,
     }
 
@@ -87,7 +92,7 @@ def cleanup_expired_sessions() -> None:
         return
     _cleanup_counter = 0
 
-    now = time.time()
+    now = _clock()
     expired = [
         sid for sid, data in _sessions.items()
         if now - data["last_access"] > SESSION_TTL
