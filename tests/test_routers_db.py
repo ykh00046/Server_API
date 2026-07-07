@@ -5,6 +5,10 @@ Covers api/routers/summary.py, records.py, and the DB/metrics paths of
 system.py via the FastAPI TestClient. Archive is absent -> live-only routing.
 """
 
+import base64
+import json
+
+import pytest
 from fastapi.testclient import TestClient
 
 from api.main import app
@@ -141,6 +145,25 @@ class TestRecordsRouter:
         r = c.get("/records", params={"cursor": "!!!not-base64!!!"})
         assert r.status_code == 200
         # Invalid cursor decodes to None -> behaves like no cursor
+        assert r.json()["count"] == 6
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"x": 1},                              # 필수 키 없음 (구 KeyError→500)
+            {"d": "2026-01-01", "src": "live"},    # id 누락
+            {"d": 1, "src": "live", "id": 1},      # d 타입 오류
+            {"d": "2026-01-01", "src": "live", "id": "9"},  # id 타입 오류
+            [1, 2, 3],                             # dict 아님
+        ],
+    )
+    def test_records_malformed_cursor_ignored(self, live_db, payload):
+        """조작된 cursor(디코드는 되지만 형태가 틀림)는 500이 아니라
+        cursor 없음으로 처리된다 (full-review-202607 H)."""
+        crafted = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
+        c = TestClient(app)
+        r = c.get("/records", params={"cursor": crafted})
+        assert r.status_code == 200
         assert r.json()["count"] == 6
 
     def test_records_bad_date(self, live_db):

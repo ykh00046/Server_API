@@ -39,12 +39,23 @@ def _encode_cursor(production_date: str, record_id: int, source: str) -> str:
 
 
 def _decode_cursor(cursor: str) -> dict | None:
-    """Decode base64 JSON cursor. Returns None if invalid."""
+    """Decode base64 JSON cursor. Returns None if invalid or malformed.
+
+    Shape is validated here — a crafted cursor like base64({"x":1}) decodes
+    fine but would KeyError into a raw 500 in _build_records_filters."""
     try:
         decoded = base64.urlsafe_b64decode(cursor.encode()).decode()
-        return json.loads(decoded)
+        data = json.loads(decoded)
     except (binascii.Error, ValueError, UnicodeDecodeError, json.JSONDecodeError):
         return None
+    if (
+        not isinstance(data, dict)
+        or not isinstance(data.get("d"), str)
+        or not isinstance(data.get("src"), str)
+        or not isinstance(data.get("id"), int)
+    ):
+        return None
+    return data
 
 
 class RecordsFilters(BaseModel):
