@@ -82,7 +82,7 @@ Server_API(FastAPI + SQLite + Streamlit + manager/봇) 프로젝트의 2026 하�
 
 | # | 항목 | 내용 | 근거 | 규모 |
 |---|------|------|------|------|
-| B-1 | **auth-enable-v2: 인증 실활성화 경로** | ① 대시보드 HTTP 클라이언트(webhook_admin, dataset_page, ai_section)에 API 키 헤더 일괄 지원(dataset_page `_headers()`는 이미 지원 — 나머지 정렬) ② 봇 ApiBackupManager 키 지원 확인 ③ 운영 .env에 키 발급 → `API_AUTH_ENABLED=true` 전환 리허설 | auth-audit-v1 토대는 완성·테스트 고정(d5b7ab8)됐으나 실제론 미사용. secret 노출 엔드포인트(webhook CRUD)가 내부망 신뢰에만 의존 중 | 중 |
+| B-1 | **auth-enable-v2: 인증 실활성화 경로** | ① 대시보드 HTTP 클라이언트(webhook_admin, dataset_page, ai_section)에 API 키 헤더 일괄 지원(dataset_page `_headers()`는 이미 지원 — 나머지 정렬) ② 봇 ApiBackupManager 키 지원 확인 ③ 운영 .env에 키 발급 → `API_AUTH_ENABLED=true` 전환 리허설 | auth-audit-v1 토대는 완성·테스트 고정(d5b7ab8)됐으나 실제론 미사용. secret 노출 엔드포인트(webhook CRUD)가 내부망 신뢰에만 의존 중. **2026-07-07 운영 결정: 현상 유지** — 사내망 전체 신뢰 전제 수용(webhook 등록·/run 트리거 개방 리스크 인지 상태), 방화벽 IP 제한(옵션 ②)도 보류. 착수는 분기 재검토(10월) 때 재판단 — 전제가 깨지는 사건(사내망 사용자 증가, 보안 사고, 외부 노출 요구) 발생 시 즉시 승격 | 중 |
 | B-2 | **anomaly-dashboard-v2** | 대시보드에 이상탐지 페이지: 최근 findings 타임라인, 규칙별 현황, 쿨다운 상태, 임계치 조정 미리보기(`POST /scan?emit=false` 재사용) | v1 plan의 명시적 후속. 탐지는 돌지만 관측 UI가 없어 webhook 수신 채널에만 의존 | 중 |
 | B-3 | **notifications-deliveries-paging** | `list_deliveries`에 keyset 커서(`before_id`) — 최신 500건 이후 조회 불가 문제 | 검토 L-2. 대량 dead-letter 조사 시 필요. records.py 커서 패턴 재사용 | 소 |
 | B-4 | **dataset 확장 대비 정리** | 신규 키워드 데이터셋 추가 리허설: datasets.py 한 줄 + 봇 config + 대시보드 views 파일의 3점 체크리스트 문서화, binder 전용 컬럼 헤더 확정(da2cc29의 `render(columns=)` 활용) | 멀티키워드 모델이 성장 축. 다음 데이터셋 추가 때 절차가 머리에만 있음 | 소 |
@@ -108,7 +108,7 @@ Server_API(FastAPI + SQLite + Streamlit + manager/봇) 프로젝트의 2026 하�
 ## 4. Success Criteria
 
 - [x] A-1~A-4 전량 소진 (2026-07-07) — **M1 완료**
-- [ ] B-1 완료: 인증 활성 상태로 운영 1주 무사고 (H2 내)
+- [~] B-1: 2026-07-07 보류 결정(현상 유지) — 10월 재검토에서 재판단
 - [ ] B-2 완료: 이상탐지 관측 UI에서 최근 30일 findings 확인 가능 (H2 내)
 - [ ] B-3~B-5 중 2건 이상 소진 (분기 내)
 - [ ] 분기 재검토 1회 수행: 이 문서의 우선순위 갱신 + 완료 항목 체크
@@ -128,8 +128,8 @@ Server_API(FastAPI + SQLite + Streamlit + manager/봇) 프로젝트의 2026 하�
 | Milestone | Content | Target |
 |-----------|---------|--------|
 | M1 잔여 소진 | A-1~A-4 (venv 동기화, GUI 확인, pytest-timeout 결정, clock 주입) | 2026-07 중 |
-| M2 인증 실활성화 | B-1 auth-enable-v2 (리허설 → 전환 → 1주 관찰) | 2026-08 |
-| M3 이상탐지 관측 | B-2 anomaly-dashboard-v2 | 2026-09 |
+| ~~M2 인증 실활성화~~ | B-1 — 2026-07-07 운영 결정으로 보류(현상 유지). 10월 재검토 안건 | ~~2026-08~~ 보류 |
+| M3 이상탐지 관측 | B-2 anomaly-dashboard-v2 (M2 보류로 차기 1순위 승격) | 2026-08~09 |
 | M4 소형 정리 묶음 | B-3 deliveries paging + B-5 상태코드 + B-4 데이터셋 체크리스트 | 2026-Q3 내 |
 | M5 품질 램프 | A-5 C901 R8 (+ A-6 의존성 추적 점검) | 2026-Q4 |
 | 분기 재검토 | 이 문서 갱신 (완료 체크, 우선순위 재조정, C-트랙 착수 판단) | 10월 초 |
@@ -140,3 +140,4 @@ Server_API(FastAPI + SQLite + Streamlit + manager/봇) 프로젝트의 2026 하�
 |---------|------|---------|
 | 0.1 | 2026-07-07 | 최초 작성 — 전면 검토(full-review-202607) 소진 직후 잔여물 + 개발 후보 + 발전 방향 통합 |
 | 0.2 | 2026-07-07 | M1 대부분 소진: A-1 venv 동기화, A-3 pytest-timeout 미도입 결정, A-4 clock 주입 완료. A-2만 운영 PC 업데이트 대기 |
+| 0.3 | 2026-07-07 | M1 완료(A-2 운영 확인). **B-1 인증 활성화 보류 결정**(현상 유지, 리스크 인지 상태로 수용) — M2 취소, B-2가 차기 1순위로 승격 |
