@@ -16,7 +16,7 @@ import os
 import httpx
 import pandas as pd
 import streamlit as st
-from data import to_excel_bytes
+from data import _cached_excel_bytes
 
 from shared.config import API_BASE_URL
 
@@ -45,11 +45,13 @@ def _headers() -> dict:
     return headers
 
 
-def _to_excel_frame(rows: list[dict]) -> pd.DataFrame:
+def _to_excel_frame(
+    rows: list[dict], columns: list[tuple[str, str]]
+) -> pd.DataFrame:
     """JSON 행들을 기존 Excel과 동일한 한글 헤더·순서의 DataFrame으로 변환."""
     if not rows:
-        return pd.DataFrame(columns=[ko for _, ko in EXCEL_COLUMNS])
-    data = {ko: [r.get(api_field) for r in rows] for api_field, ko in EXCEL_COLUMNS}
+        return pd.DataFrame(columns=[ko for _, ko in columns])
+    data = {ko: [r.get(api_field) for r in rows] for api_field, ko in columns}
     return pd.DataFrame(data)
 
 
@@ -61,6 +63,7 @@ def render(
     sheet_name: str,
     file_base: str,
     empty_msg: str,
+    columns: list[tuple[str, str]] | None = None,
 ) -> None:
     """한 데이터셋 페이지를 렌더한다.
 
@@ -71,7 +74,11 @@ def render(
         sheet_name: Excel 시트명.
         file_base: 다운로드 파일명 베이스 (예: "material_requests").
         empty_msg: 데이터 없음 안내 문구.
+        columns: (api_field, 한글헤더) 목록. 생략 시 자재 레이아웃
+            (EXCEL_COLUMNS). 스키마는 데이터셋 공통이지만 헤더 의미가
+            다른 데이터셋(예: 바인더 출고)은 여기로 교체한다.
     """
+    columns = columns or EXCEL_COLUMNS
 
     def _fetch(params: dict) -> list[dict]:
         with httpx.Client(base_url=API_BASE_URL, timeout=15.0) as c:
@@ -87,12 +94,22 @@ def render(
 
     def _trigger_run() -> tuple[bool, str]:
         """POST {prefix}/run. Returns (ok, message). 409 → (False, detail)."""
-        with httpx.Client(base_url=API_BASE_URL, timeout=15.0) as c:
-            resp = c.post(f"{prefix}/run", headers=_headers())
+        try:
+            with httpx.Client(base_url=API_BASE_URL, timeout=15.0) as c:
+                resp = c.post(f"{prefix}/run", headers=_headers())
+        except httpx.HTTPError as e:
+            # 형제 _fetch들과 동일 계약 — API 다운 시 페이지 크래시 금지
+            return False, f"API 연결 실패 ({e}). 서버 상태를 확인하세요."
+        try:
+            body = resp.json()
+        except ValueError:
+            body = {}
+        if not isinstance(body, dict):
+            body = {}
         if resp.status_code == 200:
-            return True, resp.json().get("message", "자동화 실행을 시작했습니다.")
+            return True, body.get("message", "자동화 실행을 시작했습니다.")
         if resp.status_code == 409:
-            return False, resp.json().get("detail", "실행할 수 없습니다.")
+            return False, body.get("detail", "실행할 수 없습니다.")
         return False, f"실행 요청 실패 (HTTP {resp.status_code})"
 
     st.title(f"{icon} {title}", anchor=False)
@@ -187,7 +204,7 @@ def render(
         st.error(f"{title} 데이터를 불러오지 못했습니다 ({e}). API 서버 상태를 확인하세요.")
         st.stop()
 
-    df = _to_excel_frame(rows)
+    df = _to_excel_frame(rows, columns)
 
     st.metric("조회 건수", f"{len(df):,}건")
 
@@ -204,7 +221,9 @@ def render(
     with c1:
         st.download_button(
             "Excel 다운로드",
-            data=to_excel_bytes(df, sheet_name=sheet_name),
+            # 캐시 필수: download_button의 data=는 클릭과 무관하게 매 rerun마다
+            # 평가되므로 eager 직렬화는 위젯 상호작용마다 전체 시트를 재생성한다
+            data=_cached_excel_bytes(df, sheet_name=sheet_name),
             file_name=f"{file_base}.xlsx",
             icon=":material/download:",
             width="stretch",

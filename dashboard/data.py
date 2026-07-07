@@ -293,10 +293,9 @@ def load_weekly_summary(date_from, date_to, db_ver):
 
     where_clause = " AND ".join(where) if where else "1=1"
 
-    week_expr = (
-        "substr(production_date, 1, 4) || '-W' || "
-        "printf('%02d', (strftime('%j', production_date) - 1) / 7 + 1)"
-    )
+    # %W(월요일 시작 주번호): charts.py의 pandas strftime('%Y-W%W')와 동일
+    # 규칙 — 페이지 간 주 경계가 달라 같은 데이터가 다르게 묶이던 것을 통일
+    week_expr = "strftime('%Y-W%W', production_date)"
 
     final_sql, _ = DBRouter.build_aggregation_sql(
         inner_select=f"{week_expr} AS year_week, SUM(good_quantity) AS total_prod, COUNT(*) AS cnt",
@@ -321,9 +320,9 @@ def to_excel_bytes(df: pd.DataFrame, sheet_name: str = "Sheet1") -> bytes:
 
 
 @st.cache_data(show_spinner=False)
-def _cached_excel_bytes(df: pd.DataFrame) -> bytes:
+def _cached_excel_bytes(df: pd.DataFrame, sheet_name: str = "Sheet1") -> bytes:
     """Generate Excel bytes once per unique DataFrame (lazy, cached)."""
-    return to_excel_bytes(df)
+    return to_excel_bytes(df, sheet_name=sheet_name)
 
 
 # ==========================================================

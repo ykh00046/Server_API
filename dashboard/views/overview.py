@@ -17,9 +17,10 @@ import streamlit as st
 from components import (
     calculate_kpis,
     create_distribution_pie,
+    get_avg_batch_sparkline,
+    get_batch_count_sparkline,
     get_chart_config,
     get_sparkline_data,
-    get_sparkline_for_top_product,
     render_kpi_cards,
     render_last_update,
 )
@@ -37,13 +38,11 @@ from shared.ui.theme import get_colors
 def _render_kpi_section(df, date_from, date_to, colors) -> None:
     """Render 4-column KPI cards (총 생산량 / 배치 수 / 평균 / Top 제품) + spacer."""
     kpis = calculate_kpis(df, date_from, date_to)
-    sparkline = get_sparkline_data(df)
-    top_spark = get_sparkline_for_top_product(df, kpis["top_item"])
     render_kpi_cards(
         kpis, colors,
-        sparkline_data=sparkline,
-        batch_sparkline=sparkline,
-        top_product_sparkline=top_spark,
+        sparkline_data=get_sparkline_data(df),
+        batch_sparkline=get_batch_count_sparkline(df),
+        avg_batch_sparkline=get_avg_batch_sparkline(df),
     )
     st.space(8)
 

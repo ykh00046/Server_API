@@ -150,7 +150,7 @@ def render_webhook_list_section(client: WebhookAdminClient) -> int | None:
         return None
 
     rows = [formatters.format_webhook_row(w) for w in items]
-    st.dataframe(rows, use_container_width=True, hide_index=True)
+    st.dataframe(rows, width="stretch", hide_index=True)
 
     options = {f"#{w['id']} — {formatters.truncate(str(w.get('url','')), 50)}": w["id"] for w in items}
     label = st.selectbox(
@@ -318,7 +318,7 @@ def render_deliveries_section(client: WebhookAdminClient, webhook_id: int) -> No
         return
 
     rows = [formatters.format_delivery_row(d) for d in items]
-    st.dataframe(rows, use_container_width=True, hide_index=True)
+    st.dataframe(rows, width="stretch", hide_index=True)
 
     # Retry buttons for the failed/dead subset only.
     retryable = [d for d in items if formatters.is_retryable_status(d.get("status"))]

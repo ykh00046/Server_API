@@ -24,8 +24,9 @@ from .charts import (
 )
 from .kpi_cards import (
     calculate_kpis,
+    get_avg_batch_sparkline,
+    get_batch_count_sparkline,
     get_sparkline_data,
-    get_sparkline_for_top_product,
     render_kpi_cards,
 )
 from .layout import (
@@ -52,7 +53,8 @@ __all__ = [
     "calculate_kpis",
     "render_kpi_cards",
     "get_sparkline_data",
-    "get_sparkline_for_top_product",
+    "get_batch_count_sparkline",
+    "get_avg_batch_sparkline",
     # charts
     "create_top10_bar_chart",
     "create_distribution_pie",

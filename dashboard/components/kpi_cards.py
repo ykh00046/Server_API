@@ -112,27 +112,29 @@ def get_sparkline_data(
     return result
 
 
-def get_sparkline_for_top_product(
-    df: pd.DataFrame,
-    top_item: str,
-    days: int = 7
-) -> list[int]:
-    """
-    Get daily production trend for the top product.
+def get_batch_count_sparkline(df: pd.DataFrame, days: int = 7) -> list[int]:
+    """일별 배치(레코드) 건수 — '배치 수' 카드 전용.
 
-    Args:
-        df: Production records dataframe
-        top_item: Item code of the top product
-        days: Number of recent days to include
-
-    Returns:
-        List of daily totals for the top product
-    """
-    if df.empty or top_item == "-":
+    과거엔 생산량 합계 시계열이 이 카드에 그려져 라벨과 다른 지표를
+    보여줬다 (full-review-202607)."""
+    if df.empty or "production_day" not in df.columns:
         return [0] * days
+    daily = df.groupby("production_day").size()
+    result = [int(v) for v in daily.tail(days).tolist()]
+    while len(result) < days:
+        result.insert(0, 0)
+    return result
 
-    top_df = df[df["item_code"] == top_item]
-    return get_sparkline_data(top_df, days)
+
+def get_avg_batch_sparkline(df: pd.DataFrame, days: int = 7) -> list[float]:
+    """일별 평균 배치 크기(양품수량 평균) — '평균 배치 크기' 카드 전용."""
+    if df.empty or "production_day" not in df.columns:
+        return [0.0] * days
+    daily = df.groupby("production_day")["good_quantity"].mean()
+    result = [float(v) for v in daily.tail(days).tolist()]
+    while len(result) < days:
+        result.insert(0, 0.0)
+    return result
 
 
 def _format_number(n: int) -> str:
@@ -154,7 +156,7 @@ def render_kpi_cards(
     colors: dict[str, str] | None = None,
     sparkline_data: list[int] | None = None,
     batch_sparkline: list[int] | None = None,
-    top_product_sparkline: list[int] | None = None
+    avg_batch_sparkline: list[float] | None = None
 ) -> None:
     """
     Render 4 KPI cards as native bordered metrics with sparklines.
@@ -165,7 +167,7 @@ def render_kpi_cards(
                 colors now come from the native theme)
         sparkline_data: Daily production trend for last 7 days
         batch_sparkline: Daily batch count trend for last 7 days
-        top_product_sparkline: Daily trend for top product
+        avg_batch_sparkline: Daily average batch size for last 7 days
     """
     with st.container(horizontal=True):
         st.metric(
@@ -192,7 +194,7 @@ def render_kpi_cards(
             f"{kpis.get('avg_batch_size', 0):,}",
             border=True,
             chart_data=(
-                top_product_sparkline if _has_signal(top_product_sparkline) else None
+                avg_batch_sparkline if _has_signal(avg_batch_sparkline) else None
             ),
             chart_type="line",
         )

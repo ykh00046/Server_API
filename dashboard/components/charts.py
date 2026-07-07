@@ -192,8 +192,8 @@ def create_trend_lines(
     if agg_unit == "일별":
         filtered["period"] = filtered["production_date"].str[:10]  # YYYY-MM-DD
     elif agg_unit == "주별":
-        # Create year-week string
-        filtered["period"] = filtered["production_dt"].dt.strftime("%Y-W%U")
+        # %W(월요일 시작): data.py load_weekly_summary의 SQL week_expr와 동일 규칙
+        filtered["period"] = filtered["production_dt"].dt.strftime("%Y-W%W")
     else:  # 월별 (default)
         filtered["period"] = filtered["year_month"]
 
