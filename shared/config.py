@@ -227,3 +227,7 @@ ANOMALY_COOLDOWN_SEC = int(os.getenv("ANOMALY_COOLDOWN_SEC", 86400))
 ANOMALY_SCAN_INTERVAL_SEC = int(os.getenv("ANOMALY_SCAN_INTERVAL_SEC", 3600))
 # 쿨다운/마지막 스캔 시각을 저장하는 상태파일.
 ANOMALY_STATE_FILE = DATABASE_DIR / ".anomaly_state.json"
+# 발행 이력 영속화 (anomaly-dashboard-v2): 성공 발행된 finding을 append-only
+# 로 기록해 대시보드 타임라인을 지원한다. 보존 일수 초과분은 발행 시 lazy 정리.
+ANOMALY_DB_FILE = DATABASE_DIR / "anomaly.db"
+ANOMALY_FINDINGS_RETENTION_DAYS = int(os.getenv("ANOMALY_FINDINGS_RETENTION_DAYS", 90))

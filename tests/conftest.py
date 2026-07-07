@@ -251,6 +251,11 @@ def _close_db_connections():
     except ImportError:
         pass
     try:
+        from api.anomaly import store_findings as _findings
+        _findings.reset_for_tests()
+    except ImportError:
+        pass
+    try:
         from shared import database as _db
         for attr in list(vars(_db._local)):
             if attr.startswith("conn_"):
