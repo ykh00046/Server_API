@@ -1,7 +1,8 @@
 # tests/test_misc_coverage.py
 """Focused unit tests for small utility modules.
 
-shared/path_setup.py, shared/metrics.py, api/_gemini_client.py.
+shared/path_setup.py, shared/metrics.py, shared/config.py helpers,
+api/_gemini_client.py.
 """
 
 import sys
@@ -11,6 +12,7 @@ import pytest
 
 from api import _gemini_client as gc
 from shared import metrics as metrics_mod
+from shared.config import _env_bool
 from shared.metrics import PerformanceMonitor, TimedQuery
 from shared.path_setup import (
     ensure_import_path,
@@ -52,6 +54,36 @@ class TestPathSetup:
         root = setup_path_for_file(nested)
         assert root == tmp_path
         assert str(tmp_path) in sys.path
+
+
+# ==========================================================
+# config._env_bool (full-review-202607: case-insensitive opt-in parse)
+# ==========================================================
+class TestEnvBool:
+    @pytest.mark.parametrize("raw", ["1", "true", "TRUE", "True", "yes", "ON"])
+    def test_truthy_variants(self, monkeypatch, raw):
+        monkeypatch.setenv("X_BOOL", raw)
+        assert _env_bool("X_BOOL", default=False) is True
+
+    @pytest.mark.parametrize("raw", ["0", "false", "FALSE", "Off", "No", " off "])
+    def test_falsy_variants(self, monkeypatch, raw):
+        # The old blocklist parse treated "FALSE"/"Off"/"No" as *enabled*.
+        monkeypatch.setenv("X_BOOL", raw)
+        assert _env_bool("X_BOOL", default=True) is False
+
+    def test_unset_and_empty_use_default(self, monkeypatch):
+        monkeypatch.delenv("X_BOOL", raising=False)
+        assert _env_bool("X_BOOL", default=True) is True
+        assert _env_bool("X_BOOL", default=False) is False
+        monkeypatch.setenv("X_BOOL", "   ")
+        assert _env_bool("X_BOOL", default=True) is True
+
+    def test_unrecognized_falls_back_to_default(self, monkeypatch, caplog):
+        monkeypatch.setenv("X_BOOL", "banana")
+        with caplog.at_level("WARNING", logger="shared.config"):
+            assert _env_bool("X_BOOL", default=False) is False
+            assert _env_bool("X_BOOL", default=True) is True
+        assert "not a recognized boolean" in caplog.text
 
 
 # ==========================================================

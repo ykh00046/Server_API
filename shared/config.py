@@ -121,7 +121,31 @@ CUSTOM_QUERY_TIMEOUT_SEC = float(os.getenv("CUSTOM_QUERY_TIMEOUT_SEC", 10.0))
 # open-access behavior and the whole test suite are preserved unchanged.
 # Enable in production via .env: API_AUTH_ENABLED=true + API_KEYS / API_BEARER_TOKENS.
 _TRUTHY = {"1", "true", "yes", "on"}
-API_AUTH_ENABLED = os.getenv("API_AUTH_ENABLED", "false").strip().lower() in _TRUTHY
+_FALSY = {"0", "false", "no", "off"}
+
+
+def _env_bool(name: str, *, default: bool) -> bool:
+    """Case-insensitive boolean env parse. Unset/empty → default; an
+    unrecognized value logs a warning and falls back to the default instead
+    of silently flipping an opt-in feature on (full-review-202607 H: the old
+    blocklist parse treated "FALSE"/"Off" as enabled)."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    v = raw.strip().lower()
+    if not v:
+        return default
+    if v in _TRUTHY:
+        return True
+    if v in _FALSY:
+        return False
+    _logger.warning(
+        "%s=%r is not a recognized boolean — using default %s", name, raw, default
+    )
+    return default
+
+
+API_AUTH_ENABLED = _env_bool("API_AUTH_ENABLED", default=False)
 API_KEYS: list[str] = [
     k.strip() for k in os.getenv("API_KEYS", "").split(",") if k.strip()
 ]
@@ -148,9 +172,7 @@ MATERIALS_DB_FILE = DATABASE_DIR / "materials.db"
 # Manual automation trigger (materials-run-v1): the dashboard "지금 실행" button
 # spawns the webcloring-pdf 포털 자동화 (`main.py --auto`) on the SAME ops PC.
 # Disabled by default — spawning a process from a web request is opt-in.
-MATERIALS_RUN_ENABLED = os.getenv("MATERIALS_RUN_ENABLED", "0") not in {
-    "0", "false", "False", "no", "off", ""
-}
+MATERIALS_RUN_ENABLED = _env_bool("MATERIALS_RUN_ENABLED", default=False)
 # webcloring-pdf 디렉토리(기본: repo의 submodule)와 실행 파이썬(기본: 현재 인터프리터).
 MATERIALS_BOT_DIR = Path(os.getenv("MATERIALS_BOT_DIR", str(BASE_DIR / "webcloring-pdf")))
 MATERIALS_BOT_PYTHON = os.getenv("MATERIALS_BOT_PYTHON", sys.executable)
@@ -161,9 +183,7 @@ MATERIALS_BOT_PYTHON = os.getenv("MATERIALS_BOT_PYTHON", sys.executable)
 WEBHOOK_MAX_ATTEMPTS = int(os.getenv("WEBHOOK_MAX_ATTEMPTS", 5))
 WEBHOOK_WORKER_TICK_SEC = float(os.getenv("WEBHOOK_WORKER_TICK_SEC", 0.5))
 WEBHOOK_WORKER_BATCH = int(os.getenv("WEBHOOK_WORKER_BATCH", 16))
-WEBHOOK_WORKER_ENABLED = os.getenv("WEBHOOK_WORKER_ENABLED", "1") not in {
-    "0", "false", "False", "no", "off"
-}
+WEBHOOK_WORKER_ENABLED = _env_bool("WEBHOOK_WORKER_ENABLED", default=True)
 
 
 def _load_archive_whitelist() -> tuple[Path, ...]:
@@ -191,9 +211,7 @@ ARCHIVE_DB_WHITELIST: tuple[Path, ...] = _load_archive_whitelist()
 # ==========================================================
 # 생산 데이터를 주기 스캔해 급감/급증/장시간 미생산을 규칙 기반으로 탐지하고,
 # 신규 이상만 기존 webhook emit_event 로 비동기 발행한다. 스캔은 read-only.
-ANOMALY_ENABLED = os.getenv("ANOMALY_ENABLED", "1") not in {
-    "0", "false", "False", "no", "off", ""
-}
+ANOMALY_ENABLED = _env_bool("ANOMALY_ENABLED", default=True)
 # 후행 평균 기준선 산출에 사용할 일수(직전 완료일 제외, 그 이전 N일).
 ANOMALY_BASELINE_DAYS = int(os.getenv("ANOMALY_BASELINE_DAYS", 14))
 # 후행 평균 대비 하락/상승 비율(%) 임계치. 경계값(>=)에서 발동.
