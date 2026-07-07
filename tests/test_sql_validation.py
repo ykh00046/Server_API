@@ -63,6 +63,16 @@ class TestExecuteCustomQueryValidation:
         assert result["status"] == "error"
         assert "PRAGMA" in result["message"]
 
+    def test_forbidden_pragma_table_valued_function(self):
+        """pragma_table_info()는 뒤가 단어문자라 \\bPRAGMA\\b에 안 걸린다 —
+        PRAGMA_ 부분문자열 차단으로 스키마 열람 우회를 막는다
+        (full-review-202607)."""
+        result = execute_custom_query(
+            "SELECT * FROM pragma_table_info('production_records')"
+        )
+        assert result["status"] == "error"
+        assert "PRAGMA_" in result["message"]
+
     def test_forbidden_attach(self):
         result = execute_custom_query("SELECT ATTACH FROM production_records")
         assert result["status"] == "error"

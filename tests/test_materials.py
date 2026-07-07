@@ -458,6 +458,20 @@ class TestTrigger:
         assert reaped.status == "failed"
         assert "stale" in (reaped.message or "")
 
+    def test_list_rejects_bad_date_format(self, client):
+        """records/summary와 동일 계약: 잘못된 날짜 형식은 400
+        (기존엔 문자열 비교로 조용히 빈 결과가 됐다)."""
+        r = client.get("/materials", params={"date_from": "2026-1-1"})
+        assert r.status_code == 400
+        assert "Invalid date format" in r.json()["detail"]
+
+    def test_list_rejects_reversed_date_range(self, client):
+        r = client.get(
+            "/materials",
+            params={"date_from": "2026-06-30", "date_to": "2026-06-01"},
+        )
+        assert r.status_code == 400
+
     def test_fresh_running_not_reaped(self, client, monkeypatch):
         """정상 진행 중(신선한 running)은 reap 대상이 아니어서 계속 409."""
         monkeypatch.setattr(cfg, "MATERIALS_RUN_ENABLED", True)

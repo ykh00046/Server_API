@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from shared import get_logger
 
+from .._http_helpers import _normalize_date, _validate_date_range
 from ..materials import MaterialBackupRequest, automation, runs, store
 from ..materials.datasets import DEFAULT_DATASET, Dataset, all_datasets
 from ..materials.schemas import (
@@ -102,9 +103,14 @@ def make_router(ds: Dataset) -> APIRouter:
 
         날짜 필터(date_from/date_to)는 처리일시가 아닌 문서번호 날짜 기준입니다.
         """
+        # records/summary와 동일 계약: 잘못된 형식·역순 범위는 400
+        # (미검증 시 '2026-1-1' 같은 값이 문자열 비교로 조용히 빈 결과가 됐다)
+        date_from_n = _normalize_date(date_from)
+        date_to_n = _normalize_date(date_to)
+        _validate_date_range(date_from_n, date_to_n)
         return store.list_materials(
             table=ds.table, request_dept=request_dept, keyword=keyword,
-            date_from=date_from, date_to=date_to, limit=limit,
+            date_from=date_from_n, date_to=date_to_n, limit=limit,
         )
 
     @router.get("/{doc_number}", response_model=list[MaterialPublic])

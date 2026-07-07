@@ -4,6 +4,7 @@ Note: Do NOT use 'from __future__ import annotations' here.
 Gemini SDK requires actual type hints, not stringified ones.
 """
 
+import contextlib
 import re
 import sqlite3
 import threading
@@ -74,7 +75,9 @@ def _validate_custom_query_sql(sql_clean: str, sql_upper: str) -> str | None:
         "CREATE", "REPLACE", "PRAGMA", "ATTACH", "DETACH", "VACUUM", "REINDEX",
         "EXECUTE", "SYSTEM", "SCRIPT", "JAVASCRIPT", "EVAL",
     ]
-    _forbidden_substrings = ["LOAD_EXTENSION", "SQLITE_", "EXEC("]
+    # PRAGMA_: pragma_table_info() 같은 테이블-값 함수는 뒤가 단어문자라
+    # 위의 \bPRAGMA\b 워드바운더리에 걸리지 않는다 (스키마 열람 우회 차단)
+    _forbidden_substrings = ["LOAD_EXTENSION", "SQLITE_", "EXEC(", "PRAGMA_"]
     for word in _forbidden_words:
         if re.search(r'\b' + word + r'\b', sql_upper):
             return f"Forbidden keyword detected: {word}"
@@ -226,20 +229,28 @@ def execute_custom_query(
             conn = sqlite3.connect(
                 db_uri, uri=True, timeout=DB_TIMEOUT, check_same_thread=False
             )
-            conn.row_factory = sqlite3.Row
-            _apply_pragma_settings(conn)
+            try:
+                conn.row_factory = sqlite3.Row
+                _apply_pragma_settings(conn)
 
-            if use_archive:
-                # Whitelist-enforced ATTACH via shared helper (security-hardening-v3)
-                try:
-                    attach_archive_safe(conn)
-                except (ValueError, FileNotFoundError) as e:
+                if use_archive:
+                    # Whitelist-enforced ATTACH via shared helper (security-hardening-v3)
+                    try:
+                        attach_archive_safe(conn)
+                    except (ValueError, FileNotFoundError) as e:
+                        conn.close()
+                        return {
+                            "status": "error",
+                            "code": "INVALID_ARCHIVE_PATH",
+                            "message": f"Invalid archive DB: {e}",
+                        }
+            except Exception:
+                # Setup failure (PRAGMA/ATTACH의 예상 밖 예외)가 외부 boundary
+                # except로 빠질 때 conn이 열린 채 새지 않게 닫고 전파.
+                # (쿼리 실행 중 timeout의 의도적 GC 위임과는 별개 경로)
+                with contextlib.suppress(sqlite3.Error):
                     conn.close()
-                    return {
-                        "status": "error",
-                        "code": "INVALID_ARCHIVE_PATH",
-                        "message": f"Invalid archive DB: {e}",
-                    }
+                raise
 
             # Execute with timeout (CUSTOM_QUERY_TIMEOUT_SEC).
             result = _run_query_with_timeout(
