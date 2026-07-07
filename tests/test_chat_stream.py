@@ -413,3 +413,69 @@ def test_stream_first_token_immediate(client, monkeypatch):
     token_events = [json.loads(d) for e, d in events if e == "token"]
     assert len(token_events) >= 1
     assert token_events[0]["text"] == "FIRST"
+
+
+# ------------------------------------------------------------------
+# Resource cleanup (full-review-202607 H): prefetch task cancel +
+# provider stream aclose on timeout/close
+# ------------------------------------------------------------------
+class _HangingStream:
+    """__anext__ never completes; records cancellation and aclose."""
+
+    def __init__(self):
+        self.anext_cancelled = False
+        self.aclosed = False
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            await asyncio.sleep(3600)
+        except asyncio.CancelledError:
+            self.anext_cancelled = True
+            raise
+        return _FakeChunk(text="never")
+
+    async def aclose(self):
+        self.aclosed = True
+
+
+def test_heartbeat_iter_cancels_prefetch_on_close():
+    """Closing the heartbeat wrapper cancels the prefetched __anext__ task
+    instead of leaving it dangling ('Task was destroyed but it is pending')."""
+    async def scenario():
+        hs = _HangingStream()
+        gen = stream_mod._iter_with_heartbeat(hs, heartbeat_sec=0.01)
+        first = await gen.__anext__()
+        assert first is None  # heartbeat fired while __anext__ hangs
+        await gen.aclose()
+        for _ in range(5):  # let the cancellation land on the loop
+            await asyncio.sleep(0)
+        assert hs.anext_cancelled
+
+    asyncio.run(scenario())
+
+
+def test_consume_stream_timeout_closes_provider_stream(monkeypatch):
+    """On STREAM_TIMEOUT the provider stream is aclose()d and the pending
+    prefetch task cancelled — no dangling HTTP response until GC."""
+    monkeypatch.setattr(stream_mod, "STREAM_TIMEOUT_SEC", 0.05)
+    monkeypatch.setattr(stream_mod, "STREAM_HEARTBEAT_SEC", 0.01)
+
+    async def scenario():
+        hs = _HangingStream()
+        state = stream_mod._StreamState()
+        frames = [
+            f async for f in stream_mod._consume_stream(
+                hs, state, "req-cleanup", 0.0
+            )
+        ]
+        assert state.failed
+        assert any('"code": "timeout"' in f or '"timeout"' in f for f in frames)
+        for _ in range(5):
+            await asyncio.sleep(0)
+        assert hs.aclosed
+        assert hs.anext_cancelled
+
+    asyncio.run(scenario())

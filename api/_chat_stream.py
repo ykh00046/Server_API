@@ -22,6 +22,7 @@ Reuses:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import time
 from collections.abc import AsyncIterator
@@ -100,17 +101,24 @@ async def _iter_with_heartbeat(
     """
     aiter = stream.__aiter__()
     next_task = asyncio.ensure_future(aiter.__anext__())
-    while True:
-        done, _ = await asyncio.wait({next_task}, timeout=heartbeat_sec)
-        if done:
-            try:
-                chunk = next_task.result()
-            except StopAsyncIteration:
-                return
-            yield chunk
-            next_task = asyncio.ensure_future(aiter.__anext__())
-        else:
-            yield None  # heartbeat signal
+    try:
+        while True:
+            done, _ = await asyncio.wait({next_task}, timeout=heartbeat_sec)
+            if done:
+                try:
+                    chunk = next_task.result()
+                except StopAsyncIteration:
+                    return
+                yield chunk
+                next_task = asyncio.ensure_future(aiter.__anext__())
+            else:
+                yield None  # heartbeat signal
+    finally:
+        # Timeout/disconnect closes this generator with the prefetched
+        # __anext__ still pending — without cancel it dangles ("Task was
+        # destroyed but it is pending!") holding the provider HTTP response.
+        if not next_task.done():
+            next_task.cancel()
 
 
 async def _open_model_stream(client_obj, contents, config, request_id, start) -> _StreamOpenResult:
@@ -203,11 +211,17 @@ def _frames_from_chunk(chunk, state: _StreamState, buffer_flush_sec: float) -> l
 
 
 async def _consume_stream(stream, state, request_id, start) -> AsyncIterator[str]:
-    """Consume the provider stream and translate it to SSE frames."""
+    """Consume the provider stream and translate it to SSE frames.
+
+    The provider stream is explicitly aclose()d on every exit path (timeout,
+    error, completion) so its underlying HTTP response is not left to GC.
+    """
     buffer_flush_sec = STREAM_BUFFER_FLUSH_MS / 1000.0
     try:
-        async with asyncio.timeout(STREAM_TIMEOUT_SEC):
-            async for chunk in _iter_with_heartbeat(stream, STREAM_HEARTBEAT_SEC):
+        async with asyncio.timeout(STREAM_TIMEOUT_SEC), contextlib.aclosing(
+            _iter_with_heartbeat(stream, STREAM_HEARTBEAT_SEC)
+        ) as heartbeat_iter:
+            async for chunk in heartbeat_iter:
                 if chunk is None:
                     flushed = state.flush_buffer()
                     if flushed:
@@ -236,6 +250,11 @@ async def _consume_stream(stream, state, request_id, start) -> AsyncIterator[str
             f"error={type(error).__name__}: {error} | duration_ms={duration_ms:.1f}"
         )
         yield _sse("error", {"code": ERR_INTERNAL, "message": str(error)[:500]})
+    finally:
+        stream_aclose = getattr(stream, "aclose", None)
+        if stream_aclose is not None:
+            with contextlib.suppress(Exception):
+                await stream_aclose()
 
 
 async def run_stream(

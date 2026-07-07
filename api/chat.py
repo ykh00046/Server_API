@@ -345,7 +345,18 @@ async def chat_with_data(request: ChatRequest, http_request: Request):
             f"query='{query_preview}' | {token_info} | duration_ms={duration_ms:.1f}"
         )
 
-    if request.session_id:
+    # SAFETY/RECITATION/MAX_TOKENS 차단 등으로 텍스트 파트가 없으면 .text가
+    # None — 그대로 두면 ChatResponse(answer=None) 검증 오류로 raw 500이 된다.
+    answer = response.text
+    if not answer:
+        logger.warning(
+            f"[Chat Response] request_id={request_id} | empty answer "
+            f"(safety/finish block?) — returning fallback message"
+        )
+        answer = "죄송합니다. 답변을 생성하지 못했습니다. 질문을 바꿔 다시 시도해 주세요."
+
+    # 세션은 실제 모델 텍스트가 있을 때만 저장 (스트리밍 경로와 동일 규칙)
+    if request.session_id and response.text:
         model_content = types.Content(
             role="model", parts=[types.Part.from_text(text=response.text)]
         )
@@ -354,7 +365,7 @@ async def chat_with_data(request: ChatRequest, http_request: Request):
         )
 
     return ChatResponse(
-        answer=response.text, tools_used=tools_used,
+        answer=answer, tools_used=tools_used,
         request_id=request_id, model_used=model_used,
     )
 

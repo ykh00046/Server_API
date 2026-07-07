@@ -214,6 +214,23 @@ class TestSyncFallback:
         data = r.json()
         assert data["status"] == "error"
 
+    def test_none_answer_returns_friendly_200(self, client, monkeypatch):
+        """SAFETY 차단 등으로 response.text가 None이어도 raw 500이 아니라
+        200 + 안내 메시지를 반환하고, 세션 이력은 오염시키지 않는다
+        (full-review-202607 H)."""
+        fake = _FakeSyncClient()
+        fake.models.generate_content = (
+            lambda **kwargs: _FakeSyncResponse(text=None)
+        )
+        monkeypatch.setattr(chat_mod, "_get_client", lambda: fake)
+
+        r = client.post("/chat/", json={"query": "test", "session_id": "s-none"})
+        assert r.status_code == 200
+        data = r.json()
+        assert "답변을 생성하지 못했습니다" in data["answer"]
+        # 텍스트 없는 턴은 세션에 저장하지 않음 (스트리밍 경로와 동일 규칙)
+        assert "s-none" not in chat_mod._sessions
+
 
 # ==================================================================
 # SSE /chat/stream fallback tests
