@@ -282,6 +282,9 @@ class ServerManager(ctk.CTk):
 
         # State
         self.log_queue = queue.Queue()
+        # (panel, text, level) from subprocess reader threads — Tk 위젯은
+        # 메인 스레드 전용이라 워커에서 append_log를 직접 부르면 안 된다.
+        self.ui_log_queue: queue.Queue = queue.Queue()
         self.watcher = None
 
         # --- Layout (3-column: Services | Services | Automation) ---
@@ -299,8 +302,9 @@ class ServerManager(ctk.CTk):
         self._init_portal_panel()
         self._init_db_panel()
 
-        # Start Queue Listener
+        # Start Queue Listeners
         self.after(100, self._process_log_queue)
+        self.after(100, self._process_ui_log_queue)
         
         # Auto-start Watcher
         self.toggle_watcher()
@@ -451,6 +455,20 @@ class ServerManager(ctk.CTk):
                 break
         self.after(200, self._process_log_queue)
 
+    def _process_ui_log_queue(self):
+        """Drain subprocess log lines on the MAIN thread (Tk-safe)."""
+        while True:
+            try:
+                panel, text, level = self.ui_log_queue.get_nowait()
+            except queue.Empty:
+                break
+            # Widget may be destroyed while lines are still queued
+            with contextlib.suppress(
+                AttributeError, RuntimeError, tk.TclError, ValueError
+            ):
+                panel.append_log(text, level)
+        self.after(150, self._process_ui_log_queue)
+
     def _append_db_log(self, text: str, level: str = "INFO"):
         """Append log to DB panel log textbox."""
         self.log_db.configure(state="normal")
@@ -470,7 +488,12 @@ class ServerManager(ctk.CTk):
             self.db_status_bar.configure(fg_color=COLOR_SUCCESS)
 
     def _stream_output(self, proc: subprocess.Popen, panel: ServicePanel) -> None:
-        """Stream subprocess output to panel log with timeout protection."""
+        """Stream subprocess output into ui_log_queue.
+
+        Runs on a reader thread — it must NOT touch Tk widgets directly
+        (Tkinter is main-thread-only; direct insert corrupted the Tcl
+        interpreter under load). _process_ui_log_queue renders the lines.
+        """
         try:
             while proc.poll() is None:
                 try:
@@ -488,15 +511,13 @@ class ServerManager(ctk.CTk):
                     elif "SUCCESS" in text.upper() or "COMPLETE" in text.upper():
                         level = "SUCCESS"
 
-                    panel.append_log(text, level)
-                except (AttributeError, OSError, RuntimeError, tk.TclError, ValueError):
+                    self.ui_log_queue.put((panel, text, level))
+                except (AttributeError, OSError, RuntimeError, ValueError):
                     break
-        except (AttributeError, OSError, RuntimeError, tk.TclError, ValueError):
+        except (AttributeError, OSError, RuntimeError, ValueError):
             pass
         finally:
-            # Widget may be destroyed
-            with contextlib.suppress(AttributeError, RuntimeError, tk.TclError, ValueError):
-                panel.append_log(">>> Process Exited", "WARN")
+            self.ui_log_queue.put((panel, ">>> Process Exited", "WARN"))
 
     def _start_process(
         self, cmd: list[str], panel: ServicePanel, cwd: str | None = None
