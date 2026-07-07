@@ -70,7 +70,7 @@ Server_API(FastAPI + SQLite + Streamlit + manager/봇) 프로젝트의 2026 하�
 | # | 항목 | 근거 | 규모 | 착수 조건 |
 |---|------|------|------|----------|
 | A-1 | ✅ 로컬 venv lock 재동기화 — 완료 2026-07-07 (pytest 9.1.0, ruff 0.15.17, 전체 게이트 그린) | pytest 9.0.3↔lock 9.1.0 드리프트. 9.1은 미등록 마커를 에러 처리 → 로컬 통과 ≠ CI 통과 | 5분 | ~~즉시~~ 완료 |
-| A-2 | manager 트레이 재시작 후 로그 스트리밍 실동작 확인 | 0354317 Tk 마샬링은 GUI라 자동 테스트 불가 | 5분 | 다음 운영 PC 업데이트 시 |
+| A-2 | ✅ manager 로그 스트리밍 실동작 확인 — 운영자 확인 완료 2026-07-07 (이상 없음) | 0354317 Tk 마샬링은 GUI라 자동 테스트 불가 | 5분 | ~~운영 PC 업데이트 시~~ 완료 |
 | A-3 | ✅ pytest-timeout 도입 여부 — **미도입 결정** 2026-07-07: 마커는 pyproject에 이미 등록·문서화("no-op unless installed"), 해당 테스트 hang은 자식 sleep(120s)으로 bounded. 단일 테스트를 위한 의존성 추가는 비용>이득 | `@pytest.mark.timeout(30)`이 no-op | 소 | ~~lock 갱신 편승~~ 결정 완료 |
 | A-4 | ✅ test_session_store sleep→clock 주입 — 완료 2026-07-07 (`_session_store._clock` 시임 + FakeClock, sleep 전부 제거) | Windows time.time() 해상도(~15.6ms)보다 짧은 sleep(0.001) — 잠재 flaky | 소 | ~~여유 시~~ 완료 |
 | A-5 | 품질 램프 R8: C901 전면 게이트 확대 | 현재 3개 파일만 잠금. R3→R7 관례대로 "위반 0 파일부터 점진 잠금" | 중 | 분기 1회 램프 슬롯 |
@@ -107,7 +107,7 @@ Server_API(FastAPI + SQLite + Streamlit + manager/봇) 프로젝트의 2026 하�
 
 ## 4. Success Criteria
 
-- [x] A-1·A-3·A-4 소진 (2026-07-07). A-2(manager GUI 확인)만 다음 운영 PC 업데이트 시 잔존
+- [x] A-1~A-4 전량 소진 (2026-07-07) — **M1 완료**
 - [ ] B-1 완료: 인증 활성 상태로 운영 1주 무사고 (H2 내)
 - [ ] B-2 완료: 이상탐지 관측 UI에서 최근 30일 findings 확인 가능 (H2 내)
 - [ ] B-3~B-5 중 2건 이상 소진 (분기 내)
