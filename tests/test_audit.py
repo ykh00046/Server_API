@@ -88,6 +88,8 @@ def test_auth_on_public_paths_open(client, enable_auth, path):
         ("DELETE", "/notifications/webhooks/1"),
         ("POST", "/notifications/deliveries/bulk-retry"),
         ("POST", "/materials/run"),                   # 서버 PC 프로세스 spawn
+        ("GET", "/anomaly/findings"),                 # dashboard-v2 신규 표면
+        ("GET", "/anomaly/state"),
     ],
 )
 def test_auth_on_admin_endpoints_401(client, enable_auth, method, path):

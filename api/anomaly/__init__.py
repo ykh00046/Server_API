@@ -15,12 +15,16 @@ from .schemas import (
     EVENT_TYPE_DESCRIPTIONS,
     KIND_EVENT_TYPES,
     Finding,
+    RuleOverrides,
 )
+from .store_findings import list_findings
 
 __all__ = [
     "Finding",
     "KIND_EVENT_TYPES",
+    "RuleOverrides",
     "collect_findings",
+    "list_findings",
     "run_detection",
 ]
 
