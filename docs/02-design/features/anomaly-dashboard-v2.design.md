@@ -189,7 +189,7 @@ run_detection(emit=True, today=None, overrides: RuleOverrides | None = None)
 
 ### 5.1 페이지 등록
 
-`dashboard/app.py` — "관리" 그룹, Webhook 관리 위:
+`dashboard/app.py` — "운영" 그룹, Webhook 관리 위:
 
 ```python
 st.Page("views/anomaly.py", title="이상탐지", icon=":material/monitor_heart:"),
@@ -198,14 +198,14 @@ st.Page("views/anomaly.py", title="이상탐지", icon=":material/monitor_heart:
 ### 5.2 `dashboard/views/anomaly.py` 레이아웃 (위→아래)
 
 1. **헤더 + 상태 메트릭 행**: 현재 findings 수 / 마지막 스캔 시각(state) / 활성 쿨다운 수 / 새로고침 버튼(캐시 클리어)
-2. **현재 스캔 결과**: `GET /scan` → kind별 그룹, severity 배지(critical=빨강/warning=노랑 — `st.badge` 네이티브), 각 finding message + details expander. 0건이면 `st.success("현재 이상 없음")`
+2. **현재 스캔 결과**: `GET /scan` → 평면 카드 나열(현장 findings는 보통 0~3건이라 kind 그룹핑 불필요 — v0.3), severity 배지(critical=빨강/warning=노랑 — `st.badge` 네이티브), 각 finding message + details expander. 0건이면 `st.success("현재 이상 없음")`
 3. **최근 30일 타임라인**: `GET /findings?days=30` → `_parsing.findings_to_daily_counts()` → severity별 stacked bar(plotly, 기존 `get_chart_config` 재사용) + 이력 테이블(`st.dataframe`, kind/severity 필터 selectbox). 0건이면 "이력 누적 시작" 안내
-4. **쿨다운 현황** (expander): `GET /state` → key / 남은 시간(휴먼 포맷) / active 배지 테이블
+4. **쿨다운 현황** (expander): `GET /state` → key / 남은 시간(휴먼 포맷) / 상태 텍스트("🔒 억제 중"/"만료" — v0.3) 테이블
 5. **what-if 미리보기** (expander): `GET /rules`로 현재값을 기본값으로 한 number_input 5개 + "미리보기" 버튼 → `GET /scan?…` → 결과를 섹션 2와 동일 렌더 + `st.info("미리보기 — 발행되지 않음")` 배지
 
 ### 5.3 클라이언트/캐시
 
-- httpx 헬퍼는 dataset_page 관례(`_headers()` API 키 지원 포함, timeout 15s, `httpx.HTTPError` → `st.error` + `st.stop()` 아님 — 섹션별 독립 실패 허용: 실패한 섹션만 warning).
+- httpx 헬퍼는 dataset_page 관례(`_headers()` API 키 지원 포함, timeout 15s). `httpx.HTTPError`는 섹션별 독립 실패 — 실패한 섹션만 `st.warning`, `st.stop()` 없음 (v0.3 문구 통일).
 - `@st.cache_data(ttl=60)` for scan/findings/state fetch. what-if 호출은 캐시 없음(버튼 트리거).
 - 순수 변환(타임라인 집계, 남은 시간 휴먼 포맷)은 `dashboard/components/anomaly_view_helpers.py`(신규, streamlit-free)에 배치: `findings_to_daily_counts(findings: list[dict]) -> pd.DataFrame`, `humanize_remaining(sec: float) -> str`. (구현 시 변경: `_parsing.py`는 AI 섹션 특성화 테스트 전용 모듈이라 오염 방지 차원에서 전용 모듈로 분리 — 정책 취지는 동일)
 
@@ -281,3 +281,4 @@ tests/{test_anomaly_api,test_anomaly_state,test_audit}.py  # 확장
 |---------|------|---------|
 | 0.1 | 2026-07-07 | 최초 작성 — plan F1~F6 전체 구체화 |
 | 0.2 | 2026-07-08 | 구현 반영: 순수 헬퍼를 _parsing.py 대신 전용 anomaly_view_helpers.py로 분리(특성화 모듈 오염 방지). 헬퍼 테스트는 디스크 직접 로드 경계 패턴 |
+| 0.3 | 2026-07-08 | gap 분석(96%) 소급 정정 4건: 네비 그룹 "운영", 현재 스캔 평면 카드, 쿨다운 상태 텍스트, 에러 문구 st.warning 통일 |
