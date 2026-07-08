@@ -518,6 +518,29 @@ def test_stop_default_timeout_outlasts_http_dispatch(client, isolated_db, captur
 
 
 # ==========================================================
+# deliveries keyset paging (roadmap-2026h2 B-3)
+# ==========================================================
+def test_deliveries_before_id_keyset_paging(client, isolated_db):
+    wh = _create_wh(client)
+    for i in range(5):
+        events.emit_event("evt.async", {"i": i})
+    page1 = client.get(
+        f"/notifications/webhooks/{wh['id']}/deliveries", params={"limit": 2}
+    ).json()
+    assert len(page1) == 2
+    cursor = page1[-1]["id"]
+    page2 = client.get(
+        f"/notifications/webhooks/{wh['id']}/deliveries",
+        params={"limit": 2, "before_id": cursor},
+    ).json()
+    assert len(page2) == 2
+    assert all(d["id"] < cursor for d in page2)  # 더 오래된 행만
+    # 전 페이지 합집합에 중복 없음
+    ids = [d["id"] for d in page1 + page2]
+    assert len(ids) == len(set(ids))
+
+
+# ==========================================================
 # Extra — OpenAPI exposes the 2 new v2 paths
 # ==========================================================
 def test_openapi_includes_v2_paths(client):

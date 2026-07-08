@@ -446,25 +446,31 @@ def requeue_deliveries(
 
 
 def list_deliveries(
-    webhook_id: int, *, limit: int = 50, status: str | None = None
+    webhook_id: int,
+    *,
+    limit: int = 50,
+    status: str | None = None,
+    before_id: int | None = None,
 ) -> list[DeliveryPublic]:
+    """Newest-first deliveries. ``before_id`` is a keyset cursor (id DESC) —
+    pass the last id of the previous page to fetch older rows; without it
+    only the newest ``limit`` rows were reachable (roadmap-2026h2 B-3)."""
     limit = max(1, min(int(limit), 500))
+    where = ["webhook_id = ?"]
+    params: list[Any] = [webhook_id]
     if status:
-        rows = _get_conn().execute(
-            """
-            SELECT * FROM webhook_deliveries
-            WHERE webhook_id = ? AND status = ?
-            ORDER BY id DESC LIMIT ?
-            """,
-            (webhook_id, status, limit),
-        ).fetchall()
-    else:
-        rows = _get_conn().execute(
-            """
-            SELECT * FROM webhook_deliveries
-            WHERE webhook_id = ?
-            ORDER BY id DESC LIMIT ?
-            """,
-            (webhook_id, limit),
-        ).fetchall()
+        where.append("status = ?")
+        params.append(status)
+    if before_id is not None:
+        where.append("id < ?")
+        params.append(int(before_id))
+    params.append(limit)
+    rows = _get_conn().execute(
+        f"""
+        SELECT * FROM webhook_deliveries
+        WHERE {" AND ".join(where)}
+        ORDER BY id DESC LIMIT ?
+        """,
+        params,
+    ).fetchall()
     return [_row_to_delivery(r) for r in rows]

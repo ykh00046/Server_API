@@ -154,10 +154,16 @@ def list_deliveries(
     webhook_id: int,
     limit: int = Query(default=50, ge=1, le=500),
     status: str | None = Query(default=None),
+    before_id: int | None = Query(
+        default=None, ge=1,
+        description="keyset 커서 — 이전 페이지 마지막 id (그보다 오래된 행 조회)",
+    ),
 ):
     if store.get_record(webhook_id) is None:
         raise HTTPException(status_code=404, detail=f"webhook {webhook_id} not found")
-    return store.list_deliveries(webhook_id, limit=limit, status=status)
+    return store.list_deliveries(
+        webhook_id, limit=limit, status=status, before_id=before_id
+    )
 
 
 # ==========================================================
