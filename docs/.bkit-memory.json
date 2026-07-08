@@ -7,8 +7,9 @@
   },
   "currentFeature": {
     "name": "anomaly-dashboard-v2",
-    "phase": "check",
+    "phase": "completed",
     "matchRate": 96,
-    "startedAt": "2026-07-07"
+    "startedAt": "2026-07-07",
+    "completedAt": "2026-07-08"
   }
 }
