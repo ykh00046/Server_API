@@ -66,7 +66,7 @@ def make_router(ds: Dataset) -> APIRouter:
                 keyword=trigger_keyword, runs_table=ds.runs_table
             )
         except automation.TriggerError as e:
-            raise HTTPException(status_code=409, detail=str(e)) from e
+            raise HTTPException(status_code=e.status_code, detail=str(e)) from e
         return RunTriggerResult(
             run_id=run_id, status="running", message="자동화 실행을 시작했습니다."
         )

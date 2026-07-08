@@ -369,10 +369,11 @@ class TestRunsHistory:
 
 
 class TestTrigger:
-    def test_disabled_by_default(self, client, monkeypatch):
+    def test_disabled_returns_503(self, client, monkeypatch):
+        """기능 비활성은 '이미 실행 중'(409)이 아니라 503 (B-5)."""
         monkeypatch.setattr(cfg, "MATERIALS_RUN_ENABLED", False)
         r = client.post("/materials/run")
-        assert r.status_code == 409
+        assert r.status_code == 503
         assert "MATERIALS_RUN_ENABLED" in r.json()["detail"]
 
     def test_trigger_runs_and_records(self, client, monkeypatch, tmp_path):
@@ -418,11 +419,12 @@ class TestTrigger:
         assert r.status_code == 409
         assert "이미 실행 중" in r.json()["detail"]
 
-    def test_missing_bot_entrypoint(self, client, monkeypatch, tmp_path):
+    def test_missing_bot_entrypoint_returns_500(self, client, monkeypatch, tmp_path):
+        """설정 오류(봇 진입점 없음)는 500 (B-5)."""
         monkeypatch.setattr(cfg, "MATERIALS_RUN_ENABLED", True)
         monkeypatch.setattr(cfg, "MATERIALS_BOT_DIR", tmp_path / "nope")
         r = client.post("/materials/run")
-        assert r.status_code == 409
+        assert r.status_code == 500
         assert "봇 진입점" in r.json()["detail"]
 
     def test_stale_running_reaped_and_trigger_unblocked(

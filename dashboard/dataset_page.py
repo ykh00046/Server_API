@@ -108,9 +108,9 @@ def render(
             body = {}
         if resp.status_code == 200:
             return True, body.get("message", "자동화 실행을 시작했습니다.")
-        if resp.status_code == 409:
-            return False, body.get("detail", "실행할 수 없습니다.")
-        return False, f"실행 요청 실패 (HTTP {resp.status_code})"
+        # 409 중복 / 503 비활성 / 500 설정오류 — 서버 detail을 그대로 노출
+        detail = body.get("detail")
+        return False, detail or f"실행 요청 실패 (HTTP {resp.status_code})"
 
     st.title(f"{icon} {title}", anchor=False)
     st.caption(f"API: `{API_BASE_URL}{prefix}` · 정렬/필터 기준: 문서번호 날짜(doc_date)")

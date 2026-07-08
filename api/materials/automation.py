@@ -27,7 +27,15 @@ _MESSAGE_TAIL = 2000
 
 
 class TriggerError(RuntimeError):
-    """Raised when a run cannot be started (disabled / already running)."""
+    """Raised when a run cannot be started.
+
+    ``status_code``로 사유별 HTTP 매핑 (roadmap-2026h2 B-5 — 일괄 409는
+    클라이언트가 모든 실패를 '이미 실행 중'으로 오인하게 했다):
+    409 중복 실행 / 503 기능 비활성 / 500 설정 오류(봇 진입점 없음)."""
+
+    def __init__(self, message: str, *, status_code: int = 409) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 # Makes the check-then-insert in trigger_automation atomic — two nearly
@@ -87,11 +95,15 @@ def trigger_automation(
     """
     if not _cfg.MATERIALS_RUN_ENABLED:
         raise TriggerError(
-            "수동 실행이 비활성화되어 있습니다 (MATERIALS_RUN_ENABLED=1 필요)."
+            "수동 실행이 비활성화되어 있습니다 (MATERIALS_RUN_ENABLED=1 필요).",
+            status_code=503,
         )
     bot_dir = _cfg.MATERIALS_BOT_DIR
     if not (bot_dir / "main.py").exists():
-        raise TriggerError(f"봇 진입점을 찾을 수 없습니다: {bot_dir / 'main.py'}")
+        raise TriggerError(
+            f"봇 진입점을 찾을 수 없습니다: {bot_dir / 'main.py'}",
+            status_code=500,
+        )
     with _trigger_lock:
         reaped = runs.reap_stale_running(runs_table=runs_table)
         if reaped:
