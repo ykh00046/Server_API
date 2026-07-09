@@ -169,6 +169,33 @@ class TestStoreQuery:
     def test_get_missing_returns_none(self, materials_db):
         assert store.get_material("NOPE") is None
 
+
+# ==========================================================
+# store: delete (실수 기안·중복 문서 제거)
+# ==========================================================
+class TestStoreDelete:
+    def test_delete_removes_all_items_of_document(self, materials_db):
+        store.upsert_materials([
+            MaterialRow(**_row("D-1", seq=1)),
+            MaterialRow(**_row("D-1", seq=2)),
+            MaterialRow(**_row("D-2", seq=1)),
+        ])
+        deleted = store.delete_document("D-1")
+        assert deleted == 2                        # 두 품목 행 모두 삭제
+        assert store.get_document("D-1") == []
+        assert store.count_materials() == 1        # 다른 문서는 보존
+
+    def test_delete_missing_returns_zero(self, materials_db):
+        assert store.delete_document("NOPE") == 0  # 멱등
+
+    def test_delete_is_dataset_scoped(self, materials_db):
+        # 같은 doc_number라도 삭제는 지정 테이블에만 적용된다.
+        store.upsert_materials([MaterialRow(**_row("D-1"))], table="material_requests")
+        store.upsert_materials([MaterialRow(**_row("D-1"))], table="binder_requests")
+        store.delete_document("D-1", table="material_requests")
+        assert store.get_material("D-1", table="material_requests") is None
+        assert store.get_material("D-1", table="binder_requests") is not None
+
     def test_list_filters_by_dept(self, materials_db):
         store.upsert_materials([
             MaterialRow(**_row("DOC-001", request_dept="생산1팀")),
@@ -331,6 +358,27 @@ class TestRouter:
     def test_get_missing_returns_404(self, client):
         r = client.get("/materials/NOPE")
         assert r.status_code == 404
+
+    def test_delete_document(self, client):
+        client.post("/materials/backup", json={"rows": [
+            _row("20260706P001", seq=1), _row("20260706P001", seq=2),
+        ]})
+        r = client.delete("/materials/20260706P001")
+        assert r.status_code == 200
+        assert r.json() == {"doc_number": "20260706P001", "deleted": 2}
+        # 삭제 후 조회는 404.
+        assert client.get("/materials/20260706P001").status_code == 404
+
+    def test_delete_missing_returns_404(self, client):
+        assert client.delete("/materials/NOPE").status_code == 404
+
+    def test_delete_is_dataset_scoped(self, client):
+        # /binder 삭제가 /materials 문서를 건드리지 않는다.
+        client.post("/materials/backup", json={"rows": [_row("SHARED-1")]})
+        client.post("/binder/backup", json={"rows": [_row("SHARED-1")]})
+        assert client.delete("/binder/SHARED-1").status_code == 200
+        assert client.get("/materials/SHARED-1").status_code == 200
+        assert client.get("/binder/SHARED-1").status_code == 404
 
 
 # ==========================================================

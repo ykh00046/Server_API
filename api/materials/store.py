@@ -346,6 +346,21 @@ def get_material(
     return _row_to_public(row) if row else None
 
 
+def delete_document(
+    doc_number: str, table: str = DEFAULT_DATASET.table
+) -> int:
+    """한 문서(doc_number)의 모든 품목 행을 삭제하고 삭제된 행 수를 반환한다.
+
+    실수로 기안된 문서·중복 문서를 서버에서 제거하기 위한 관리용 연산. 문서
+    번호가 없으면 0을 반환한다(멱등). 삭제는 이 데이터셋 테이블에만 적용되며
+    (table은 registry의 신뢰된 식별자), 봇 처리이력(Excel)과는 독립이다.
+    """
+    conn = _get_conn()
+    cur = conn.execute(f"DELETE FROM {table} WHERE doc_number = ?", (doc_number,))
+    conn.commit()
+    return cur.rowcount
+
+
 def list_materials(
     *,
     table: str = DEFAULT_DATASET.table,

@@ -20,6 +20,7 @@ from ..materials import MaterialBackupRequest, automation, runs, store
 from ..materials.datasets import DEFAULT_DATASET, Dataset, all_datasets
 from ..materials.schemas import (
     BackupResult,
+    DeleteResult,
     MaterialPublic,
     MaterialRun,
     RunTriggerResult,
@@ -120,6 +121,22 @@ def make_router(ds: Dataset) -> APIRouter:
         if not items:
             raise HTTPException(status_code=404, detail=f"document {doc_number} not found")
         return items
+
+    @router.delete("/{doc_number}", response_model=DeleteResult)
+    def delete_row(doc_number: str) -> DeleteResult:
+        """한 문서(문서번호)의 모든 품목 행을 삭제한다 (관리용).
+
+        실수로 기안된 문서·중복 문서를 서버에서 제거한다. 존재하지 않으면 404.
+        봇 처리이력(Excel)과는 독립이므로, 재수집을 막으려면 봇 쪽 데이터도
+        함께 정리해야 한다. doc_number upsert는 멱등이라 재전송돼도 서버에서는
+        중복으로 쌓이지 않지만, 삭제한 문서가 봇 검색 범위에 다시 들어오면
+        재수집될 수 있다.
+        """
+        deleted = store.delete_document(doc_number, table=ds.table)
+        if deleted == 0:
+            raise HTTPException(status_code=404, detail=f"document {doc_number} not found")
+        logger.info("[%s] delete: doc_number=%s rows=%d", ds.key, doc_number, deleted)
+        return DeleteResult(doc_number=doc_number, deleted=deleted)
 
     return router
 

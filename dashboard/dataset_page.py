@@ -112,6 +112,24 @@ def render(
         detail = body.get("detail")
         return False, detail or f"실행 요청 실패 (HTTP {resp.status_code})"
 
+    def _delete(doc_number: str) -> tuple[bool, str]:
+        """DELETE {prefix}/{doc_number}. Returns (ok, message). 404 → (False, detail)."""
+        try:
+            with httpx.Client(base_url=API_BASE_URL, timeout=15.0) as c:
+                resp = c.delete(f"{prefix}/{doc_number}", headers=_headers())
+        except httpx.HTTPError as e:
+            return False, f"API 연결 실패 ({e}). 서버 상태를 확인하세요."
+        try:
+            body = resp.json()
+        except ValueError:
+            body = {}
+        if not isinstance(body, dict):
+            body = {}
+        if resp.status_code == 200:
+            return True, f"문서 {doc_number} 삭제 완료 (품목 {body.get('deleted', 0)}행)."
+        detail = body.get("detail")
+        return False, detail or f"삭제 실패 (HTTP {resp.status_code})"
+
     st.title(f"{icon} {title}", anchor=False)
     st.caption(f"API: `{API_BASE_URL}{prefix}` · 정렬/필터 기준: 문서번호 날짜(doc_date)")
 
@@ -163,6 +181,30 @@ def render(
                 st.dataframe(hist, width="stretch", hide_index=True)
             else:
                 st.caption("아직 실행 기록이 없습니다.")
+
+    # ----------------------------------------------------------
+    # 문서 삭제 (실수 기안·중복 문서 제거) — 목록 유무와 무관하게 항상 노출
+    # ----------------------------------------------------------
+    with st.expander("문서 삭제 (실수 기안·중복 문서 제거)", expanded=False):
+        st.caption(
+            "문서번호로 해당 문서의 모든 품목 행을 서버에서 삭제합니다. "
+            "봇 처리이력(Excel)과는 독립이라, 재수집을 막으려면 봇 쪽 데이터도 "
+            "함께 정리하세요. 되돌릴 수 없습니다."
+        )
+        del_doc = st.text_input(
+            "삭제할 문서번호", placeholder="예: 20260706P001", key=f"del_{prefix}"
+        ).strip()
+        confirm = st.checkbox("삭제를 확인합니다", key=f"delok_{prefix}")
+        if st.button(
+            "문서 삭제",
+            icon=":material/delete:",
+            disabled=not (del_doc and confirm),
+            key=f"delbtn_{prefix}",
+        ):
+            ok, msg = _delete(del_doc)
+            (st.success if ok else st.error)(msg)
+            if ok:
+                st.rerun()
 
     st.divider()
 

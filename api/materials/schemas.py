@@ -66,6 +66,13 @@ class RunTriggerResult(BaseModel):
     message: str
 
 
+class DeleteResult(BaseModel):
+    """Outcome of a document delete (DELETE {prefix}/{doc_number})."""
+
+    doc_number: str
+    deleted: int   # 삭제된 품목 행 수
+
+
 class MaterialPublic(MaterialRow):
     """Stored row enriched with server-derived fields.
 
