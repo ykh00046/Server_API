@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse, ORJSONResponse
+from fastapi.responses import JSONResponse
 
 # Add parent directory to path for shared module import
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -67,11 +67,14 @@ async def _lifespan(app: FastAPI):
     finally: _webhook_worker.stop()
 
 # ==========================================================
-# FastAPI App (v7: ORJSONResponse + GZip + CORS)
+# FastAPI App (GZip + CORS)
 # ==========================================================
+# 기본 응답 클래스는 FastAPI 표준 JSONResponse. FastAPI 0.133+는 반환 타입/
+# response_model이 있으면 Pydantic으로 직접 JSON bytes를 직렬화하므로(구
+# ORJSONResponse만큼 빠름) 커스텀 orjson 응답 클래스가 더는 필요 없다
+# (ORJSONResponse는 deprecated).
 app = FastAPI(
     title="Production Data API",
-    default_response_class=ORJSONResponse,  # Faster JSON serialization
     lifespan=_lifespan,
 )
 app.add_middleware(GZipMiddleware, minimum_size=500)  # Compress responses > 500 bytes
