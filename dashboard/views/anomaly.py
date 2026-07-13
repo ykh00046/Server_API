@@ -13,7 +13,6 @@
 from __future__ import annotations
 
 import datetime as dt
-import os
 
 import httpx
 import pandas as pd
@@ -27,6 +26,7 @@ from components.anomaly_view_helpers import (
     humanize_remaining,
 )
 
+from shared.api_client import auth_headers
 from shared.config import API_BASE_URL
 from shared.ui.theme import get_colors
 
@@ -34,11 +34,7 @@ _SEV_BADGE = {"critical": "red", "warning": "orange", "info": "gray"}
 
 
 def _headers() -> dict:
-    headers = {}
-    api_key = os.getenv("MATERIALS_API_KEY") or os.getenv("DASHBOARD_API_KEY")
-    if api_key:
-        headers["X-API-Key"] = api_key
-    return headers
+    return auth_headers()
 
 
 @st.cache_data(ttl=60, show_spinner=False)

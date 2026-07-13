@@ -17,6 +17,7 @@ import httpx
 import pandas as pd
 import streamlit as st
 
+from shared.api_client import auth_headers
 from shared.config import API_BASE_URL, GEMINI_MODEL
 
 from ._parsing import parse_markdown_table, parse_sse_events
@@ -96,7 +97,9 @@ def _stream_chat_tokens_once(stream_url: str, payload: dict) -> Iterator[str]:
     - st.error on `error` events
     - st.session_state["_last_chat_meta"] populated on `done`
     """
-    with httpx.stream("POST", stream_url, json=payload, timeout=60.0) as r:
+    with httpx.stream(
+        "POST", stream_url, json=payload, timeout=60.0, headers=auth_headers()
+    ) as r:
         if r.status_code != 200:
             try:
                 detail = r.read().decode("utf-8", "replace")

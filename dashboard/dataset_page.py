@@ -11,13 +11,13 @@ webcloring-pdf가 백업한 데이터를 기존 Excel과 동일한 한글 헤더
 from __future__ import annotations
 
 import datetime as dt
-import os
 
 import httpx
 import pandas as pd
 import streamlit as st
 from data import _cached_excel_bytes
 
+from shared.api_client import auth_headers
 from shared.config import API_BASE_URL
 
 # API 필드 → 기존 Excel 헤더 (순서가 곧 Excel 컬럼 순서). 모든 데이터셋 공통.
@@ -38,11 +38,7 @@ _KIND_LABEL = {"backup": "백업 수신", "automation": "자동 실행"}
 
 
 def _headers() -> dict:
-    headers = {}
-    api_key = os.getenv("MATERIALS_API_KEY") or os.getenv("DASHBOARD_API_KEY")
-    if api_key:
-        headers["X-API-Key"] = api_key
-    return headers
+    return auth_headers()
 
 
 def _to_excel_frame(

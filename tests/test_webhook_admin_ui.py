@@ -260,6 +260,49 @@ def test_transport_error_raises_with_status_none():
 
 
 # =====================================================================
+# api_client — auth header injection (auth-enable-v2)
+# =====================================================================
+def test_default_client_attaches_api_key_when_env_set(monkeypatch):
+    """T6: DASHBOARD_API_KEY set + default construction → X-API-Key on request."""
+    monkeypatch.setenv("DASHBOARD_API_KEY", "dash-key-123")
+    rec = _Recorder([_json_resp(200, [])])
+    with WebhookAdminClient(
+        "http://test", transport=httpx.MockTransport(rec.handler)
+    ) as c:
+        c.list_webhooks()
+    assert rec.calls[0].headers.get("x-api-key") == "dash-key-123"
+
+
+def test_default_client_omits_api_key_when_env_absent(monkeypatch):
+    """T7: no key configured → no X-API-Key header (existing no-key behavior)."""
+    monkeypatch.delenv("DASHBOARD_API_KEY", raising=False)
+    monkeypatch.delenv("MATERIALS_API_KEY", raising=False)
+    rec = _Recorder([_json_resp(200, [])])
+    with WebhookAdminClient(
+        "http://test", transport=httpx.MockTransport(rec.handler)
+    ) as c:
+        c.list_webhooks()
+    assert "x-api-key" not in rec.calls[0].headers
+
+
+def test_explicit_headers_override_auth_headers(monkeypatch):
+    """T8: explicit headers= takes precedence over auth_headers()."""
+    monkeypatch.setenv("DASHBOARD_API_KEY", "dash-key-123")
+    rec = _Recorder([_json_resp(200, [])])
+    custom = {"X-API-Key": "injected", "X-Custom": "yes"}
+    with WebhookAdminClient(
+        "http://test",
+        transport=httpx.MockTransport(rec.handler),
+        headers=custom,
+    ) as c:
+        c.list_webhooks()
+    headers = rec.calls[0].headers
+    assert headers.get("x-api-key") == "injected"
+    assert headers.get("x-custom") == "yes"
+
+
+
+# =====================================================================
 # formatters — pure functions
 # =====================================================================
 def test_format_queue_stats_cards_returns_six_in_fixed_order():

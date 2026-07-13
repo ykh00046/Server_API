@@ -12,6 +12,8 @@ from typing import Any
 
 import httpx
 
+from shared.api_client import auth_headers
+
 
 class WebhookAdminError(Exception):
     """Normalized failure surface for the webhook admin client.
@@ -58,11 +60,16 @@ class WebhookAdminClient:
         *,
         timeout: float = 10.0,
         transport: httpx.BaseTransport | None = None,
+        headers: dict[str, str] | None = None,
     ):
+        # None → auth_headers(): attach X-API-Key when a dashboard key is
+        # configured, otherwise no header. Explicit `headers` overrides (used
+        # by tests / callers that manage their own auth surface).
         self._client = httpx.Client(
             base_url=base_url.rstrip("/"),
             timeout=timeout,
             transport=transport,
+            headers=auth_headers() if headers is None else headers,
         )
 
     def close(self) -> None:
