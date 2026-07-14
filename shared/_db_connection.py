@@ -12,6 +12,7 @@ import logging
 import os
 import sqlite3
 import threading
+import weakref
 
 from .config import ARCHIVE_DB_FILE, DB_FILE, DB_TIMEOUT
 
@@ -19,33 +20,78 @@ logger = logging.getLogger(__name__)
 
 
 _local = threading.local()
-_all_connections: list[sqlite3.Connection] = []
+
+# Connections are cached per thread, so a thread that dies takes its cache entry
+# with it and nothing ever closes those connections — Streamlit spawns a fresh
+# ScriptRunner thread on every rerun, so the handles piled up for the life of the
+# process. The registry tracks the owning thread (weakly, so it does not keep the
+# thread alive) and _sweep_dead_thread_connections() closes what the dead ones
+# left behind. Keyed by id(conn); the strong conn ref is what makes the close
+# possible at all.
+_conn_registry: dict[int, tuple[weakref.ref, sqlite3.Connection]] = {}
 _connection_lock = threading.Lock()
 
 _wal_enabled_dbs: set[str] = set()
 _wal_lock = threading.Lock()
 
 
-def _cleanup_all_connections() -> None:
-    """Cleanup all cached connections on program exit."""
+def _register_connection(conn: sqlite3.Connection) -> None:
+    """Record a new connection against the thread that owns it."""
     with _connection_lock:
-        for conn in _all_connections:
-            with contextlib.suppress(sqlite3.Error):
-                conn.close()
-        _all_connections.clear()
+        _conn_registry[id(conn)] = (weakref.ref(threading.current_thread()), conn)
+
+
+def _sweep_dead_thread_connections() -> int:
+    """Close connections whose owning thread is gone. Returns how many closed.
+
+    Called from the connection-creation path, so the cost is bounded: the
+    registry holds at most (live threads × cache-key combinations) entries.
+    Cross-thread close is legal because connections are created with
+    check_same_thread=False and a dead owner cannot be racing us.
+    """
+    to_close: list[sqlite3.Connection] = []
+    with _connection_lock:
+        for key, (thread_ref, conn) in list(_conn_registry.items()):
+            owner = thread_ref()
+            if owner is None or not owner.is_alive():
+                to_close.append(conn)
+                del _conn_registry[key]
+
+    for conn in to_close:  # close outside the lock — it is I/O
+        with contextlib.suppress(sqlite3.Error):
+            conn.close()
+    if to_close:
+        logger.debug(f"Swept {len(to_close)} connection(s) from dead threads")
+    return len(to_close)
+
+
+def _cleanup_all_connections() -> None:
+    """Cleanup all cached connections on program exit.
+
+    Only ever closed main-thread connections before: with the default
+    check_same_thread=True, close() from another thread raises ProgrammingError,
+    which the suppress below swallowed silently.
+    """
+    with _connection_lock:
+        conns = [conn for _, conn in _conn_registry.values()]
+        _conn_registry.clear()
+
+    for conn in conns:
+        with contextlib.suppress(sqlite3.Error):
+            conn.close()
     logger.debug("All database connections cleaned up")
 
 
 def _discard_connection(conn: sqlite3.Connection) -> None:
     """Close a dead/stale cached connection and drop it from the registry.
 
-    Without the remove, every ERP DB-file swap appended a fresh connection
-    per thread while the closed one stayed in _all_connections forever —
-    unbounded growth on a long-running server."""
+    Without the removal, every ERP DB-file swap registered a fresh connection
+    per thread while the closed one stayed forever — unbounded growth on a
+    long-running server."""
     with contextlib.suppress(sqlite3.Error):
         conn.close()
-    with _connection_lock, contextlib.suppress(ValueError):
-        _all_connections.remove(conn)
+    with _connection_lock:
+        _conn_registry.pop(id(conn), None)
 
 
 atexit.register(_cleanup_all_connections)

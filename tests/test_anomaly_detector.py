@@ -40,7 +40,8 @@ def _drop_conns():
         for attr in list(vars(local)):
             obj = getattr(local, attr)
             if isinstance(obj, sqlite3.Connection):
-                obj.close()
+                # via _discard_connection so the connection registry drops it too
+                conn_mod._discard_connection(obj)
             delattr(local, attr)
 
 

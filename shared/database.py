@@ -26,12 +26,14 @@ from typing import Any
 
 from ._db_attach import attach_archive_safe  # noqa: F401 (back-compat)
 from ._db_connection import (  # noqa: F401 (back-compat)
-    _all_connections,
     _apply_pragma_settings,
+    _conn_registry,
     _connection_lock,
     _discard_connection,
     _get_db_mtime,
     _local,
+    _register_connection,
+    _sweep_dead_thread_connections,
 )
 from .config import (
     ARCHIVE_CUTOFF_DATE,
@@ -158,7 +160,13 @@ class DBRouter:
         mode = "ro" if read_only else "rw"
         db_uri = f"file:{DB_FILE.absolute()}?mode={mode}"
 
-        conn = sqlite3.connect(db_uri, uri=True, timeout=DB_TIMEOUT)
+        # check_same_thread=False: a connection is only ever handed out through
+        # the thread-local cache, so it is *used* solely by its owning thread.
+        # The one cross-thread touch is closing a dead thread's connection
+        # (sweep/atexit) — by then the owner is gone, so nothing can race.
+        conn = sqlite3.connect(
+            db_uri, uri=True, timeout=DB_TIMEOUT, check_same_thread=False
+        )
         conn.row_factory = sqlite3.Row
 
         _apply_pragma_settings(conn)
@@ -174,8 +182,8 @@ class DBRouter:
         setattr(_local, cache_key, conn)
         setattr(_local, mtime_key, current_mtime)
 
-        with _connection_lock:
-            _all_connections.append(conn)
+        _register_connection(conn)
+        _sweep_dead_thread_connections()  # new connection = the moment to clean up
 
         return conn
 

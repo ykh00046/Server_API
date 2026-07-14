@@ -191,13 +191,20 @@ def live_and_archive_db(tmp_path, monkeypatch):
 
 
 def _drop_thread_local_conns() -> None:
-    """Close + clear any cached thread-local sqlite connections."""
+    """Close + clear any cached thread-local sqlite connections.
+
+    Goes through _discard_connection so the connection registry drops them too —
+    closing alone would leave this (still-alive) thread's entries behind, and the
+    registry would grow across the whole session.
+    """
     try:
         from shared import database as _db
         for attr in list(vars(_db._local)):
             if attr.startswith("conn_"):
-                with contextlib.suppress(sqlite3.Error, AttributeError):
-                    getattr(_db._local, attr).close()
+                conn = getattr(_db._local, attr, None)
+                if conn is not None:
+                    with contextlib.suppress(sqlite3.Error, AttributeError):
+                        _db._discard_connection(conn)
                 setattr(_db._local, attr, None)
             elif attr.startswith("mtime_"):
                 setattr(_db._local, attr, None)
@@ -255,12 +262,4 @@ def _close_db_connections():
         _findings.reset_for_tests()
     except ImportError:
         pass
-    try:
-        from shared import database as _db
-        for attr in list(vars(_db._local)):
-            if attr.startswith("conn_"):
-                with contextlib.suppress(sqlite3.Error, AttributeError):
-                    getattr(_db._local, attr).close()
-                setattr(_db._local, attr, None)
-    except (ImportError, AttributeError):
-        pass
+    _drop_thread_local_conns()
