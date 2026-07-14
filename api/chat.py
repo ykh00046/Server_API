@@ -36,8 +36,8 @@ logger = get_logger(__name__)
 # GenAI client factory extracted to api/_gemini_client.py (Act-1).
 # SSE streaming helper (ui-modernization-streamlit-extras).
 from ._chat_stream import run_stream, streaming_response
+from ._gemini_client import extract_http_code, is_fallbackable
 from ._gemini_client import get_client as _get_client  # noqa: F401
-from ._gemini_client import is_fallbackable
 
 # Tool registry extracted to api/_tool_dispatch.py (Act-1).
 from ._tool_dispatch import PRODUCTION_TOOLS
@@ -160,24 +160,14 @@ def _build_system_instruction() -> str:
 def _is_retryable_error(e: Exception) -> tuple[bool, int]:
     """
     Check if the error is retryable.
-    Returns (is_retryable, status_code).
+    Returns (is_retryable, status_code) — status_code is always an int HTTP code
+    (see _gemini_client.extract_http_code; `.status` is a gRPC name string).
     """
-    status_code = 0
+    if not isinstance(e, (ClientError, ServerError)):
+        return False, 0
 
-    if isinstance(e, (ClientError, ServerError)):
-        status_code = getattr(e, 'status', 0) or 0
-        # Extract status code from error message if not in attribute
-        if status_code == 0:
-            error_msg = str(e)
-            for code in RETRYABLE_STATUS_CODES:
-                if str(code) in error_msg:
-                    status_code = code
-                    break
-
-        if status_code in RETRYABLE_STATUS_CODES:
-            return True, status_code
-
-    return False, status_code
+    status_code = extract_http_code(e)
+    return status_code in RETRYABLE_STATUS_CODES, status_code
 
 
 def _calculate_delay(attempt: int) -> float:

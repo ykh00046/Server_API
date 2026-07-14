@@ -52,14 +52,43 @@ def reset_for_tests() -> None:
 
 FALLBACK_STATUS_CODES = {429, 503}
 
+# google-genai APIError.status is a gRPC-style *string*, not an HTTP code.
+_STATUS_NAME_TO_HTTP = {
+    "RESOURCE_EXHAUSTED": 429,  # quota
+    "UNAVAILABLE": 503,  # overload
+    "INTERNAL": 500,
+}
+
+
+def extract_http_code(e: Exception) -> int:
+    """Best-effort HTTP status code for a google-genai APIError.
+
+    SDK 2.8.0 contract: ``.code`` is the int HTTP code and ``.status`` is a
+    string ("RESOURCE_EXHAUSTED"). Reading ``.status`` as if it were the code
+    made every real 429/503 unclassifiable — retry and fallback never fired in
+    production while the tests (whose fixtures omitted ``status``) stayed green.
+    The status-name and message scans below are for malformed responses that
+    leave ``.code`` empty (e.g. an HTML 502 from a proxy).
+    """
+    code = getattr(e, "code", None)
+    if isinstance(code, int) and code > 0:
+        return code
+
+    status = getattr(e, "status", None)
+    if isinstance(status, str):
+        mapped = _STATUS_NAME_TO_HTTP.get(status)
+        if mapped:
+            return mapped
+
+    message = str(e)
+    for known in (429, 503, 500):
+        if str(known) in message:
+            return known
+    return 0
+
 
 def is_fallbackable(e: Exception) -> bool:
     """Check if the error warrants a model fallback (429/503 only)."""
-    if isinstance(e, (ClientError, ServerError)):
-        status = getattr(e, "status", 0) or 0
-        if status == 0:
-            for code in FALLBACK_STATUS_CODES:
-                if str(code) in str(e):
-                    return True
-        return status in FALLBACK_STATUS_CODES
-    return False
+    if not isinstance(e, (ClientError, ServerError)):
+        return False
+    return extract_http_code(e) in FALLBACK_STATUS_CODES

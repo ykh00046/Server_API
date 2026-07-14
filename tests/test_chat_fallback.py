@@ -14,6 +14,7 @@ from google.genai.errors import ClientError, ServerError
 
 from api import _chat_stream as stream_mod
 from api import chat as chat_mod
+from api._gemini_client import is_fallbackable
 
 
 # ------------------------------------------------------------------
@@ -55,18 +56,30 @@ async def _async_iter(items):
 
 
 def _make_429_error():
-    """Create a fake 429 ClientError."""
-    return ClientError(429, {"error": {"message": "Too Many Requests"}})
+    """A 429 in the shape the live API actually returns (with error.status)."""
+    return ClientError(429, {"error": {
+        "code": 429,
+        "message": "Resource has been exhausted (e.g. check quota).",
+        "status": "RESOURCE_EXHAUSTED",
+    }})
 
 
 def _make_503_error():
-    """Create a fake 503 ServerError."""
-    return ServerError(503, {"error": {"message": "Service Unavailable"}})
+    """A 503 in the shape the live API actually returns."""
+    return ServerError(503, {"error": {
+        "code": 503,
+        "message": "The service is currently unavailable.",
+        "status": "UNAVAILABLE",
+    }})
 
 
 def _make_500_error():
-    """Create a fake 500 ServerError."""
-    return ServerError(500, {"error": {"message": "Internal Server Error"}})
+    """A 500 in the shape the live API actually returns."""
+    return ServerError(500, {"error": {
+        "code": 500,
+        "message": "Internal error.",
+        "status": "INTERNAL",
+    }})
 
 
 # ------------------------------------------------------------------
@@ -158,6 +171,47 @@ class _FakeAio:
 class _FakeStreamClient:
     def __init__(self, **kwargs):
         self.aio = _FakeAio(**kwargs)
+
+
+# ==================================================================
+# Error classification (F-01a)
+# ==================================================================
+class TestErrorClassification:
+    def test_sdk_error_shape_contract(self):
+        """Breaks first if google-genai ever changes the .code(int)/.status(str) contract."""
+        e = _make_429_error()
+        assert isinstance(e.code, int) and e.code == 429
+        assert e.status == "RESOURCE_EXHAUSTED"
+        assert "429" in str(e)
+
+    @pytest.mark.parametrize("err,expected", [
+        (_make_429_error(), True),
+        (_make_503_error(), True),
+        (_make_500_error(), False),
+        (ClientError(400, {"error": {"code": 400, "status": "INVALID_ARGUMENT"}}), False),
+    ])
+    def test_is_fallbackable_real_sdk_shape(self, err, expected):
+        assert is_fallbackable(err) is expected
+
+    def test_is_fallbackable_status_absent_shape(self):
+        """Malformed responses (no error.status) still classify via message scan."""
+        err = ClientError(429, {"error": {"message": "429 Too Many Requests"}})
+        assert is_fallbackable(err) is True
+
+    def test_is_fallbackable_ignores_non_api_errors(self):
+        assert is_fallbackable(ValueError("429")) is False
+
+    @pytest.mark.parametrize("err,expected", [
+        (_make_429_error(), (True, 429)),
+        (_make_503_error(), (True, 503)),
+        (_make_500_error(), (True, 500)),
+        (ClientError(400, {"error": {"code": 400, "status": "INVALID_ARGUMENT"}}), (False, 400)),
+    ])
+    def test_is_retryable_real_sdk_shape(self, err, expected):
+        assert chat_mod._is_retryable_error(err) == expected
+
+    def test_is_retryable_non_api_error(self):
+        assert chat_mod._is_retryable_error(ValueError("boom")) == (False, 0)
 
 
 # ==================================================================
