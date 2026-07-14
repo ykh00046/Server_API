@@ -43,7 +43,7 @@ from shared.config import (
 )
 
 from . import _session_store as _sstore
-from ._gemini_client import get_client, is_fallbackable
+from ._gemini_client import extract_http_code, get_client, is_fallbackable
 from ._tool_dispatch import PRODUCTION_TOOLS
 
 # Structured error codes for SSE error events
@@ -58,8 +58,10 @@ logger = get_logger(__name__)
 
 @dataclass
 class _StreamOpenResult:
-    stream: object | None
+    stream: object | None  # provider stream — the aclose() target
     model: str
+    aiter: object | None = None  # its iterator, already primed by one __anext__
+    first_chunk: object | None = None  # primed chunk, replayed by _consume_stream
     fallback_used: bool = False
     error_frame: str | None = None
 
@@ -89,17 +91,20 @@ def _sse(event: str, data: dict) -> str:
 
 
 async def _iter_with_heartbeat(
-    stream, heartbeat_sec: float
+    aiter, heartbeat_sec: float
 ) -> AsyncIterator[object | None]:
-    """Wrap async stream iterator, yielding None as heartbeat on idle.
+    """Wrap an async iterator, yielding None as heartbeat on idle.
+
+    Takes an already-obtained iterator (not the stream) because the caller has
+    primed it with one __anext__ — re-iterating the stream would replay from
+    the start or fail.
 
     Uses asyncio.wait (not wait_for) to avoid cancelling the pending __anext__
     coroutine on timeout — the chunk task stays alive across heartbeat intervals.
 
     Yields:
-        chunk object from stream, or None if heartbeat_sec elapsed without a chunk.
+        chunk object from the iterator, or None if heartbeat_sec elapsed idle.
     """
-    aiter = stream.__aiter__()
     next_task = asyncio.ensure_future(aiter.__anext__())
     try:
         while True:
@@ -121,13 +126,48 @@ async def _iter_with_heartbeat(
             next_task.cancel()
 
 
-async def _open_model_stream(client_obj, contents, config, request_id, start) -> _StreamOpenResult:
-    """Open the primary model stream and use the configured fallback when eligible."""
+async def _safe_aclose(stream) -> None:
+    """Close a provider stream if it supports aclose(), swallowing close errors."""
+    stream_aclose = getattr(stream, "aclose", None)
+    if stream_aclose is not None:
+        with contextlib.suppress(Exception):
+            await stream_aclose()
+
+
+async def _open_and_prime(client_obj, model, contents, config):
+    """Open a model stream and pull its first chunk.
+
+    With tools=Python callables the SDK takes the automatic-function-calling
+    path, where generate_content_stream() only builds a lazy async generator —
+    no HTTP request is sent until the first __anext__. Quota (429) and overload
+    (503) therefore surface here, not at open time, and priming is what brings
+    them inside the caller's fallback decision. (google-genai 2.8.0)
+
+    Returns (stream, aiter, first_chunk); first_chunk is None for an empty stream.
+    """
+    stream = await client_obj.aio.models.generate_content_stream(
+        model=model, contents=contents, config=config,
+    )
+    aiter = stream.__aiter__()
     try:
-        stream = await client_obj.aio.models.generate_content_stream(
-            model=GEMINI_MODEL, contents=contents, config=config,
+        first_chunk = await aiter.__anext__()
+    except StopAsyncIteration:
+        first_chunk = None  # empty stream is valid — completes with done
+    except BaseException:
+        await _safe_aclose(stream)  # a failed prime leaves nobody else to close it
+        raise
+    return stream, aiter, first_chunk
+
+
+async def _open_model_stream(client_obj, contents, config, request_id, start) -> _StreamOpenResult:
+    """Open (and prime) the primary model stream, falling back when eligible."""
+    try:
+        stream, aiter, first = await _open_and_prime(
+            client_obj, GEMINI_MODEL, contents, config
         )
-        return _StreamOpenResult(stream=stream, model=GEMINI_MODEL)
+        return _StreamOpenResult(
+            stream=stream, model=GEMINI_MODEL, aiter=aiter, first_chunk=first
+        )
     except (ClientError, ServerError) as error:
         if not (GEMINI_FALLBACK_ENABLED and is_fallbackable(error)):
             duration_ms = (time.perf_counter() - start) * 1000
@@ -135,10 +175,11 @@ async def _open_model_stream(client_obj, contents, config, request_id, start) ->
                 f"[ChatStream Error] request_id={request_id} | "
                 f"error={type(error).__name__}: {error} | duration_ms={duration_ms:.1f}"
             )
+            code, message = _classify_stream_error(error)
             return _StreamOpenResult(
                 stream=None,
                 model=GEMINI_MODEL,
-                error_frame=_sse("error", {"code": ERR_MODEL_ERROR, "message": str(error)[:500]}),
+                error_frame=_sse("error", {"code": code, "message": message}),
             )
 
         logger.warning(
@@ -146,24 +187,43 @@ async def _open_model_stream(client_obj, contents, config, request_id, start) ->
             f"{GEMINI_MODEL} → {GEMINI_FALLBACK_MODEL} | trigger={error}"
         )
         try:
-            stream = await client_obj.aio.models.generate_content_stream(
-                model=GEMINI_FALLBACK_MODEL, contents=contents, config=config,
+            stream, aiter, first = await _open_and_prime(
+                client_obj, GEMINI_FALLBACK_MODEL, contents, config
             )
-            return _StreamOpenResult(stream, GEMINI_FALLBACK_MODEL, fallback_used=True)
+            return _StreamOpenResult(
+                stream=stream,
+                model=GEMINI_FALLBACK_MODEL,
+                aiter=aiter,
+                first_chunk=first,
+                fallback_used=True,
+            )
         except Exception as fallback_error:  # noqa: BLE001 — provider SDK boundary
             duration_ms = (time.perf_counter() - start) * 1000
             logger.error(
                 f"[ChatStream Fallback Failed] request_id={request_id} | "
                 f"error={fallback_error} | duration_ms={duration_ms:.1f}"
             )
+            code, message = _classify_stream_error(fallback_error)
             return _StreamOpenResult(
                 stream=None,
                 model=GEMINI_FALLBACK_MODEL,
                 fallback_used=True,
-                error_frame=_sse(
-                    "error", {"code": ERR_MODEL_ERROR, "message": str(fallback_error)[:500]}
-                ),
+                error_frame=_sse("error", {"code": code, "message": message}),
             )
+    except Exception as error:  # noqa: BLE001 — provider SDK boundary
+        # Priming pulled consumption-time failures forward, so non-API errors can
+        # now land here too. They are not fallbackable; report as before.
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.exception(
+            f"[ChatStream Error] request_id={request_id} | "
+            f"error={type(error).__name__}: {error} | duration_ms={duration_ms:.1f}"
+        )
+        code, message = _classify_stream_error(error)
+        return _StreamOpenResult(
+            stream=None,
+            model=GEMINI_MODEL,
+            error_frame=_sse("error", {"code": code, "message": message}),
+        )
 
 
 def _tool_calls_from_chunk(chunk) -> list[tuple[str, dict]]:
@@ -210,16 +270,39 @@ def _frames_from_chunk(chunk, state: _StreamState, buffer_flush_sec: float) -> l
     return frames
 
 
-async def _consume_stream(stream, state, request_id, start) -> AsyncIterator[str]:
-    """Consume the provider stream and translate it to SSE frames.
+def _classify_stream_error(error: Exception) -> tuple[str, str]:
+    """Map a mid-stream error to (SSE code, user-facing message).
+
+    Provider errors get a fixed Korean message keyed by HTTP code — the raw
+    str(error) carries provider internals (quota details, request echoes) that
+    have no business reaching the browser.
+    """
+    if isinstance(error, (ClientError, ServerError)):
+        http = extract_http_code(error)
+        if http == 429:
+            return ERR_RATE_LIMITED, "AI 사용량 한도에 도달했습니다. 잠시 후 다시 시도해 주세요."
+        return ERR_MODEL_ERROR, f"AI 모델 오류가 발생했습니다. (HTTP {http or 'unknown'})"
+    return ERR_INTERNAL, str(error)[:500]
+
+
+async def _consume_stream(
+    opened: _StreamOpenResult, state, request_id, start
+) -> AsyncIterator[str]:
+    """Consume the primed provider stream and translate it to SSE frames.
 
     The provider stream is explicitly aclose()d on every exit path (timeout,
     error, completion) so its underlying HTTP response is not left to GC.
     """
     buffer_flush_sec = STREAM_BUFFER_FLUSH_MS / 1000.0
+    # Priming already spent part of the budget; the rest is what consumption gets.
+    remaining_sec = max(STREAM_TIMEOUT_SEC - (time.perf_counter() - start), 0.0)
     try:
-        async with asyncio.timeout(STREAM_TIMEOUT_SEC), contextlib.aclosing(
-            _iter_with_heartbeat(stream, STREAM_HEARTBEAT_SEC)
+        if opened.first_chunk is not None:  # replay the chunk priming pulled
+            for frame in _frames_from_chunk(opened.first_chunk, state, buffer_flush_sec):
+                yield frame
+
+        async with asyncio.timeout(remaining_sec), contextlib.aclosing(
+            _iter_with_heartbeat(opened.aiter, STREAM_HEARTBEAT_SEC)
         ) as heartbeat_iter:
             async for chunk in heartbeat_iter:
                 if chunk is None:
@@ -249,12 +332,10 @@ async def _consume_stream(stream, state, request_id, start) -> AsyncIterator[str
             f"[ChatStream Error] request_id={request_id} | "
             f"error={type(error).__name__}: {error} | duration_ms={duration_ms:.1f}"
         )
-        yield _sse("error", {"code": ERR_INTERNAL, "message": str(error)[:500]})
+        code, message = _classify_stream_error(error)
+        yield _sse("error", {"code": code, "message": message})
     finally:
-        stream_aclose = getattr(stream, "aclose", None)
-        if stream_aclose is not None:
-            with contextlib.suppress(Exception):
-                await stream_aclose()
+        await _safe_aclose(opened.stream)
 
 
 async def run_stream(
@@ -289,11 +370,35 @@ async def run_stream(
         system_instruction=system_instruction,
         tools=PRODUCTION_TOOLS,
     )
-    opened = await _open_model_stream(client_obj, contents, config, request_id, start)
+    # Priming (see _open_and_prime) runs the first provider round-trip, tool calls
+    # included, so it can take seconds — heartbeat through it or the client's read
+    # timeout fires before meta ever lands.
+    open_task = asyncio.ensure_future(
+        _open_model_stream(client_obj, contents, config, request_id, start)
+    )
+    try:
+        while True:
+            done, _ = await asyncio.wait({open_task}, timeout=STREAM_HEARTBEAT_SEC)
+            if done:
+                opened = open_task.result()
+                break
+            if time.perf_counter() - start > STREAM_TIMEOUT_SEC:
+                logger.warning(
+                    f"[ChatStream Timeout] request_id={request_id} | phase=open"
+                )
+                yield _sse("error", {
+                    "code": ERR_TIMEOUT,
+                    "message": f"스트리밍 시간 초과 ({int(STREAM_TIMEOUT_SEC)}초)",
+                })
+                return
+            yield ": heartbeat\n\n"  # SSE comment — safe before meta
+    finally:
+        if not open_task.done():
+            open_task.cancel()  # client disconnected mid-prime — reclaim the task
+
     if opened.error_frame:
         yield opened.error_frame
         return
-    stream = opened.stream
 
     yield _sse("meta", {
         "request_id": request_id,
@@ -303,7 +408,7 @@ async def run_stream(
     })
 
     state = _StreamState()
-    async for frame in _consume_stream(stream, state, request_id, start):
+    async for frame in _consume_stream(opened, state, request_id, start):
         yield frame
     if state.failed:
         return

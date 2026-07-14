@@ -163,9 +163,42 @@ class _FakeAioModels:
         return _async_iter([_FakeChunk(text="primary stream")])
 
 
+class _FakeLazyAioModels(_FakeAioModels):
+    """Mirrors the real AFC path: generate_content_stream() returns a lazy async
+    generator, so the provider error surfaces on the first __anext__ — not at
+    open time like _FakeAioModels (which is the non-AFC shape)."""
+
+    def __init__(self, *, chunks_before_error=0, primary_chunks=None, **kwargs):
+        super().__init__(**kwargs)
+        self._chunks_before_error = chunks_before_error
+        self._primary_chunks = (
+            [_FakeChunk(text="primary stream")] if primary_chunks is None
+            else primary_chunks
+        )
+
+    async def generate_content_stream(self, *, model, contents, config):
+        from shared.config import GEMINI_MODEL
+        primary = model == GEMINI_MODEL
+        exc = self._primary_exc if primary else self._fallback_exc
+        chunks = self._primary_chunks if primary else self._fallback_chunks
+        before_error = self._chunks_before_error
+
+        async def _gen():
+            if exc:
+                for chunk in chunks[:before_error]:
+                    yield chunk
+                raise exc
+            for chunk in chunks:
+                yield chunk
+
+        return _gen()
+
+
 class _FakeAio:
-    def __init__(self, **kwargs):
-        self.models = _FakeAioModels(**kwargs)
+    def __init__(self, lazy=False, **kwargs):
+        self.models = (
+            _FakeLazyAioModels(**kwargs) if lazy else _FakeAioModels(**kwargs)
+        )
 
 
 class _FakeStreamClient:
@@ -334,3 +367,86 @@ class TestStreamFallback:
         names = [e[0] for e in events]
         assert "error" in names
         assert "meta" not in names
+
+
+# ==================================================================
+# SSE fallback on the real AFC (lazy generator) path — F-01b
+# ==================================================================
+class TestStreamLazyFallback:
+    def test_stream_fallback_on_lazy_429(self, client, monkeypatch):
+        """With tools=callables the SDK raises on first __anext__, not at open.
+        Priming pulls that error into the fallback decision."""
+        fake = _FakeStreamClient(lazy=True, primary_exc=_make_429_error())
+        monkeypatch.setattr(stream_mod, "get_client", lambda: fake)
+        monkeypatch.setattr(stream_mod, "GEMINI_FALLBACK_ENABLED", True)
+
+        r = client.post("/chat/stream", json={"query": "test"})
+        assert r.status_code == 200
+        events = _parse_sse(r.text)
+        names = [e[0] for e in events]
+        assert "meta" in names
+        assert "token" in names
+        assert "done" in names
+
+        meta = json.loads(events[names.index("meta")][1])
+        assert meta["fallback"] is True
+        assert "flash-lite" in meta["model"]
+
+    def test_stream_lazy_both_models_fail(self, client, monkeypatch):
+        """Lazy 429 on primary, lazy 503 on fallback → error event, no meta."""
+        fake = _FakeStreamClient(
+            lazy=True,
+            primary_exc=_make_429_error(),
+            fallback_exc=_make_503_error(),
+        )
+        monkeypatch.setattr(stream_mod, "get_client", lambda: fake)
+        monkeypatch.setattr(stream_mod, "GEMINI_FALLBACK_ENABLED", True)
+
+        r = client.post("/chat/stream", json={"query": "test"})
+        events = _parse_sse(r.text)
+        names = [e[0] for e in events]
+        assert "error" in names
+        assert "meta" not in names
+
+        err = json.loads(events[names.index("error")][1])
+        assert err["code"] == "model_error"
+
+    def test_stream_error_after_first_chunk_is_classified(self, client, monkeypatch):
+        """A 429 *after* the first chunk cannot fall back (text already sent), but
+        it must still surface as rate_limited — never as a raw provider dump."""
+        fake = _FakeStreamClient(
+            lazy=True,
+            primary_exc=_make_429_error(),
+            chunks_before_error=1,
+        )
+        monkeypatch.setattr(stream_mod, "get_client", lambda: fake)
+        monkeypatch.setattr(stream_mod, "GEMINI_FALLBACK_ENABLED", True)
+
+        r = client.post("/chat/stream", json={"query": "test"})
+        events = _parse_sse(r.text)
+        names = [e[0] for e in events]
+        assert "meta" in names  # primary opened fine — no fallback
+        assert "error" in names
+
+        meta = json.loads(events[names.index("meta")][1])
+        assert meta["fallback"] is False
+
+        err = json.loads(events[names.index("error")][1])
+        assert err["code"] == "rate_limited"
+        assert "RESOURCE_EXHAUSTED" not in err["message"]
+        assert "잠시 후" in err["message"]
+
+    def test_stream_empty_lazy_stream_completes(self, client, monkeypatch):
+        """Zero-chunk stream: priming finds nothing, and that is not an error."""
+        fake = _FakeStreamClient(lazy=True, primary_chunks=[])
+        monkeypatch.setattr(stream_mod, "get_client", lambda: fake)
+
+        r = client.post("/chat/stream", json={"query": "test"})
+        events = _parse_sse(r.text)
+        names = [e[0] for e in events]
+        assert "meta" in names
+        assert "done" in names
+        assert "error" not in names
+
+        done = json.loads(events[names.index("done")][1])
+        assert done["chars"] == 0

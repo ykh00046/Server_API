@@ -189,6 +189,7 @@ def test_stream_error_event_when_client_missing(client, monkeypatch):
 # ------------------------------------------------------------------
 import asyncio
 import json
+import time
 
 
 class _SlowAsyncIter:
@@ -336,6 +337,33 @@ def test_stream_heartbeat_emitted(client, monkeypatch):
     assert comments[0][1] == "heartbeat"
 
 
+def test_stream_heartbeat_emitted_while_priming(client, monkeypatch):
+    """Priming runs the first provider round-trip (tool calls included), so the
+    wait before meta can be long — heartbeat through it, or the client's 60s read
+    timeout kills the request before a single frame arrives."""
+    monkeypatch.setattr(stream_mod, "STREAM_HEARTBEAT_SEC", 0.05)
+    monkeypatch.setattr(stream_mod, "STREAM_TIMEOUT_SEC", 10.0)
+
+    class _SlowToOpenModels:
+        async def generate_content_stream(self, **kwargs):
+            async def _gen():
+                await asyncio.sleep(0.3)  # first chunk withheld — priming waits here
+                yield _FakeChunk(text="finally")
+            return _gen()
+
+    fake = type("FC", (), {"aio": type("FA", (), {"models": _SlowToOpenModels()})()})()
+    monkeypatch.setattr(stream_mod, "get_client", lambda: fake)
+
+    r = client.post("/chat/stream", json={"query": "slow open"})
+    events = _parse_sse(r.text)
+    names = [e[0] for e in events]
+
+    # heartbeat comment(s) precede meta — emitted during the prime, not after it
+    assert "comment" in names
+    assert names.index("comment") < names.index("meta")
+    assert "done" in names
+
+
 def test_stream_heartbeat_does_not_break_events(client, monkeypatch):
     """Token events still arrive correctly between heartbeats."""
     monkeypatch.setattr(stream_mod, "STREAM_HEARTBEAT_SEC", 0.05)
@@ -446,7 +474,7 @@ def test_heartbeat_iter_cancels_prefetch_on_close():
     instead of leaving it dangling ('Task was destroyed but it is pending')."""
     async def scenario():
         hs = _HangingStream()
-        gen = stream_mod._iter_with_heartbeat(hs, heartbeat_sec=0.01)
+        gen = stream_mod._iter_with_heartbeat(hs.__aiter__(), heartbeat_sec=0.01)
         first = await gen.__anext__()
         assert first is None  # heartbeat fired while __anext__ hangs
         await gen.aclose()
@@ -465,10 +493,13 @@ def test_consume_stream_timeout_closes_provider_stream(monkeypatch):
 
     async def scenario():
         hs = _HangingStream()
+        opened = stream_mod._StreamOpenResult(
+            stream=hs, model="m", aiter=hs.__aiter__(), first_chunk=None
+        )
         state = stream_mod._StreamState()
         frames = [
             f async for f in stream_mod._consume_stream(
-                hs, state, "req-cleanup", 0.0
+                opened, state, "req-cleanup", time.perf_counter()
             )
         ]
         assert state.failed
@@ -477,5 +508,29 @@ def test_consume_stream_timeout_closes_provider_stream(monkeypatch):
             await asyncio.sleep(0)
         assert hs.aclosed
         assert hs.anext_cancelled
+
+    asyncio.run(scenario())
+
+
+def test_consume_stream_replays_primed_chunk(monkeypatch):
+    """The chunk priming pulled off the iterator is emitted, not dropped."""
+    async def scenario():
+        remaining = _async_iter([_FakeChunk(text=" world")])
+        opened = stream_mod._StreamOpenResult(
+            stream=None,
+            model="m",
+            aiter=remaining.__aiter__(),
+            first_chunk=_FakeChunk(text="hello"),
+        )
+        state = stream_mod._StreamState()
+        frames = [
+            f async for f in stream_mod._consume_stream(
+                opened, state, "req-prime", time.perf_counter()
+            )
+        ]
+        text = "".join(frames) + (state.flush_buffer() or "")
+        assert "hello" in text
+        assert "world" in text
+        assert not state.failed
 
     asyncio.run(scenario())

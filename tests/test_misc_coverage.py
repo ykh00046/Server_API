@@ -173,20 +173,32 @@ class TestGeminiClient:
         assert gc.is_fallbackable(ValueError("nope")) is False
 
     def test_is_fallbackable_status_429(self):
-        e = gc.ClientError.__new__(gc.ClientError)
-        e.status = 429
+        # .code carries the HTTP status; .status is the gRPC name (F-01).
+        e = gc.ClientError(429, {"error": {
+            "code": 429, "message": "quota", "status": "RESOURCE_EXHAUSTED"}})
         assert gc.is_fallbackable(e) is True
 
     def test_is_fallbackable_status_zero_message_match(self):
         e = gc.ServerError.__new__(gc.ServerError)
-        e.status = 0
         e.args = ("503 Service Unavailable",)
         assert gc.is_fallbackable(e) is True
 
     def test_is_fallbackable_non_fallback_status(self):
-        e = gc.ClientError.__new__(gc.ClientError)
-        e.status = 400
+        e = gc.ClientError(400, {"error": {
+            "code": 400, "message": "bad", "status": "INVALID_ARGUMENT"}})
         assert gc.is_fallbackable(e) is False
+
+    def test_extract_http_code_from_status_name(self):
+        """Malformed response with no .code still classifies via the status name."""
+        e = gc.ServerError.__new__(gc.ServerError)
+        e.status = "UNAVAILABLE"
+        e.args = ("upstream connect error",)
+        assert gc.extract_http_code(e) == 503
+
+    def test_extract_http_code_unknown(self):
+        e = gc.ClientError.__new__(gc.ClientError)
+        e.args = ("something odd",)
+        assert gc.extract_http_code(e) == 0
 
 
 if __name__ == "__main__":  # pragma: no cover
