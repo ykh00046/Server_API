@@ -22,6 +22,13 @@ from shared import (
 )
 from shared.validators import escape_like_wildcards
 
+# %W (Monday-start week number): same rule as charts.py's pandas
+# strftime('%Y-W%W'), so the two pages bucket a date identically.
+# production_date is stored as '2026-01-13 오전 12:00:00' — strftime() on that
+# whole string returns NULL, so slice the leading 10 chars (YYYY-MM-DD) exactly
+# as the daily/monthly aggregations do. Module-level for tests to import.
+WEEK_BUCKET_EXPR = "strftime('%Y-W%W', substr(production_date, 1, 10))"
+
 
 # ==========================================================
 # Helpers
@@ -293,12 +300,11 @@ def load_weekly_summary(date_from, date_to, db_ver):
 
     where_clause = " AND ".join(where) if where else "1=1"
 
-    # %W(월요일 시작 주번호): charts.py의 pandas strftime('%Y-W%W')와 동일
-    # 규칙 — 페이지 간 주 경계가 달라 같은 데이터가 다르게 묶이던 것을 통일
-    week_expr = "strftime('%Y-W%W', production_date)"
-
     final_sql, _ = DBRouter.build_aggregation_sql(
-        inner_select=f"{week_expr} AS year_week, SUM(good_quantity) AS total_prod, COUNT(*) AS cnt",
+        inner_select=(
+            f"{WEEK_BUCKET_EXPR} AS year_week, "
+            "SUM(good_quantity) AS total_prod, COUNT(*) AS cnt"
+        ),
         inner_where=where_clause,
         outer_select="year_week, SUM(total_prod) AS total_production, SUM(cnt) AS batch_count",
         outer_group_by="year_week",
