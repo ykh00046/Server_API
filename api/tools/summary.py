@@ -4,7 +4,6 @@ Note: Do NOT use 'from __future__ import annotations' here.
 Gemini SDK requires actual type hints, not stringified ones.
 """
 
-import concurrent.futures
 from typing import Any
 
 from shared import (
@@ -302,12 +301,12 @@ def compare_periods(
             if item_code:
                 ql.add_info("item_code", item_code)
 
-            # P1-1: Run both period queries in parallel (each uses its own thread-local conn)
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                f1 = executor.submit(_query_stats, p1_from, p1_next)
-                f2 = executor.submit(_query_stats, p2_from, p2_next)
-                r1 = f1.result()
-                r2 = f2.result()
+            # Ran these two in a per-call ThreadPoolExecutor until F-03: each
+            # worker thread cached its own connection and then died, leaking both.
+            # They are pre-aggregated queries (tens of ms) behind a 5-minute cache,
+            # so the parallelism never paid for the threads it cost.
+            r1 = _query_stats(p1_from, p1_next)
+            r2 = _query_stats(p2_from, p2_next)
             ql.set_row_count(2)
 
         t1 = r1.get("total") or 0

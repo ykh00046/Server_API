@@ -14,6 +14,7 @@ import threading
 
 import pytest
 
+from api.tools.summary import compare_periods
 from shared import _db_connection as dbc
 from shared.database import DBRouter
 
@@ -118,5 +119,18 @@ def test_cleanup_all_closes_cross_thread_connections(live_db):
     assert not _registry_snapshot()
     with pytest.raises(sqlite3.ProgrammingError):
         held[0].execute("SELECT 1")
+
+
+def test_compare_periods_spawns_no_threads(live_db):
+    """Sequential now — same numbers, and no per-call thread pool leaving two
+    more connections stranded on every call."""
+    before = threading.active_count()
+
+    result = compare_periods("2026-03-01", "2026-03-31", "2026-04-01", "2026-04-30")
+
+    assert result["status"] == "success"
+    assert result["period1"]["total_quantity"] == 300  # seeded 100 + 200 in March
+    assert result["period2"]["total_quantity"] == 350  # seeded 300 + 50 in April
+    assert threading.active_count() == before
 
 
