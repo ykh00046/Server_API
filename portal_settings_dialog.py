@@ -21,6 +21,16 @@ from tkinter import messagebox
 
 import customtkinter as ctk
 
+from manager_theme import (
+    BG_INNER,
+    ERROR,
+    PRIMARY_HOVER,
+    SUCCESS,
+    TEXT,
+    TEXT_MUTED,
+    ctk_font,
+)
+
 
 # ==========================================================
 # .env File I/O
@@ -143,10 +153,10 @@ class PortalSettingsDialog(ctk.CTkToplevel):
             self,
             text="키워드마다 독립된 수집 작업입니다(자재·PBHAv1.0 등 동등). 시각은 쉼표로\n"
                  "여러 개, 비우면 수동 전용. 예: 자재 → 09:00 / PBHAv1.0 → 13:00,17:00",
-            font=ctk.CTkFont(size=11), text_color="#9e9e9e", justify="left",
+            font=ctk.CTkFont(size=11), text_color=TEXT_MUTED, justify="left",
         ).pack(anchor="w", padx=20, pady=(0, 4))
 
-        self.job_list_frame = ctk.CTkScrollableFrame(self, height=110, fg_color="#1e1e1e")
+        self.job_list_frame = ctk.CTkScrollableFrame(self, height=110, fg_color=BG_INNER)
         self.job_list_frame.pack(fill="x", padx=20, pady=(0, 5))
 
         add_row = ctk.CTkFrame(self, fg_color="transparent")
@@ -185,15 +195,15 @@ class PortalSettingsDialog(ctk.CTkToplevel):
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(fill="x", padx=20, pady=(20, 20))
 
-        ctk.CTkButton(btn_frame, text="💾 저장", command=self._save, fg_color="#2e7d32",
-                       hover_color="#388e3c", width=120).pack(side="right", padx=(10, 0))
-        ctk.CTkButton(btn_frame, text="취소", command=self.destroy, fg_color="#546e7a",
+        ctk.CTkButton(btn_frame, text="💾 저장", command=self._save, fg_color=SUCCESS,
+                       hover_color=PRIMARY_HOVER, width=120).pack(side="right", padx=(10, 0))
+        ctk.CTkButton(btn_frame, text="취소", command=self.destroy, fg_color=BG_INNER,
                        width=80).pack(side="right")
 
     # ── Helpers ──
     def _section_label(self, text: str):
-        ctk.CTkLabel(self, text=text, font=ctk.CTkFont(size=15, weight="bold"),
-                     text_color="#ffffff").pack(anchor="w", padx=20, pady=(15, 5))
+        ctk.CTkLabel(self, text=text, font=ctk_font({"family": "Segoe UI", "size": 15, "weight": "bold"}),
+                     text_color=TEXT).pack(anchor="w", padx=20, pady=(15, 5))
 
     def _labeled_entry(self, label: str, value: str, show: str = "") -> ctk.CTkEntry:
         ctk.CTkLabel(self, text=label, font=ctk.CTkFont(size=13)).pack(anchor="w", padx=20, pady=(2, 0))
@@ -258,7 +268,7 @@ class PortalSettingsDialog(ctk.CTkToplevel):
             ctk.CTkLabel(
                 self.job_list_frame,
                 text="(작업 없음 — 키워드를 추가하세요. 예: 자재 09:00)",
-                font=ctk.CTkFont(size=11), text_color="#757575",
+                font=ctk.CTkFont(size=11), text_color=TEXT_MUTED,
             ).pack(anchor="w", padx=6, pady=4)
             return
         for j in sorted(self.jobs, key=lambda x: x["keyword"]):
@@ -269,8 +279,8 @@ class PortalSettingsDialog(ctk.CTkToplevel):
             times_txt = ", ".join(j["times"]) if j["times"] else "(수동 전용)"
             ctk.CTkLabel(row, text=times_txt,
                          font=ctk.CTkFont(size=12)).pack(side="left", padx=(8, 0))
-            ctk.CTkButton(row, text="✕", width=28, fg_color="#7f3b3b",
-                          hover_color="#a04444",
+            ctk.CTkButton(row, text="✕", width=28, fg_color=ERROR,
+                          hover_color=PRIMARY_HOVER,
                           command=lambda k=j: self._remove_job(k)).pack(side="right")
 
     def _add_job(self):

@@ -26,6 +26,41 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import contextlib
 
+from manager_theme import (
+    BG_CARD,
+    BG_INNER,
+    BUTTON_WIDTH,
+    ERROR,
+    FONT_BADGE,
+    FONT_LOG,
+    FONT_LOG_COMPACT,
+    FONT_PANEL_TITLE,
+    FONT_PANEL_TITLE_COMPACT,
+    FONT_STATUS,
+    FONT_TITLE,
+    GAP_CONTROL,
+    LOG_ERROR,
+    LOG_INFO,
+    LOG_SUCCESS,
+    LOG_WARN,
+    PAD_OUTER,
+    PAD_PANEL,
+    PAD_TIGHT,
+    PRIMARY,
+    PRIMARY_HOVER,
+    RADIUS_BADGE,
+    RADIUS_PANEL,
+    RADIUS_SMALL,
+    STATUS_BAR_HEIGHT,
+    STATUS_ONE_SHOT,
+    STATUS_RUNNING,
+    STATUS_STOPPED,
+    SUCCESS,
+    TEXT,
+    TEXT_MUTED,
+    WARNING,
+    ctk_font,
+)
 from shared import (
     API_PORT,
     BASE_DIR,
@@ -72,18 +107,13 @@ atexit.register(_cleanup_all_processes)
 # Configuration & Constants
 # ==========================================================
 PY = sys.executable
+# 헤더 서비스 상태 뱃지 갱신 주기 (ms)
+STATUS_REFRESH_MS = 1500
 
-# CustomTkinter Settings
-ctk.set_appearance_mode("Dark") # Force Dark mode for better contrast
+# CustomTkinter Settings — 라이트/다크/시스템 외형은 헤더 토글로 전환한다.
+# 기본값은 시스템 외형을 따라가도록(사용자 OS 설정 존중). 색 상수는 manager_theme.
+ctk.set_appearance_mode("system")
 ctk.set_default_color_theme("blue")
-
-# Colors
-COLOR_SUCCESS = "#4caf50" # Green
-COLOR_ERROR = "#ef5350"   # Red
-COLOR_WARN = "#ffb74d"    # Orange
-COLOR_INFO = "#e0e0e0"    # Light Gray
-COLOR_MUTED = "#757575"   # Dark Gray
-COLOR_BG_CARD = "#2b2b2b" # Card Background
 
 
 # ==========================================================
@@ -132,7 +162,11 @@ class ServicePanel(ctk.CTkFrame):
     - Status bar indicator
     - Title and status label
     - Start/Stop controls
-    - Log textbox with color tags
+    - Log textbox with color tags + 편의 기능(레벨 필터/검색/복사/지우기/자동스크롤)
+
+    로그는 전체 원본을 self._log_lines(list[(text, level)])에 보관하고,
+    표시는 활성 필터/검색에 맞춰 UI 계층에서 재렌더한다.
+    큐 기반 Tk 스레드 마샬링은 유지: 워커 → ui_log_queue → append_log(메인스레드).
     """
 
     def __init__(
@@ -142,65 +176,78 @@ class ServicePanel(ctk.CTkFrame):
         grid_args: dict,
         **kwargs
     ):
-        super().__init__(master, corner_radius=15, fg_color=COLOR_BG_CARD, **kwargs)
+        super().__init__(master, corner_radius=RADIUS_PANEL, fg_color=BG_CARD, **kwargs)
 
         self.config = config
         self.process: subprocess.Popen | None = None
 
+        # 로그 상태: 원본 줄 보관 + 표시 필터
+        self._log_lines: list[tuple[str, str]] = []  # (text, level)
+        self._level_filter: str = "ALL"  # ALL | INFO | WARN | ERROR | SUCCESS
+        self._search_text: str = ""
+        self._autoscroll: bool = True
+
         # Grid placement
         self.grid(**grid_args)
-        self.grid_rowconfigure(3, weight=1)
+        self.grid_rowconfigure(4, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
-        self._init_ui()
+        self._init_status_bar()
+        self._init_header()
+        self._init_controls()
+        self._init_log_toolbar()
+        self._init_log_textbox()
 
-    def _init_ui(self):
-        """Initialize panel UI components."""
-        # Status Bar (Visual Indicator)
-        self.status_bar = ctk.CTkFrame(self, height=4, fg_color=COLOR_MUTED, corner_radius=2)
+    def _init_status_bar(self):
+        """상단 상태 표시 바 (실행/중지 색)."""
+        self.status_bar = ctk.CTkFrame(
+            self, height=STATUS_BAR_HEIGHT, fg_color=STATUS_STOPPED, corner_radius=RADIUS_SMALL
+        )
         self.status_bar.grid(row=0, column=0, sticky="ew", padx=2, pady=2)
 
-        # Content
+    def _init_header(self):
+        """패널 제목 + 상태 라벨 (통일 타이포)."""
         content_box = ctk.CTkFrame(self, fg_color="transparent")
-        content_box.grid(row=1, column=0, sticky="nsew", padx=20, pady=10)
+        content_box.grid(row=1, column=0, sticky="nsew", padx=PAD_OUTER, pady=10)
 
         ctk.CTkLabel(
             content_box,
             text=self.config.title,
-            text_color="#ffffff",
-            font=ctk.CTkFont(size=18, weight="bold")
+            text_color=TEXT,
+            font=ctk_font(FONT_PANEL_TITLE),
         ).pack(anchor="w")
 
         self.lbl_status = ctk.CTkLabel(
             content_box,
             text="Stopped",
-            text_color=COLOR_MUTED,
-            font=ctk.CTkFont(size=14)
+            text_color=TEXT_MUTED,
+            font=ctk_font(FONT_STATUS),
         )
-        self.lbl_status.pack(anchor="w", pady=(0, 10))
+        self.lbl_status.pack(anchor="w", pady=(0, PAD_TIGHT))
 
-        # Controls
+    def _init_controls(self):
+        """Start/Stop + extra 버튼."""
         ctrl_frame = ctk.CTkFrame(self, fg_color="transparent")
-        ctrl_frame.grid(row=2, column=0, sticky="ew", padx=20, pady=(0, 10))
+        ctrl_frame.grid(row=2, column=0, sticky="ew", padx=PAD_OUTER, pady=(0, 10))
 
         self.btn_start = ctk.CTkButton(
             ctrl_frame,
             text="▶ Start",
             command=self.config.start_command,
             fg_color=self.config.start_color,
-            width=80
+            width=BUTTON_WIDTH,
         )
-        self.btn_start.pack(side="left", padx=(0, 5))
+        self.btn_start.pack(side="left", padx=(0, GAP_CONTROL))
 
         self.btn_stop = ctk.CTkButton(
             ctrl_frame,
             text="■ Stop",
             command=self.config.stop_command,
-            fg_color="#c62828",
+            fg_color=ERROR,
             state="disabled",
-            width=80
+            width=BUTTON_WIDTH,
         )
-        self.btn_stop.pack(side="left", padx=5)
+        self.btn_stop.pack(side="left", padx=GAP_CONTROL)
 
         # Extra buttons (subclass-specific)
         for text, color, command in self.config.extra_buttons:
@@ -209,46 +256,136 @@ class ServicePanel(ctk.CTkFrame):
                 text=text,
                 command=command,
                 fg_color=color,
-                width=80
-            ).pack(side="left", padx=5)
+                width=BUTTON_WIDTH,
+            ).pack(side="left", padx=GAP_CONTROL)
 
-        # Log Textbox
+    def _init_log_toolbar(self):
+        """로그 편의 툴바: 레벨 필터 / 검색 / 복사 / 지우기 / 자동스크롤."""
+        bar = ctk.CTkFrame(self, fg_color="transparent")
+        bar.grid(row=3, column=0, sticky="ew", padx=PAD_OUTER, pady=(0, 4))
+
+        self.level_filter = ctk.CTkSegmentedButton(
+            bar,
+            values=["ALL", "INFO", "WARN", "ERROR"],
+            command=self._on_level_change,
+            width=20,
+        )
+        self.level_filter.set("ALL")
+        self.level_filter.pack(side="left", padx=(0, GAP_CONTROL))
+
+        self.search_var = ctk.StringVar(value="")
+        self.search_var.trace_add("write", lambda *_: self._on_search_change())
+        self.search_entry = ctk.CTkEntry(
+            bar, textvariable=self.search_var, placeholder_text="🔍 검색",
+            width=140,
+        )
+        self.search_entry.pack(side="left", padx=(0, GAP_CONTROL))
+
+        ctk.CTkButton(
+            bar, text="📋 복사", width=60, fg_color=PRIMARY, hover_color=PRIMARY_HOVER,
+            command=self._copy_log,
+        ).pack(side="left", padx=GAP_CONTROL)
+        ctk.CTkButton(
+            bar, text="🗑 지우기", width=70, fg_color=WARNING,
+            command=self._clear_log,
+        ).pack(side="left", padx=GAP_CONTROL)
+
+        self.autoscroll_switch = ctk.CTkSwitch(
+            bar, text="자동스크롤", command=self._on_autoscroll_toggle, width=40,
+        )
+        self.autoscroll_switch.select()  # 기본 켜짐
+        self.autoscroll_switch.pack(side="right")
+
+    def _init_log_textbox(self):
+        """로그 텍스트박스 + 색 태그."""
         self.log_textbox = ctk.CTkTextbox(
             self,
-            font=("Consolas", 12),
-            text_color="#eeeeee",
-            activate_scrollbars=True
+            font=FONT_LOG,
+            text_color=LOG_INFO,
+            activate_scrollbars=True,
         )
-        self.log_textbox.grid(row=3, column=0, sticky="nsew", padx=20, pady=20)
+        self.log_textbox.grid(row=4, column=0, sticky="nsew", padx=PAD_OUTER, pady=(0, PAD_OUTER))
         self.log_textbox.configure(state="disabled")
 
-        # Color tags
-        self.log_textbox.tag_config("INFO", foreground=COLOR_INFO)
-        self.log_textbox.tag_config("WARN", foreground=COLOR_WARN)
-        self.log_textbox.tag_config("ERROR", foreground=COLOR_ERROR)
-        self.log_textbox.tag_config("SUCCESS", foreground=COLOR_SUCCESS)
+        # 색 태그 — 로그박스는 어두운 배경 기준 고정색(manager_theme.LOG_*)
+        self.log_textbox.tag_config("INFO", foreground=LOG_INFO)
+        self.log_textbox.tag_config("WARN", foreground=LOG_WARN)
+        self.log_textbox.tag_config("ERROR", foreground=LOG_ERROR)
+        self.log_textbox.tag_config("SUCCESS", foreground=LOG_SUCCESS)
+
+    # ── 로그 편의 로직 (UI 계층 필터링) ──
+    def _matches_filter(self, level: str, text: str) -> bool:
+        """활성 레벨 필터와 검색어에 줄이 매칭되는지."""
+        level_ok = self._level_filter == "ALL" or level == self._level_filter
+        search_ok = not self._search_text or self._search_text in text
+        return level_ok and search_ok
+
+    def _rerender_log(self):
+        """현재 필터/검색 기준으로 로그 텍스트박스를 다시 그린다."""
+        self.log_textbox.configure(state="normal")
+        self.log_textbox.delete("1.0", tk.END)
+        for text, level in self._log_lines:
+            if self._matches_filter(level, text):
+                self.log_textbox.insert(tk.END, text + "\n", level)
+        if self._autoscroll:
+            self.log_textbox.see(tk.END)
+        self.log_textbox.configure(state="disabled")
+
+    def _on_level_change(self, value: str):
+        self._level_filter = value
+        self._rerender_log()
+
+    def _on_search_change(self):
+        self._search_text = self.search_var.get().strip()
+        self._rerender_log()
+
+    def _on_autoscroll_toggle(self):
+        self._autoscroll = bool(self.autoscroll_switch.get())
+        if self._autoscroll:
+            self._rerender_log()  # 켤 때 즉시 맨 끝으로
+
+    def _copy_log(self):
+        """현재 표시된(필터된) 로그를 클립보드에 복사."""
+        visible = [
+            text for text, level in self._log_lines
+            if self._matches_filter(level, text)
+        ]
+        self.clipboard_clear()
+        self.clipboard_append("\n".join(visible))
+
+    def _clear_log(self):
+        """원본 로그 버퍼와 표시를 모두 비운다."""
+        self._log_lines.clear()
+        self._rerender_log()
 
     def set_running(self, status_text: str = "Running"):
         """Update UI to running state."""
         self.btn_start.configure(state="disabled")
         self.btn_stop.configure(state="normal")
-        self.lbl_status.configure(text=status_text, text_color=COLOR_SUCCESS)
-        self.status_bar.configure(fg_color=COLOR_SUCCESS)
+        self.lbl_status.configure(text=status_text, text_color=STATUS_RUNNING)
+        self.status_bar.configure(fg_color=STATUS_RUNNING)
 
     def set_stopped(self):
         """Update UI to stopped state."""
         self.btn_start.configure(state="normal")
         self.btn_stop.configure(state="disabled")
-        self.lbl_status.configure(text="Stopped", text_color=COLOR_MUTED)
-        self.status_bar.configure(fg_color=COLOR_MUTED)
+        self.lbl_status.configure(text="Stopped", text_color=STATUS_STOPPED)
+        self.status_bar.configure(fg_color=STATUS_STOPPED)
 
     def append_log(self, text: str, level: str = "INFO"):
-        """Append log message with color."""
-        self.log_textbox.configure(state="normal")
-        self.log_textbox.insert(tk.END, text + "\n", level)
-        self.log_textbox.see(tk.END)
-        self.log_textbox.configure(state="disabled")
+        """원본 로그를 버퍼에 추가하고 활성 필터에 맞춰 표시 갱신(메인 스레드 전용).
 
+        큐 기반 마샬링 유지: 백그라운드 스레드는 ui_log_queue에 넣고,
+        _process_ui_log_queue가 이 메서드를 메인 스레드에서 호출한다.
+        """
+        self._log_lines.append((text, level))
+        # 매칭되는 줄만 텍스트박스에 추가(전체 재렌더 대신 증분 — 성능).
+        if self._matches_filter(level, text):
+            self.log_textbox.configure(state="normal")
+            self.log_textbox.insert(tk.END, text + "\n", level)
+            if self._autoscroll:
+                self.log_textbox.see(tk.END)
+            self.log_textbox.configure(state="disabled")
 
 
 # ==========================================================
@@ -305,9 +442,12 @@ class ServerManager(ctk.CTk):
         # Start Queue Listeners
         self.after(100, self._process_log_queue)
         self.after(100, self._process_ui_log_queue)
-        
+
         # Auto-start Watcher
         self.toggle_watcher()
+
+        # 주기적 서비스 상태 뱃지 갱신
+        self.after(STATUS_REFRESH_MS, self._refresh_status)
 
         # Safety on close
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -324,37 +464,115 @@ class ServerManager(ctk.CTk):
 
     def _init_header(self):
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
-        header_frame.grid(row=0, column=0, columnspan=3, sticky="ew", padx=20, pady=(20, 10))
+        header_frame.grid(row=0, column=0, columnspan=3, sticky="ew", padx=PAD_OUTER, pady=(20, 10))
 
-        title_label = ctk.CTkLabel(
-            header_frame,
+        # ── 왼쪽: 타이틀 + 서비스 상태 뱃지 ──
+        left = ctk.CTkFrame(header_frame, fg_color="transparent")
+        left.pack(side="left", anchor="w")
+
+        ctk.CTkLabel(
+            left,
             text="Production Data Hub",
-            text_color="#ffffff",
-            font=ctk.CTkFont(family="Segoe UI", size=24, weight="bold")
-        )
-        title_label.pack(side="left")
+            text_color=TEXT,
+            font=ctk_font(FONT_TITLE),
+        ).pack(anchor="w")
 
-        # Status indicators
-        status_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
-        status_frame.pack(side="right")
+        # 서비스 상태 요약 뱃지 행 (웹/API/포털/DB 워처) — 주기 갱신(_refresh_status)
+        self.status_badges: dict[str, ctk.CTkLabel] = {}
+        badge_row = ctk.CTkFrame(left, fg_color="transparent")
+        badge_row.pack(anchor="w", pady=(4, 0))
+        self._build_status_badges(badge_row)
+
+        # ── 오른쪽: IP 뱃지 + 전체 시작/중지 + 외형 토글 ──
+        right = ctk.CTkFrame(header_frame, fg_color="transparent")
+        right.pack(side="right", anchor="e")
+
+        self.appearance_mode = ctk.CTkSegmentedButton(
+            right, values=["Light", "Dark", "System"],
+            command=self._set_appearance, width=20,
+        )
+        self.appearance_mode.set("System")
+        self.appearance_mode.pack(side="right", padx=(GAP_CONTROL, 0))
+
+        ctk.CTkButton(
+            right, text="■ 전체 중지", width=90, fg_color=ERROR,
+            command=self.stop_all,
+        ).pack(side="right", padx=(GAP_CONTROL, 0))
+        ctk.CTkButton(
+            right, text="▶ 전체 시작", width=90, fg_color=PRIMARY,
+            hover_color=PRIMARY_HOVER, command=self.start_all,
+        ).pack(side="right", padx=(GAP_CONTROL, 0))
 
         ip_badge = ctk.CTkButton(
-            status_frame, text=f"Host: {self.local_ip}",
-            font=ctk.CTkFont(size=12, weight="bold"),
-            fg_color="#424242", hover=False, height=28, corner_radius=14,
-            text_color_disabled="#E0E0E0", state="disabled"
+            right, text=f"Host: {self.local_ip}",
+            font=ctk_font(FONT_BADGE),
+            fg_color=BG_INNER, hover=False, height=28, corner_radius=RADIUS_BADGE,
+            text_color_disabled=TEXT, state="disabled",
         )
-        ip_badge.pack(side="right")
+        ip_badge.pack(side="right", padx=(0, GAP_CONTROL))
+
+    def _build_status_badges(self, parent):
+        """서비스 상태 뱃지(웹/API/포털/DB 워처) 생성 — 주기 갱신 대상."""
+        self._badge_specs = [
+            (f"web:{DASHBOARD_PORT}", "웹"),
+            (f"api:{API_PORT}", "API"),
+            ("portal", "포털"),
+            ("dbwatcher", "DB"),
+        ]
+        for key, label in self._badge_specs:
+            ctk.CTkLabel(parent, text=label, font=ctk_font(FONT_BADGE),
+                         text_color=TEXT_MUTED).pack(side="left", padx=(0, 2))
+            badge = ctk.CTkLabel(
+                parent, text="중지", width=44,
+                font=ctk_font(FONT_BADGE), text_color=STATUS_STOPPED,
+            )
+            badge.pack(side="left", padx=(0, 12))
+            self.status_badges[key] = badge
+
+    def _set_appearance(self, mode: str):
+        """헤더 외형 토글: Light/Dark/System → ctk.set_appearance_mode."""
+        ctk.set_appearance_mode(mode.lower())
+
+    def start_all(self):
+        """웹 + API 일괄 시작 (확인 다이얼로그 없이 즉시)."""
+        self.start_web()
+        self.start_api()
+
+    def stop_all(self):
+        """웹 + API 일괄 중지 (확인 다이얼로그 없이 즉시)."""
+        self.stop_web()
+        self.stop_api()
+
+    def _is_panel_running(self, panel) -> bool:
+        return bool(panel.process and panel.process.poll() is None)
+
+    def _refresh_status(self):
+        """헤더 서비스 상태 뱃지를 현재 실행 상태로 갱신 (주기 호출)."""
+        specs = [
+            (f"web:{DASHBOARD_PORT}", self._is_panel_running(self.web_panel)),
+            (f"api:{API_PORT}", self._is_panel_running(self.api_panel)),
+            ("portal", self._is_panel_running(self.portal_panel)),
+            ("dbwatcher", bool(self.watcher and self.watcher.is_alive())),
+        ]
+        for key, running in specs:
+            badge = self.status_badges.get(key)
+            if badge is None:
+                continue
+            badge.configure(
+                text="실행중" if running else "중지",
+                text_color=STATUS_RUNNING if running else STATUS_STOPPED,
+            )
+        self.after(STATUS_REFRESH_MS, self._refresh_status)
 
     def _init_web_panel(self):
         """Initialize Dashboard panel using ServicePanel base class."""
         config = ServicePanelConfig(
             title="📊 Dashboard",
-            start_color="#1f6aa5",
+            start_color=PRIMARY,
             start_command=self.start_web,
             stop_command=self.stop_web,
             extra_buttons=[
-                ("🔗 Open", "#424242", lambda: webbrowser.open(f"http://{self.local_ip}:{DASHBOARD_PORT}"))
+                ("🔗 Open", BG_INNER, lambda: webbrowser.open(f"http://{self.local_ip}:{DASHBOARD_PORT}"))
             ]
         )
         self.web_panel = ServicePanel(
@@ -362,7 +580,7 @@ class ServerManager(ctk.CTk):
             config,
             grid_args={
                 "row": 1, "column": 0, "rowspan": 2, "sticky": "nsew",
-                "padx": (20, 10), "pady": 10,
+                "padx": (PAD_OUTER, 10), "pady": 10,
             }
         )
 
@@ -370,11 +588,11 @@ class ServerManager(ctk.CTk):
         """Initialize API Gateway panel using ServicePanel base class."""
         config = ServicePanelConfig(
             title="⚡ API Gateway",
-            start_color="#2e7d32",
+            start_color=SUCCESS,
             start_command=self.start_api,
             stop_command=self.stop_api,
             extra_buttons=[
-                ("🔗 Docs", "#424242", lambda: webbrowser.open(f"http://{self.local_ip}:{API_PORT}/docs"))
+                ("🔗 Docs", BG_INNER, lambda: webbrowser.open(f"http://{self.local_ip}:{API_PORT}/docs"))
             ]
         )
         self.api_panel = ServicePanel(
@@ -390,54 +608,59 @@ class ServerManager(ctk.CTk):
         """Initialize Portal Automation panel using ServicePanel base class."""
         config = ServicePanelConfig(
             title="🤖 Portal Automation",
-            start_color="#6a1b9a",
+            start_color=PRIMARY,
             start_command=self.start_portal,
             stop_command=self.stop_portal,
             extra_buttons=[
-                ("🚀 Run Now", "#e65100", self.run_portal_now),
-                ("⚙️ Settings", "#37474f", self.open_portal_settings)
+                ("🚀 Run Now", WARNING, self.run_portal_now),
+                ("⚙️ Settings", BG_INNER, self.open_portal_settings)
             ]
         )
         self.portal_panel = ServicePanel(
             self,
             config,
-            grid_args={"row": 1, "column": 2, "sticky": "nsew", "padx": (10, 20), "pady": (10, 5)}
+            grid_args={
+                "row": 1, "column": 2, "sticky": "nsew",
+                "padx": (10, PAD_OUTER), "pady": (10, 5),
+            }
         )
 
     def _init_db_panel(self):
         """Initialize DB Automation panel (compact layout for 3rd column)."""
-        self.db_frame = ctk.CTkFrame(self, corner_radius=15, fg_color=COLOR_BG_CARD)
-        self.db_frame.grid(row=2, column=2, sticky="nsew", padx=(10, 20), pady=(5, 10))
+        self.db_frame = ctk.CTkFrame(self, corner_radius=RADIUS_PANEL, fg_color=BG_CARD)
+        self.db_frame.grid(row=2, column=2, sticky="nsew", padx=(10, PAD_OUTER), pady=(5, 10))
         self.db_frame.grid_rowconfigure(1, weight=1)
         self.db_frame.grid_columnconfigure(0, weight=1)
 
         # Status Bar
         self.db_status_bar = ctk.CTkFrame(
-            self.db_frame, height=4, fg_color=COLOR_SUCCESS, corner_radius=2
+            self.db_frame, height=STATUS_BAR_HEIGHT,
+            fg_color=STATUS_RUNNING, corner_radius=RADIUS_SMALL,
         )
         self.db_status_bar.grid(row=0, column=0, sticky="ew", padx=2, pady=2)
 
         # Header
         header_frame = ctk.CTkFrame(self.db_frame, fg_color="transparent")
-        header_frame.grid(row=1, column=0, sticky="ew", padx=15, pady=10)
+        header_frame.grid(row=1, column=0, sticky="ew", padx=PAD_PANEL, pady=10)
 
-        ctk.CTkLabel(header_frame, text="🔧 DB Automation", text_color="#ffffff",
-                     font=ctk.CTkFont(size=16, weight="bold")).pack(side="left")
+        ctk.CTkLabel(header_frame, text="🔧 DB Automation", text_color=TEXT,
+                     font=ctk_font(FONT_PANEL_TITLE_COMPACT)).pack(side="left")
 
         self.lbl_watcher_status = ctk.CTkLabel(header_frame, text="Active (1h)",
-                                                text_color=COLOR_SUCCESS, font=ctk.CTkFont(size=11))
+                                                text_color=STATUS_RUNNING,
+                                                font=ctk.CTkFont(size=11))
         self.lbl_watcher_status.pack(side="right")
 
         # Compact Log Area
-        self.log_db = ctk.CTkTextbox(self.db_frame, height=100, font=("Consolas", 10),
-                                      text_color="#eeeeee", activate_scrollbars=True)
-        self.log_db.grid(row=2, column=0, sticky="nsew", padx=15, pady=(0, 15))
+        self.log_db = ctk.CTkTextbox(self.db_frame, height=100, font=FONT_LOG_COMPACT,
+                                      text_color=LOG_INFO, activate_scrollbars=True)
+        self.log_db.grid(row=2, column=0, sticky="nsew", padx=PAD_PANEL, pady=(0, PAD_PANEL))
         self.log_db.configure(state="disabled")
 
-        self.log_db.tag_config("INFO", foreground=COLOR_INFO)
-        self.log_db.tag_config("WARN", foreground=COLOR_WARN)
-        self.log_db.tag_config("ERROR", foreground=COLOR_ERROR)
-        self.log_db.tag_config("SUCCESS", foreground=COLOR_SUCCESS)
+        self.log_db.tag_config("INFO", foreground=LOG_INFO)
+        self.log_db.tag_config("WARN", foreground=LOG_WARN)
+        self.log_db.tag_config("ERROR", foreground=LOG_ERROR)
+        self.log_db.tag_config("SUCCESS", foreground=LOG_SUCCESS)
 
         self._append_db_log(">>> DB Watcher Initialized.", "INFO")
 
@@ -484,8 +707,8 @@ class ServerManager(ctk.CTk):
         if not self.watcher or not self.watcher.is_alive():
             self.watcher = DBWatcher(self.log_queue)
             self.watcher.start()
-            self.lbl_watcher_status.configure(text="Active (1h)", text_color=COLOR_SUCCESS)
-            self.db_status_bar.configure(fg_color=COLOR_SUCCESS)
+            self.lbl_watcher_status.configure(text="Active (1h)", text_color=STATUS_RUNNING)
+            self.db_status_bar.configure(fg_color=STATUS_RUNNING)
 
     def _stream_output(self, proc: subprocess.Popen, panel: ServicePanel) -> None:
         """Stream subprocess output into ui_log_queue.
@@ -697,7 +920,7 @@ class ServerManager(ctk.CTk):
         for k in keywords:
             ctk.CTkButton(win, text=f"🚀 {k}", width=260,
                           command=lambda kw=k: choose(kw)).pack(pady=4)
-        ctk.CTkButton(win, text="취소", width=260, fg_color="#546e7a",
+        ctk.CTkButton(win, text="취소", width=260, fg_color=BG_INNER,
                       command=win.destroy).pack(pady=(10, 14))
 
     def _launch_portal_auto(self, keyword: str | None = None):
@@ -710,8 +933,8 @@ class ServerManager(ctk.CTk):
         self.portal_panel.btn_start.configure(state="disabled")
         self.portal_panel.btn_stop.configure(state="normal")
         self.portal_panel.lbl_status.configure(
-            text=f"Running 1-shot ({label})", text_color="#ffb74d")
-        self.portal_panel.status_bar.configure(fg_color="#ffb74d")
+            text=f"Running 1-shot ({label})", text_color=STATUS_ONE_SHOT)
+        self.portal_panel.status_bar.configure(fg_color=STATUS_ONE_SHOT)
         self.portal_panel.append_log(
             f">>> Running Portal Automation (1-shot, 키워드={label})...", "INFO")
 
