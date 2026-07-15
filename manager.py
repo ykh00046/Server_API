@@ -610,43 +610,60 @@ class ServerManager(ctk.CTk):
         if dialog.result:
             self.portal_panel.append_log("⚙️ Settings saved.", "SUCCESS")
 
-    def _portal_job_keywords(self) -> list[str]:
-        """봇 config.json(search.jobs)의 키워드 목록. 폴백: 구 profiles → .env SEARCH_KEYWORD."""
+    def _keywords_from_config(self) -> list[str] | None:
+        """config.json(search.jobs)에서 키워드 목록. jobs 없으면 구 profiles 폴백.
+
+        파일이 없거나 파싱 실패 시 None (호출자가 다음 폴백으로 진행).
+        """
         cfg_path = BASE_DIR / "webcloring-pdf" / "src" / "config" / "config.json"
+        if not cfg_path.exists():
+            return None
         try:
-            if cfg_path.exists():
-                with open(cfg_path, encoding="utf-8") as f:
-                    sec = (json.load(f).get("search", {}) or {})
-                jobs = sec.get("jobs")
-                if jobs:
-                    ks = [str(j.get("keyword", "")).strip()
-                          for j in jobs if isinstance(j, dict)]
-                    ks = [k for k in ks if k]
-                    if ks:
-                        return ks
-                seen: list[str] = []
-                for p in (sec.get("profiles") or []):
-                    if isinstance(p, dict):
-                        k = str(p.get("keyword", "")).strip()
-                        if k and k not in seen:
-                            seen.append(k)
-                if seen:
-                    return seen
+            with open(cfg_path, encoding="utf-8") as f:
+                sec = (json.load(f).get("search", {}) or {})
         except (OSError, json.JSONDecodeError):
-            pass
-        # 폴백: .env SEARCH_KEYWORD
+            return None
+
+        jobs = sec.get("jobs")
+        if jobs:
+            ks = [str(j.get("keyword", "")).strip()
+                  for j in jobs if isinstance(j, dict)]
+            ks = [k for k in ks if k]
+            if ks:
+                return ks
+        seen: list[str] = []
+        for p in (sec.get("profiles") or []):
+            if isinstance(p, dict):
+                k = str(p.get("keyword", "")).strip()
+                if k and k not in seen:
+                    seen.append(k)
+        return seen or None
+
+    def _keyword_from_env(self) -> str | None:
+        """폴백: .env SEARCH_KEYWORD 값을 읽는다. 없으면 None."""
+        env_path = BASE_DIR / "webcloring-pdf" / ".env"
+        if not env_path.exists():
+            return None
         try:
-            env_path = BASE_DIR / "webcloring-pdf" / ".env"
-            if env_path.exists():
-                with open(env_path, encoding="utf-8") as f:
-                    for line in f:
-                        line = line.strip()
-                        if line.startswith("SEARCH_KEYWORD") and "=" in line:
-                            v = line.split("=", 1)[1].strip()
-                            if v:
-                                return [v]
+            with open(env_path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("SEARCH_KEYWORD") and "=" in line:
+                        v = line.split("=", 1)[1].strip()
+                        if v:
+                            return v
         except OSError:
             pass
+        return None
+
+    def _portal_job_keywords(self) -> list[str]:
+        """봇 config.json(search.jobs)의 키워드 목록. 폴백: 구 profiles → .env SEARCH_KEYWORD."""
+        cfg_keywords = self._keywords_from_config()
+        if cfg_keywords:
+            return cfg_keywords
+        env_keyword = self._keyword_from_env()
+        if env_keyword:
+            return [env_keyword]
         return ["자재"]
 
     def run_portal_now(self):

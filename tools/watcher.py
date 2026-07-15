@@ -107,6 +107,79 @@ def save_state(state: dict):
 # ==========================================================
 
 
+def _check_live_db(state: dict, summary: dict) -> tuple[float, int]:
+    """Live DB 검사·치료. 변경 시 heal, 미변경 시에도 주기적 heal을 수행한다.
+
+    Returns the (possibly refreshed) (mtime, size) to persist into state.
+    """
+    live_mtime, live_size = get_file_state(DB_FILE)
+    if not DB_FILE.exists():
+        return live_mtime, live_size
+
+    changed = live_mtime != state["live_mtime"] or live_size != state["live_size"]
+    if changed:
+        log("INFO", f"Live DB changed: mtime={live_mtime}, size={live_size}")
+        summary["live"]["changed"] = True
+        if wait_for_stabilization(DB_FILE):
+            summary["live"]["result"] = check_and_heal_indexes(DB_FILE)
+            # Update state with new values
+            live_mtime, live_size = get_file_state(DB_FILE)
+        else:
+            log("WARN", "Live DB not stable, skipping index check")
+    else:
+        log("INFO", "Live DB unchanged")
+        # Still do a periodic check even if unchanged
+        summary["live"]["result"] = check_and_heal_indexes(DB_FILE)
+    return live_mtime, live_size
+
+
+def _check_archive_db(state: dict, summary: dict) -> tuple[float, int]:
+    """Archive DB 검사·치료. 파일이 없으면 안내 로그만 남긴다.
+
+    Returns the (possibly refreshed) (mtime, size) to persist into state.
+    """
+    archive_mtime, archive_size = get_file_state(ARCHIVE_DB_FILE)
+    if not ARCHIVE_DB_FILE.exists():
+        log("INFO", "Archive DB not found (may not exist yet)")
+        return archive_mtime, archive_size
+
+    changed = archive_mtime != state["archive_mtime"] or archive_size != state["archive_size"]
+    if changed:
+        log("INFO", f"Archive DB changed: mtime={archive_mtime}, size={archive_size}")
+        summary["archive"]["changed"] = True
+        if wait_for_stabilization(ARCHIVE_DB_FILE):
+            summary["archive"]["result"] = check_and_heal_indexes(ARCHIVE_DB_FILE)
+            archive_mtime, archive_size = get_file_state(ARCHIVE_DB_FILE)
+        else:
+            log("WARN", "Archive DB not stable, skipping index check")
+    else:
+        log("INFO", "Archive DB unchanged")
+    return archive_mtime, archive_size
+
+
+def _run_periodic_analyze(summary: dict, last_analyze_ts: float) -> float:
+    """ANALYZE를 1일 1회 실행. last_analyze_ts 갱신값을 반환한다."""
+    now = time.time()
+    if now - last_analyze_ts < ANALYZE_INTERVAL:
+        remaining_h = int((ANALYZE_INTERVAL - (now - last_analyze_ts)) / 3600)
+        log("INFO", f"ANALYZE skipped (next in ~{remaining_h}h)")
+        return last_analyze_ts
+
+    log("INFO", f"Running ANALYZE (last run: {int((now - last_analyze_ts) / 3600)}h ago)")
+    analyze_results = []
+    for db_path in [DB_FILE, ARCHIVE_DB_FILE]:
+        if db_path.exists():
+            result = run_analyze(db_path)
+            analyze_results.append(result)
+            if result["success"]:
+                log("INFO", f"ANALYZE OK: {result['db']} ({result['duration_ms']}ms)")
+            else:
+                log("WARN", f"ANALYZE failed: {result['db']} - {result['error']}")
+    summary["analyze"]["ran"] = True
+    summary["analyze"]["results"] = analyze_results
+    return now
+
+
 def run_check() -> dict:
     """
     Run a single check cycle.
@@ -125,62 +198,13 @@ def run_check() -> dict:
     }
 
     # Check Live DB
-    live_mtime, live_size = get_file_state(DB_FILE)
-
-    if DB_FILE.exists():
-        if live_mtime != state["live_mtime"] or live_size != state["live_size"]:
-            log("INFO", f"Live DB changed: mtime={live_mtime}, size={live_size}")
-            summary["live"]["changed"] = True
-
-            if wait_for_stabilization(DB_FILE):
-                summary["live"]["result"] = check_and_heal_indexes(DB_FILE)
-                # Update state with new values
-                live_mtime, live_size = get_file_state(DB_FILE)
-            else:
-                log("WARN", "Live DB not stable, skipping index check")
-        else:
-            log("INFO", "Live DB unchanged")
-            # Still do a periodic check even if unchanged
-            summary["live"]["result"] = check_and_heal_indexes(DB_FILE)
+    live_mtime, live_size = _check_live_db(state, summary)
 
     # Check Archive DB
-    archive_mtime, archive_size = get_file_state(ARCHIVE_DB_FILE)
-
-    if ARCHIVE_DB_FILE.exists():
-        if archive_mtime != state["archive_mtime"] or archive_size != state["archive_size"]:
-            log("INFO", f"Archive DB changed: mtime={archive_mtime}, size={archive_size}")
-            summary["archive"]["changed"] = True
-
-            if wait_for_stabilization(ARCHIVE_DB_FILE):
-                summary["archive"]["result"] = check_and_heal_indexes(ARCHIVE_DB_FILE)
-                archive_mtime, archive_size = get_file_state(ARCHIVE_DB_FILE)
-            else:
-                log("WARN", "Archive DB not stable, skipping index check")
-        else:
-            log("INFO", "Archive DB unchanged")
-    else:
-        log("INFO", "Archive DB not found (may not exist yet)")
+    archive_mtime, archive_size = _check_archive_db(state, summary)
 
     # ANALYZE: run once per day
-    last_analyze_ts = state.get("last_analyze_ts", 0)
-    now = time.time()
-    if now - last_analyze_ts >= ANALYZE_INTERVAL:
-        log("INFO", f"Running ANALYZE (last run: {int((now - last_analyze_ts) / 3600)}h ago)")
-        analyze_results = []
-        for db_path in [DB_FILE, ARCHIVE_DB_FILE]:
-            if db_path.exists():
-                result = run_analyze(db_path)
-                analyze_results.append(result)
-                if result["success"]:
-                    log("INFO", f"ANALYZE OK: {result['db']} ({result['duration_ms']}ms)")
-                else:
-                    log("WARN", f"ANALYZE failed: {result['db']} - {result['error']}")
-        summary["analyze"]["ran"] = True
-        summary["analyze"]["results"] = analyze_results
-        last_analyze_ts = now
-    else:
-        remaining_h = int((ANALYZE_INTERVAL - (now - last_analyze_ts)) / 3600)
-        log("INFO", f"ANALYZE skipped (next in ~{remaining_h}h)")
+    last_analyze_ts = _run_periodic_analyze(summary, state.get("last_analyze_ts", 0))
 
     # Save updated state
     save_state({

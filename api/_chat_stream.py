@@ -338,6 +338,32 @@ async def _consume_stream(
         await _safe_aclose(opened.stream)
 
 
+async def _await_open_with_heartbeat(
+    open_task: asyncio.Future, request_id: str, start: float
+) -> AsyncIterator[str]:
+    """Drive the priming open_task to completion, heart-beating while it runs.
+
+    Yields ": heartbeat" SSE comments during the (potentially multi-second) priming
+    round-trip. Returns (via StopIteration) nothing — the resolved result is read
+    from open_task by the caller. Yields a timeout error frame and returns early
+    when the overall stream budget is exhausted before priming finishes.
+    """
+    while True:
+        done, _ = await asyncio.wait({open_task}, timeout=STREAM_HEARTBEAT_SEC)
+        if done:
+            return
+        if time.perf_counter() - start > STREAM_TIMEOUT_SEC:
+            logger.warning(
+                f"[ChatStream Timeout] request_id={request_id} | phase=open"
+            )
+            yield _sse("error", {
+                "code": ERR_TIMEOUT,
+                "message": f"스트리밍 시간 초과 ({int(STREAM_TIMEOUT_SEC)}초)",
+            })
+            return
+        yield ": heartbeat\n\n"  # SSE comment — safe before meta
+
+
 async def run_stream(
     query: str,
     session_id: str | None,
@@ -377,21 +403,13 @@ async def run_stream(
         _open_model_stream(client_obj, contents, config, request_id, start)
     )
     try:
-        while True:
-            done, _ = await asyncio.wait({open_task}, timeout=STREAM_HEARTBEAT_SEC)
-            if done:
-                opened = open_task.result()
-                break
-            if time.perf_counter() - start > STREAM_TIMEOUT_SEC:
-                logger.warning(
-                    f"[ChatStream Timeout] request_id={request_id} | phase=open"
-                )
-                yield _sse("error", {
-                    "code": ERR_TIMEOUT,
-                    "message": f"스트리밍 시간 초과 ({int(STREAM_TIMEOUT_SEC)}초)",
-                })
-                return
-            yield ": heartbeat\n\n"  # SSE comment — safe before meta
+        async for frame in _await_open_with_heartbeat(open_task, request_id, start):
+            yield frame
+        if not open_task.done():
+            # Timeout path: the error frame was already yielded by the helper,
+            # and priming never completed — stop here.
+            return
+        opened = open_task.result()
     finally:
         if not open_task.done():
             open_task.cancel()  # client disconnected mid-prime — reclaim the task

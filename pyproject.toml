@@ -34,18 +34,26 @@ extend-exclude = [
 # one same-type rewrap where the original is noise (validators.py date parse). The rest of
 # `B` (B008 FastAPI Depends-default, B905 zip-strict, ...) needs separate review → R6.
 #
-# R6-ruff-bugbear-sim-ramp: full `B` (bugbear) + `SIM` (simplify) added. src B
-# fixed (B905 zip strict=True, B025 dup-except→Exception, B007 unused-loop-var);
-# SIM via autofix (SIM117/300/102/108) + contextlib.suppress for SIM105. tests'
-# B017 (pytest.raises(Exception)) is per-file-ignored (broad raises are idiomatic
-# in tests).
+# R6-ruff-bugbear-sim-ramp: full `B` (bugbear) + `SIM` (simplify) added.
+# src B fixes follow the rule idioms: zip(..., strict=True) for B905, a single
+# broad `except Exception` for B025, `_` for unused loop vars (B007). SIM is
+# autofixable (SIM117/300/102/108) except SIM105, which maps to contextlib.suppress.
+# tests' B017 (pytest.raises(Exception)) is per-file-ignored (broad raises are
+# idiomatic in tests).
 #
 # R7-ruff-e501-ramp: E501(line-too-long, 100) added. `ruff format` NOT adopted
 # (would reformat 85/99 files; blame preserved instead). Real code lines were
 # wrapped; files whose E501s are dominated by content that wraps badly — Korean
 # system prompts / UI strings, test JSON fixtures — are per-file-ignored for
 # E501 (wrapping Korean sentences hurts readability/meaning). C901 deferred → R8.
-select = ["F", "BLE001", "I", "UP", "B", "SIM", "E501"]
+#
+# C901 (mccabe complexity) caps each function at max-complexity=10 (below).
+# That floor keeps hotspots decomposed into named helpers instead of branching
+# in place; the limit is enforced rather than defaulted so it cannot drift.
+select = ["F", "BLE001", "I", "UP", "B", "SIM", "E501", "C901"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
 # Test code: unused imports (fixtures/registration), broad catch, broad
@@ -78,8 +86,8 @@ branch = true
 # Only the extracted, unit-tested pure helper (_parsing.py) is measured in
 # dashboard/. Render/UI code needs a Streamlit runtime to exercise and is
 # excluded by listing it here (whitelist-via-omit: everything in dashboard
-# except _parsing.py). A new dashboard file is measured only after being
-# removed from this list — keeps the "measure what we test" intent explicit.
+# except _parsing.py). To measure a new dashboard file, remove its entry from
+# this omit list so coverage tracks only code that tests exercise.
 omit = [
     "*/__pycache__/*",
     "tests/*",

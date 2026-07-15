@@ -235,6 +235,64 @@ def render_ai_header_with_animation() -> None:
     st.caption(f"Core Engine: {GEMINI_MODEL} | 2025-2026 통합 데이터")
 
 
+def _render_zero_state() -> str | None:
+    """Zero-State UI (대화 시작 전 중앙 화면). Returns clicked starter prompt or None."""
+    st.space(60)
+    with st.container(horizontal_alignment="center"):
+        st.markdown(":material/waving_hand:")
+        st.subheader("무엇을 분석해 드릴까요?", anchor=False)
+        st.caption("자연어로 질문하면, 수십만 건의 데이터를 즉시 분석해 표와 차트로 답변합니다.")
+    st.space(24)
+
+    # Starter card button sizing CSS lives in theme.py (_STARTER_CARD_CSS)
+
+    col1, col2 = st.columns(2)
+    prompt_clicked: str | None = None
+    for idx, item in enumerate(STARTER_PROMPTS):
+        with (col1 if idx % 2 == 0 else col2):
+            chosen = _render_starter_card(idx, item)
+            if chosen:
+                prompt_clicked = chosen
+    return prompt_clicked
+
+
+def _render_active_chat() -> object:
+    """Active Chat UI (대화 진행 중). Returns the chat container for message streaming."""
+    # Context hint
+    st.caption(
+        ":material/lightbulb: 팁: '표로 정리해줘'라고 질문하면 데이터를 "
+        "엑셀로 다운로드할 수 있습니다.",
+        text_alignment="right",
+    )
+
+    # Chat container
+    chat_container = st.container(height=500)
+
+    with chat_container:
+        for i, message in enumerate(st.session_state.messages):
+            avatar = (
+                ":material/person:" if message["role"] == "user"
+                else ":material/smart_toy:"
+            )
+            with st.chat_message(message["role"], avatar=avatar):
+                content = message["content"]
+                st.markdown(content, unsafe_allow_html=False)
+                if message["role"] == "assistant":
+                    _render_table_download(content, "dl_ai_table", i)
+    return chat_container
+
+
+def _render_clear_chat_button() -> None:
+    """Clear chat button (Only in Active Chat UI)."""
+    if len(st.session_state.messages) > 0:
+        st.markdown("")  # spacer
+        col1, col2 = st.columns([1, 5])
+        with col1:
+            if st.button("새로운 대화 시작", icon=":material/add_comment:", help="대화 기록을 지우고 초기 화면으로 돌아갑니다."):
+                _reset_chat()
+                st.rerun()
+
+
 def render_ai_chat(api_url: str | None = None) -> None:
     """
     Render professional AI chat interface with Zero-State Conversational UI.
@@ -251,27 +309,10 @@ def render_ai_chat(api_url: str | None = None) -> None:
     # 1. Zero-State UI (대화 시작 전 중앙 화면)
     # ==========================================
     if len(st.session_state.messages) == 0:
-        st.space(60)
-        with st.container(horizontal_alignment="center"):
-            st.markdown(":material/waving_hand:")
-            st.subheader("무엇을 분석해 드릴까요?", anchor=False)
-            st.caption("자연어로 질문하면, 수십만 건의 데이터를 즉시 분석해 표와 차트로 답변합니다.")
-        st.space(24)
-
-        # Starter card button sizing CSS lives in theme.py (_STARTER_CARD_CSS)
-
-        col1, col2 = st.columns(2)
-        prompt_clicked: str | None = None
-        for idx, item in enumerate(STARTER_PROMPTS):
-            with (col1 if idx % 2 == 0 else col2):
-                chosen = _render_starter_card(idx, item)
-                if chosen:
-                    prompt_clicked = chosen
-
+        prompt_clicked = _render_zero_state()
         if prompt_clicked:
             st.session_state.messages.append({"role": "user", "content": prompt_clicked})
             st.rerun()
-
         # Fill remaining space so input stays at bottom
         st.space(150)
 
@@ -279,27 +320,7 @@ def render_ai_chat(api_url: str | None = None) -> None:
     # 2. Active Chat UI (대화 진행 중)
     # ==========================================
     else:
-        # Context hint
-        st.caption(
-            ":material/lightbulb: 팁: '표로 정리해줘'라고 질문하면 데이터를 "
-            "엑셀로 다운로드할 수 있습니다.",
-            text_alignment="right",
-        )
-
-        # Chat container
-        chat_container = st.container(height=500)
-
-        with chat_container:
-            for i, message in enumerate(st.session_state.messages):
-                avatar = (
-                    ":material/person:" if message["role"] == "user"
-                    else ":material/smart_toy:"
-                )
-                with st.chat_message(message["role"], avatar=avatar):
-                    content = message["content"]
-                    st.markdown(content, unsafe_allow_html=False)
-                    if message["role"] == "assistant":
-                        _render_table_download(content, "dl_ai_table", i)
+        chat_container = _render_active_chat()
 
     # ==========================================
     # 3. Input & Processing (공통)
@@ -314,15 +335,7 @@ def render_ai_chat(api_url: str | None = None) -> None:
         st.rerun()
 
     _process_pending_user_message(chat_container, api_url)
-
-    # Clear chat button (Only in Active Chat UI)
-    if len(st.session_state.messages) > 0:
-        st.markdown("")  # spacer
-        col1, col2 = st.columns([1, 5])
-        with col1:
-            if st.button("새로운 대화 시작", icon=":material/add_comment:", help="대화 기록을 지우고 초기 화면으로 돌아갑니다."):
-                _reset_chat()
-                st.rerun()
+    _render_clear_chat_button()
 
 
 def render_ai_section(api_url: str | None = None) -> None:

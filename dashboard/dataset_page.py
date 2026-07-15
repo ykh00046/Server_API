@@ -51,136 +51,109 @@ def _to_excel_frame(
     return pd.DataFrame(data)
 
 
-def render(
-    *,
-    prefix: str,
-    title: str,
-    icon: str,
-    sheet_name: str,
-    file_base: str,
-    empty_msg: str,
-    columns: list[tuple[str, str]] | None = None,
-) -> None:
-    """한 데이터셋 페이지를 렌더한다.
+def _fetch_rows(prefix: str, params: dict) -> list[dict]:
+    with httpx.Client(base_url=API_BASE_URL, timeout=15.0) as c:
+        resp = c.get(prefix, params=params, headers=_headers())
+        resp.raise_for_status()
+        return resp.json()
 
-    Args:
-        prefix: API 경로 prefix (예: "/materials", "/binder").
-        title: 페이지 제목 (예: "자재요청").
-        icon: material 아이콘 토큰.
-        sheet_name: Excel 시트명.
-        file_base: 다운로드 파일명 베이스 (예: "material_requests").
-        empty_msg: 데이터 없음 안내 문구.
-        columns: (api_field, 한글헤더) 목록. 생략 시 자재 레이아웃
-            (EXCEL_COLUMNS). 스키마는 데이터셋 공통이지만 헤더 의미가
-            다른 데이터셋(예: 바인더 출고)은 여기로 교체한다.
-    """
-    columns = columns or EXCEL_COLUMNS
 
-    def _fetch(params: dict) -> list[dict]:
-        with httpx.Client(base_url=API_BASE_URL, timeout=15.0) as c:
-            resp = c.get(prefix, params=params, headers=_headers())
-            resp.raise_for_status()
-            return resp.json()
+def _fetch_runs(prefix: str, limit: int = 20) -> list[dict]:
+    with httpx.Client(base_url=API_BASE_URL, timeout=15.0) as c:
+        resp = c.get(f"{prefix}/runs", params={"limit": limit}, headers=_headers())
+        resp.raise_for_status()
+        return resp.json()
 
-    def _fetch_runs(limit: int = 20) -> list[dict]:
-        with httpx.Client(base_url=API_BASE_URL, timeout=15.0) as c:
-            resp = c.get(f"{prefix}/runs", params={"limit": limit}, headers=_headers())
-            resp.raise_for_status()
-            return resp.json()
 
-    def _trigger_run() -> tuple[bool, str]:
-        """POST {prefix}/run. Returns (ok, message). 409 → (False, detail)."""
-        try:
-            with httpx.Client(base_url=API_BASE_URL, timeout=15.0) as c:
-                resp = c.post(f"{prefix}/run", headers=_headers())
-        except httpx.HTTPError as e:
-            # 형제 _fetch들과 동일 계약 — API 다운 시 페이지 크래시 금지
-            return False, f"API 연결 실패 ({e}). 서버 상태를 확인하세요."
-        try:
-            body = resp.json()
-        except ValueError:
-            body = {}
-        if not isinstance(body, dict):
-            body = {}
-        if resp.status_code == 200:
-            return True, body.get("message", "자동화 실행을 시작했습니다.")
-        # 409 중복 / 503 비활성 / 500 설정오류 — 서버 detail을 그대로 노출
-        detail = body.get("detail")
-        return False, detail or f"실행 요청 실패 (HTTP {resp.status_code})"
-
-    def _delete(doc_number: str) -> tuple[bool, str]:
-        """DELETE {prefix}/{doc_number}. Returns (ok, message). 404 → (False, detail)."""
-        try:
-            with httpx.Client(base_url=API_BASE_URL, timeout=15.0) as c:
-                resp = c.delete(f"{prefix}/{doc_number}", headers=_headers())
-        except httpx.HTTPError as e:
-            return False, f"API 연결 실패 ({e}). 서버 상태를 확인하세요."
-        try:
-            body = resp.json()
-        except ValueError:
-            body = {}
-        if not isinstance(body, dict):
-            body = {}
-        if resp.status_code == 200:
-            return True, f"문서 {doc_number} 삭제 완료 (품목 {body.get('deleted', 0)}행)."
-        detail = body.get("detail")
-        return False, detail or f"삭제 실패 (HTTP {resp.status_code})"
-
-    st.title(f"{icon} {title}", anchor=False)
-    st.caption(f"API: `{API_BASE_URL}{prefix}` · 정렬/필터 기준: 문서번호 날짜(doc_date)")
-
-    # ----------------------------------------------------------
-    # 실행 상태 / 이력 / 수동 실행
-    # ----------------------------------------------------------
+def _json_body_or_empty(resp: httpx.Response) -> dict:
+    """응답 본문을 dict로 파싱 — 본문이 없거나 dict가 아니면 {} 로 폴백."""
     try:
-        run_list = _fetch_runs(20)
+        body = resp.json()
+    except ValueError:
+        return {}
+    return body if isinstance(body, dict) else {}
+
+
+def _trigger_run(prefix: str) -> tuple[bool, str]:
+    """POST {prefix}/run. Returns (ok, message). 409 → (False, detail)."""
+    try:
+        with httpx.Client(base_url=API_BASE_URL, timeout=15.0) as c:
+            resp = c.post(f"{prefix}/run", headers=_headers())
     except httpx.HTTPError as e:
-        run_list = None
+        # 형제 _fetch들과 동일 계약 — API 다운 시 페이지 크래시 금지
+        return False, f"API 연결 실패 ({e}). 서버 상태를 확인하세요."
+    body = _json_body_or_empty(resp)
+    if resp.status_code == 200:
+        return True, body.get("message", "자동화 실행을 시작했습니다.")
+    # 409 중복 / 503 비활성 / 500 설정오류 — 서버 detail을 그대로 노출
+    detail = body.get("detail")
+    return False, detail or f"실행 요청 실패 (HTTP {resp.status_code})"
+
+
+def _delete(prefix: str, doc_number: str) -> tuple[bool, str]:
+    """DELETE {prefix}/{doc_number}. Returns (ok, message). 404 → (False, detail)."""
+    try:
+        with httpx.Client(base_url=API_BASE_URL, timeout=15.0) as c:
+            resp = c.delete(f"{prefix}/{doc_number}", headers=_headers())
+    except httpx.HTTPError as e:
+        return False, f"API 연결 실패 ({e}). 서버 상태를 확인하세요."
+    body = _json_body_or_empty(resp)
+    if resp.status_code == 200:
+        return True, f"문서 {doc_number} 삭제 완료 (품목 {body.get('deleted', 0)}행)."
+    detail = body.get("detail")
+    return False, detail or f"삭제 실패 (HTTP {resp.status_code})"
+
+
+def _render_runs_panel(prefix: str) -> None:
+    """실행 상태 / 이력 / 수동 실행 패널. 이력 조회 실패 시 경고만 남긴다."""
+    try:
+        run_list = _fetch_runs(prefix, 20)
+    except httpx.HTTPError as e:
         st.warning(f"실행 이력을 불러오지 못했습니다 ({e}).")
+        return
 
-    if run_list is not None:
-        last = run_list[0] if run_list else None
-        s1, s2, s3 = st.columns([3, 1, 1])
-        with s1:
-            if last:
-                badge = _STATUS_ICON.get(last["status"], "•")
-                kind = _KIND_LABEL.get(last["kind"], last["kind"])
-                when = last.get("finished_at") or last.get("started_at")
-                st.metric("마지막 실행", f"{badge} {kind} · {last['status']}", help=f"{when}")
-            else:
-                st.metric("마지막 실행", "기록 없음")
-        with s2:
-            if st.button("지금 실행", icon=":material/play_arrow:", width="stretch"):
-                ok, msg = _trigger_run()
-                (st.success if ok else st.warning)(msg)
-                if ok:
-                    st.rerun()
-        with s3:
-            if st.button("새로고침", icon=":material/refresh:", width="stretch"):
+    last = run_list[0] if run_list else None
+    s1, s2, s3 = st.columns([3, 1, 1])
+    with s1:
+        if last:
+            badge = _STATUS_ICON.get(last["status"], "•")
+            kind = _KIND_LABEL.get(last["kind"], last["kind"])
+            when = last.get("finished_at") or last.get("started_at")
+            st.metric("마지막 실행", f"{badge} {kind} · {last['status']}", help=f"{when}")
+        else:
+            st.metric("마지막 실행", "기록 없음")
+    with s2:
+        if st.button("지금 실행", icon=":material/play_arrow:", width="stretch"):
+            ok, msg = _trigger_run(prefix)
+            (st.success if ok else st.warning)(msg)
+            if ok:
                 st.rerun()
+    with s3:
+        if st.button("새로고침", icon=":material/refresh:", width="stretch"):
+            st.rerun()
 
-        with st.expander("실행 이력", expanded=False):
-            if run_list:
-                hist = pd.DataFrame([
-                    {
-                        "종류": _KIND_LABEL.get(r["kind"], r["kind"]),
-                        "상태": f"{_STATUS_ICON.get(r['status'], '')} {r['status']}",
-                        "시작": r.get("started_at"),
-                        "종료": r.get("finished_at"),
-                        "건수": r.get("rows"),
-                        "신규": r.get("inserted"),
-                        "갱신": r.get("updated"),
-                        "메시지": (r.get("message") or "")[:120],
-                    }
-                    for r in run_list
-                ])
-                st.dataframe(hist, width="stretch", hide_index=True)
-            else:
-                st.caption("아직 실행 기록이 없습니다.")
+    with st.expander("실행 이력", expanded=False):
+        if run_list:
+            hist = pd.DataFrame([
+                {
+                    "종류": _KIND_LABEL.get(r["kind"], r["kind"]),
+                    "상태": f"{_STATUS_ICON.get(r['status'], '')} {r['status']}",
+                    "시작": r.get("started_at"),
+                    "종료": r.get("finished_at"),
+                    "건수": r.get("rows"),
+                    "신규": r.get("inserted"),
+                    "갱신": r.get("updated"),
+                    "메시지": (r.get("message") or "")[:120],
+                }
+                for r in run_list
+            ])
+            st.dataframe(hist, width="stretch", hide_index=True)
+        else:
+            st.caption("아직 실행 기록이 없습니다.")
 
-    # ----------------------------------------------------------
-    # 문서 삭제 (실수 기안·중복 문서 제거) — 목록 유무와 무관하게 항상 노출
-    # ----------------------------------------------------------
+
+def _render_delete_expander(prefix: str) -> None:
+    """문서 삭제 (실수 기안·중복 문서 제거) — 목록 유무와 무관하게 항상 노출."""
     with st.expander("문서 삭제 (실수 기안·중복 문서 제거)", expanded=False):
         st.caption(
             "문서번호로 해당 문서의 모든 품목 행을 서버에서 삭제합니다. "
@@ -197,16 +170,14 @@ def render(
             disabled=not (del_doc and confirm),
             key=f"delbtn_{prefix}",
         ):
-            ok, msg = _delete(del_doc)
+            ok, msg = _delete(prefix, del_doc)
             (st.success if ok else st.error)(msg)
             if ok:
                 st.rerun()
 
-    st.divider()
 
-    # ----------------------------------------------------------
-    # Filters
-    # ----------------------------------------------------------
+def _render_filters() -> dict:
+    """필터 위젯 렌더 + API 쿼리 파라미터 dict 반환."""
     f1, f2, f3 = st.columns([2, 2, 1])
     with f1:
         dept = st.text_input("요청부서", placeholder="예: 생산1팀 (비우면 전체)").strip()
@@ -232,12 +203,15 @@ def render(
         params["date_from"] = date_from
     if date_to:
         params["date_to"] = date_to
+    return params
 
-    # ----------------------------------------------------------
-    # Fetch + render
-    # ----------------------------------------------------------
+
+def _fetch_and_render_rows(
+    prefix: str, title: str, params: dict, columns, sheet_name: str, file_base: str, empty_msg: str
+) -> None:
+    """데이터 fetch + 표/건수/다운로드 렌더. 데이터 없으면 st.stop()."""
     try:
-        rows = _fetch(params)
+        rows = _fetch_rows(prefix, params)
     except httpx.HTTPError as e:
         st.error(f"{title} 데이터를 불러오지 못했습니다 ({e}). API 서버 상태를 확인하세요.")
         st.stop()
@@ -275,3 +249,56 @@ def render(
             icon=":material/csv:",
             width="stretch",
         )
+
+
+def render(
+    *,
+    prefix: str,
+    title: str,
+    icon: str,
+    sheet_name: str,
+    file_base: str,
+    empty_msg: str,
+    columns: list[tuple[str, str]] | None = None,
+) -> None:
+    """한 데이터셋 페이지를 렌더한다.
+
+    Args:
+        prefix: API 경로 prefix (예: "/materials", "/binder").
+        title: 페이지 제목 (예: "자재요청").
+        icon: material 아이콘 토큰.
+        sheet_name: Excel 시트명.
+        file_base: 다운로드 파일명 베이스 (예: "material_requests").
+        empty_msg: 데이터 없음 안내 문구.
+        columns: (api_field, 한글헤더) 목록. 생략 시 자재 레이아웃
+            (EXCEL_COLUMNS). 스키마는 데이터셋 공통이지만 헤더 의미가
+            다른 데이터셋(예: 바인더 출고)은 여기로 교체한다.
+    """
+    columns = columns or EXCEL_COLUMNS
+
+    st.title(f"{icon} {title}", anchor=False)
+    st.caption(f"API: `{API_BASE_URL}{prefix}` · 정렬/필터 기준: 문서번호 날짜(doc_date)")
+
+    # ----------------------------------------------------------
+    # 실행 상태 / 이력 / 수동 실행
+    # ----------------------------------------------------------
+    _render_runs_panel(prefix)
+
+    # ----------------------------------------------------------
+    # 문서 삭제 (실수 기안·중복 문서 제거) — 목록 유무와 무관하게 항상 노출
+    # ----------------------------------------------------------
+    _render_delete_expander(prefix)
+
+    st.divider()
+
+    # ----------------------------------------------------------
+    # Filters
+    # ----------------------------------------------------------
+    params = _render_filters()
+
+    # ----------------------------------------------------------
+    # Fetch + render
+    # ----------------------------------------------------------
+    _fetch_and_render_rows(
+        prefix, title, params, columns, sheet_name, file_base, empty_msg
+    )

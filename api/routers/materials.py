@@ -29,6 +29,53 @@ from ..materials.schemas import (
 logger = get_logger(__name__)
 
 
+def _backup_body(ds: Dataset, req: MaterialBackupRequest) -> BackupResult:
+    result = store.upsert_materials(req.rows, table=ds.table)
+    runs.record_backup_run(
+        result.upserted, result.inserted, result.updated,
+        runs_table=ds.runs_table,
+    )
+    logger.info(
+        "[%s] backup: upserted=%d (inserted=%d, updated=%d)",
+        ds.key, result.upserted, result.inserted, result.updated,
+    )
+    return result
+
+
+def _trigger_run_body(ds: Dataset, trigger_keyword: str | None) -> RunTriggerResult:
+    try:
+        run_id = automation.trigger_automation(
+            keyword=trigger_keyword, runs_table=ds.runs_table
+        )
+    except automation.TriggerError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return RunTriggerResult(
+        run_id=run_id, status="running", message="자동화 실행을 시작했습니다."
+    )
+
+
+def _get_run_body(ds: Dataset, run_id: int) -> MaterialRun:
+    run = runs.get_run(run_id, runs_table=ds.runs_table)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"run {run_id} not found")
+    return run
+
+
+def _get_row_body(ds: Dataset, doc_number: str) -> list[MaterialPublic]:
+    items = store.get_document(doc_number, table=ds.table)
+    if not items:
+        raise HTTPException(status_code=404, detail=f"document {doc_number} not found")
+    return items
+
+
+def _delete_row_body(ds: Dataset, doc_number: str) -> DeleteResult:
+    deleted = store.delete_document(doc_number, table=ds.table)
+    if deleted == 0:
+        raise HTTPException(status_code=404, detail=f"document {doc_number} not found")
+    logger.info("[%s] delete: doc_number=%s rows=%d", ds.key, doc_number, deleted)
+    return DeleteResult(doc_number=doc_number, deleted=deleted)
+
+
 def make_router(ds: Dataset) -> APIRouter:
     """Build the full endpoint set bound to one dataset."""
     router = APIRouter(prefix=ds.prefix, tags=[ds.title])
@@ -43,16 +90,7 @@ def make_router(ds: Dataset) -> APIRouter:
         Idempotent: re-posting the same documents updates them in place. Each
         backup is recorded as a 'backup' run for the dashboard history.
         """
-        result = store.upsert_materials(req.rows, table=ds.table)
-        runs.record_backup_run(
-            result.upserted, result.inserted, result.updated,
-            runs_table=ds.runs_table,
-        )
-        logger.info(
-            "[%s] backup: upserted=%d (inserted=%d, updated=%d)",
-            ds.key, result.upserted, result.inserted, result.updated,
-        )
-        return result
+        return _backup_body(ds, req)
 
     # Runs: manual automation trigger + history
     # (registered before /{doc_number} so "runs" isn't captured as a doc_number)
@@ -62,15 +100,7 @@ def make_router(ds: Dataset) -> APIRouter:
 
         MATERIALS_RUN_ENABLED=1일 때만 동작. 이미 실행 중이면 409.
         """
-        try:
-            run_id = automation.trigger_automation(
-                keyword=trigger_keyword, runs_table=ds.runs_table
-            )
-        except automation.TriggerError as e:
-            raise HTTPException(status_code=e.status_code, detail=str(e)) from e
-        return RunTriggerResult(
-            run_id=run_id, status="running", message="자동화 실행을 시작했습니다."
-        )
+        return _trigger_run_body(ds, trigger_keyword)
 
     @router.get("/runs", response_model=list[MaterialRun])
     def list_runs(
@@ -83,10 +113,7 @@ def make_router(ds: Dataset) -> APIRouter:
     @router.get("/runs/{run_id}", response_model=MaterialRun)
     def get_run(run_id: int) -> MaterialRun:
         """단일 실행 상태 (대시보드 폴링용)."""
-        run = runs.get_run(run_id, runs_table=ds.runs_table)
-        if run is None:
-            raise HTTPException(status_code=404, detail=f"run {run_id} not found")
-        return run
+        return _get_run_body(ds, run_id)
 
     @router.get("", response_model=list[MaterialPublic])
     def list_rows(
@@ -117,10 +144,7 @@ def make_router(ds: Dataset) -> APIRouter:
     @router.get("/{doc_number}", response_model=list[MaterialPublic])
     def get_row(doc_number: str) -> list[MaterialPublic]:
         """한 문서(문서번호)의 모든 품목 행을 순번순으로 반환."""
-        items = store.get_document(doc_number, table=ds.table)
-        if not items:
-            raise HTTPException(status_code=404, detail=f"document {doc_number} not found")
-        return items
+        return _get_row_body(ds, doc_number)
 
     @router.delete("/{doc_number}", response_model=DeleteResult)
     def delete_row(doc_number: str) -> DeleteResult:
@@ -132,11 +156,7 @@ def make_router(ds: Dataset) -> APIRouter:
         중복으로 쌓이지 않지만, 삭제한 문서가 봇 검색 범위에 다시 들어오면
         재수집될 수 있다.
         """
-        deleted = store.delete_document(doc_number, table=ds.table)
-        if deleted == 0:
-            raise HTTPException(status_code=404, detail=f"document {doc_number} not found")
-        logger.info("[%s] delete: doc_number=%s rows=%d", ds.key, doc_number, deleted)
-        return DeleteResult(doc_number=doc_number, deleted=deleted)
+        return _delete_row_body(ds, doc_number)
 
     return router
 

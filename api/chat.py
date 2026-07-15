@@ -382,35 +382,42 @@ async def chat_stream(request: ChatRequest, http_request: Request):
     return streaming_response(gen)
 
 
+def _collect_function_calls_from_parts(parts, tools_used: list[str], tool_calls_detail: list[str]) -> None:
+    """Record each part's function_call, skipping tool names already seen.
+
+    hasattr/args 조건은 원래 _extract_tool_info 본문과 동일하게 유지한다
+    (None args에서 dict(None)→TypeError가 발생해도 호출자가 잡아낸다).
+    """
+    for part in parts:
+        if hasattr(part, 'function_call') and part.function_call:
+            tool_name = part.function_call.name
+            if tool_name not in tools_used:
+                tools_used.append(tool_name)
+                args = dict(part.function_call.args) if hasattr(part.function_call, 'args') else {}
+                tool_calls_detail.append(f"{tool_name}({args})")
+
+
 def _extract_tool_info(response, request_id: str) -> tuple[list[str], list[str]]:
     """Extract tool usage information from response."""
-    tools_used = []
-    tool_calls_detail = []
+    tools_used: list[str] = []
+    tool_calls_detail: list[str] = []
 
     try:
         # Check candidates for function calls
         if hasattr(response, 'candidates') and response.candidates:
             for candidate in response.candidates:
                 if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
-                    for part in candidate.content.parts:
-                        if hasattr(part, 'function_call') and part.function_call:
-                            tool_name = part.function_call.name
-                            if tool_name not in tools_used:
-                                tools_used.append(tool_name)
-                                args = dict(part.function_call.args) if hasattr(part.function_call, 'args') else {}
-                                tool_calls_detail.append(f"{tool_name}({args})")
+                    _collect_function_calls_from_parts(
+                        candidate.content.parts, tools_used, tool_calls_detail
+                    )
 
         # Check automatic_function_calling_history
         if hasattr(response, 'automatic_function_calling_history'):
             for entry in response.automatic_function_calling_history:
                 if hasattr(entry, 'parts'):
-                    for part in entry.parts:
-                        if hasattr(part, 'function_call') and part.function_call:
-                            tool_name = part.function_call.name
-                            if tool_name not in tools_used:
-                                tools_used.append(tool_name)
-                                args = dict(part.function_call.args) if hasattr(part.function_call, 'args') else {}
-                                tool_calls_detail.append(f"{tool_name}({args})")
+                    _collect_function_calls_from_parts(
+                        entry.parts, tools_used, tool_calls_detail
+                    )
 
     except (IndexError, AttributeError, TypeError) as e:
         logger.warning(
