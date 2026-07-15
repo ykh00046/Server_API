@@ -73,7 +73,7 @@ Server_API(FastAPI + SQLite + Streamlit + manager/봇) 프로젝트의 2026 하�
 | A-2 | ✅ manager 로그 스트리밍 실동작 확인 — 운영자 확인 완료 2026-07-07 (이상 없음) | 0354317 Tk 마샬링은 GUI라 자동 테스트 불가 | 5분 | ~~운영 PC 업데이트 시~~ 완료 |
 | A-3 | ✅ pytest-timeout 도입 여부 — **미도입 결정** 2026-07-07: 마커는 pyproject에 이미 등록·문서화("no-op unless installed"), 해당 테스트 hang은 자식 sleep(120s)으로 bounded. 단일 테스트를 위한 의존성 추가는 비용>이득 | `@pytest.mark.timeout(30)`이 no-op | 소 | ~~lock 갱신 편승~~ 결정 완료 |
 | A-4 | ✅ test_session_store sleep→clock 주입 — 완료 2026-07-07 (`_session_store._clock` 시임 + FakeClock, sleep 전부 제거) | Windows time.time() 해상도(~15.6ms)보다 짧은 sleep(0.001) — 잠재 flaky | 소 | ~~여유 시~~ 완료 |
-| A-5 | 품질 램프 R8: C901 전면 게이트 확대 | 현재 3개 파일만 잠금. R3→R7 관례대로 "위반 0 파일부터 점진 잠금" | 중 | 분기 1회 램프 슬롯 |
+| A-5 | ✅ 품질 램프 R8: C901 전면 게이트 확대 — 완료 2026-07-16 (12c3e44: 위반 7건 헬퍼 추출로 해소, select에 C901 편입 + mccabe max-complexity=10) | 현재 3개 파일만 잠금. R3→R7 관례대로 "위반 0 파일부터 점진 잠금" | 중 | ~~분기 1회 램프 슬롯~~ 완료 |
 | A-6 | Starlette/httpx2 마이그레이션 추적 | `StarletteDeprecationWarning: install httpx2` — 다음 starlette 메이저에서 강제될 것 | 중 | upstream GA 후 lock 갱신 사이클에서 |
 | A-7 | chat↔stream 중복 로직 통합 (폴백 체인·툴콜 추출·상태코드 파싱) | 검토 M-5. **의도적 보류**: 리팩터 리스크 > 즉시 이득. 단, 폴백 정책을 다음에 수정할 때는 통합을 선행할 것 | 중 | 폴백/툴콜 로직에 기능 변경이 생길 때 |
 | A-8 | ruff format 도입 | R7 때 blame 보존 사유로 보류. 재평가만 분기 1회 | — | 대규모 리네이밍/이동이 어차피 발생할 때 |
@@ -131,7 +131,7 @@ Server_API(FastAPI + SQLite + Streamlit + manager/봇) 프로젝트의 2026 하�
 | ~~M2 인증 실활성화~~ | B-1 — 2026-07-07 운영 결정으로 보류(현상 유지). 10월 재검토 안건 | ~~2026-08~~ 보류 |
 | ✅ M3 이상탐지 관측 | B-2 anomaly-dashboard-v2 — **완료 2026-07-08** (계획 대비 1~2개월 조기) | ~~2026-08~09~~ |
 | ✅ M4 소형 정리 묶음 | B-3(878396b keyset 페이징) + B-5(80ed3d9 상태코드 409/503/500) + B-4(0daf2a5 체크리스트) — **완료 2026-07-08** | ~~2026-Q3 내~~ |
-| M5 품질 램프 | A-5 C901 R8 (+ A-6 의존성 추적 점검) | 2026-Q4 |
+| M5 품질 램프 | A-5 C901 R8 ✅(2026-07-16, 조기 완료) · A-6 의존성 추적 점검은 잔여 | ~~2026-Q4~~ A-6만 잔여 |
 | 분기 재검토 | 이 문서 갱신 (완료 체크, 우선순위 재조정, C-트랙 착수 판단) | 10월 초 |
 
 ## Version History
@@ -143,3 +143,4 @@ Server_API(FastAPI + SQLite + Streamlit + manager/봇) 프로젝트의 2026 하�
 | 0.3 | 2026-07-07 | M1 완료(A-2 운영 확인). **B-1 인증 활성화 보류 결정**(현상 유지, 리스크 인지 상태로 수용) — M2 취소, B-2가 차기 1순위로 승격 |
 | 0.4 | 2026-07-08 | M3 완료: anomaly-dashboard-v2 (96%, 운영 확인). 다음 후보는 M4 소형 묶음(B-3 deliveries paging, B-5 상태코드, B-4 체크리스트) |
 | 0.5 | 2026-07-08 | M4 완료(B-3/B-5/B-4). 잔여: M5 품질 램프(Q4), B-6·트랙 C는 조건 충족 대기, 10월 분기 재검토 |
+| 0.6 | 2026-07-16 | A-5 C901 R8 완료(zcode 위임, 12c3e44). 동 사이클에서 대시보드 UI 통일(1b34123)·매니저 GUI 개선(49262b5, manager_theme.py 신설) — feature/ui-refactor-zcode 브랜치. 잔여: A-6, B-6, 트랙 C, 10월 재검토 |
