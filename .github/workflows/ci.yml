@@ -22,10 +22,8 @@ jobs:
           python-version: "3.12"
       - name: Install ruff (lock-pinned version)
         run: pip install "ruff==$(grep -E '^ruff==' requirements.lock.txt | cut -d= -f3 | tr -d '\r')"
-      - name: Ruff gate (select inherited from pyproject.toml)
+      - name: Ruff gate (select inherited from pyproject.toml, incl. C901)
         run: ruff check .
-      - name: Complexity gate (C901-clean files)
-        run: ruff check api/_chat_stream.py api/tools/custom.py api/routers/records.py --select C901
 
   test:
     runs-on: ubuntu-latest
