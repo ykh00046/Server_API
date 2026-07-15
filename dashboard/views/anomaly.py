@@ -25,6 +25,7 @@ from components.anomaly_view_helpers import (
     findings_to_daily_counts,
     humanize_remaining,
 )
+from components.layout import empty_state, page_header
 
 from shared.api_client import auth_headers
 from shared.config import API_BASE_URL
@@ -81,8 +82,11 @@ def _render_finding_cards(findings: list[dict]) -> None:
 # ==========================================================
 # 헤더 + 상태 메트릭
 # ==========================================================
-st.title(":material/monitor_heart: 이상탐지", anchor=False)
-st.caption(f"API: `{API_BASE_URL}/anomaly` · 규칙 기반 v1 · 이력 보존 90일")
+page_header(
+    "이상탐지",
+    caption=f"API: `{API_BASE_URL}/anomaly` · 규칙 기반 v1 · 이력 보존 90일",
+    icon=":material/monitor_heart:",
+)
 
 state = _try_fetch("/anomaly/state")
 scan = _try_fetch("/anomaly/scan")
@@ -127,7 +131,10 @@ hist = _try_fetch("/anomaly/findings", {"days": 30, "limit": 500})
 if hist is not None:
     rows = hist.get("findings", [])
     if not rows:
-        st.info("아직 발행 이력이 없습니다 — 첫 발행부터 여기 누적됩니다.")
+        empty_state(
+            "아직 발행 이력이 없습니다.",
+            hint="이상이 탐지·발행되면 첫 이력부터 여기 누적됩니다.",
+        )
     else:
         daily = findings_to_daily_counts(rows)
         fig = go.Figure()

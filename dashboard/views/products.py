@@ -20,32 +20,49 @@ from components import (
     create_trend_lines,
     get_chart_config,
 )
-from components.layout import get_page_columns, render_ai_column, render_page_header
+from components.layout import (
+    empty_state,
+    get_page_columns,
+    render_ai_column,
+    render_page_header,
+)
 from data import get_filter_state, load_item_list, load_records
 
-from shared.ui.theme import get_colors
+from shared.ui.theme import get_chart_palette, get_colors
 
 # ==========================================================
 # Product Category Classification
 # ==========================================================
-PRODUCT_CATEGORIES = {
-    "AS": {"label": "AS (어셈블리)", "color": "#2563eb"},
-    "AC": {"label": "AC (악세사리)", "color": "#0d9488"},
-    "AW": {"label": "AW (조립완성)", "color": "#f59e0b"},
+# 카테고리 색상은 config.toml의 chartCategoricalColors 팔레트를 따른다
+# (하드코딩 시 라이트 전용 hex가 다크 배경에서 가라앉는다). _get_category_info
+# 가 호출 시점의 테마를 반영하도록, 색상은 lookup 시 get_chart_palette 로 결정한다.
+_CATEGORY_ORDER = ["AS", "AC", "AW"]
+CATEGORY_LABELS: dict[str, str] = {
+    "AS": "AS (어셈블리)",
+    "AC": "AC (악세사리)",
+    "AW": "AW (조립완성)",
 }
 
 
 def _classify_item_code(code: str) -> str:
     """Classify item_code by its prefix (AS, AC, AW, or 기타)."""
     prefix = str(code)[:2].upper()
-    if prefix in PRODUCT_CATEGORIES:
+    if prefix in CATEGORY_LABELS:
         return prefix
     return "기타"
 
 
 def _get_category_info(cat: str) -> dict:
-    """Get display info for a category."""
-    return PRODUCT_CATEGORIES.get(cat, {"label": f"기타 ({cat})", "color": "#64748b"})
+    """Get display info (label + theme-aware color) for a category.
+
+    색상은 get_chart_palette(현재 테마 반영)에서 카테고리 순서로 매핑한다.
+    '기타'는 팔레트의 마지막 계열(grayish)로 고정해 시각적 무게를 낮춘다.
+    """
+    if cat in CATEGORY_LABELS:
+        idx = _CATEGORY_ORDER.index(cat)
+        palette = get_chart_palette(len(_CATEGORY_ORDER) + 1)
+        return {"label": CATEGORY_LABELS[cat], "color": palette[idx]}
+    return {"label": f"기타 ({cat})", "color": get_chart_palette(7)[-1]}
 
 
 # ==========================================================
@@ -199,7 +216,10 @@ def _render_drilldown_item_detail(
                 key=f"drill_chart_{selected_cat}_{selected_code}",
             )
         else:
-            st.info("데이터가 없습니다.")
+            empty_state(
+                f"{selected_code} 의 월별 추세 데이터가 없습니다.",
+                hint="다른 제품을 선택하거나 기간을 넓혀 보세요.",
+            )
 
     with detail_col2:
         st.markdown("**:material/list_alt: 최근 배치 이력**")
@@ -220,7 +240,10 @@ def _render_drilldown_item_detail(
                 key=f"drill_table_{selected_cat}_{selected_code}",
             )
         else:
-            st.info("데이터가 없습니다.")
+            empty_state(
+                f"{selected_code} 의 최근 배치 이력이 없습니다.",
+                hint="데이터가 수집되면 최근 10건이 여기 표시됩니다.",
+            )
 
 
 def _render_drilldown(
@@ -276,7 +299,7 @@ def _render_trend_comparison(df: pd.DataFrame, db_ver: str, chart_template: str)
     """Render multi-product trend comparison with aggregation toggle."""
     items_df = load_item_list(db_ver=db_ver)
     if items_df.empty:
-        st.info("비교할 제품이 없습니다.")
+        empty_state("비교할 제품이 없습니다.", hint="데이터가 수집되면 제품 목록이 채워집니다.")
         return
 
     compare_options = items_df["item_code"].tolist()
@@ -288,7 +311,10 @@ def _render_trend_comparison(df: pd.DataFrame, db_ver: str, chart_template: str)
     )
 
     if not selected_compare:
-        st.info("위에서 제품을 선택하면 추세 비교가 표시됩니다.")
+        empty_state(
+            "비교할 제품을 선택하면 추세가 표시됩니다.",
+            hint="위에서 2~5개 제품을 골라 비교해 보세요.",
+        )
         return
 
     trend_agg = st.segmented_control(
@@ -328,7 +354,10 @@ with col_main:
     chart_template = colors.get("chart_template", "plotly_white")
 
     if df.empty:
-        st.info("조회된 데이터가 없습니다. 사이드바 필터를 조정해 주세요.")
+        empty_state(
+            "조회된 데이터가 없습니다.",
+            hint="사이드바에서 기간/제품/키워드 필터를 조정해 주세요.",
+        )
     else:
         df["category"] = df["item_code"].apply(_classify_item_code)
         cat_summary = (

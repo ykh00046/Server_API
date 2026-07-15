@@ -21,16 +21,34 @@ from data import _cached_excel_bytes, get_filter_state, load_records
 # Section 1: KPI summary cards
 # ==========================================================
 def _render_kpi_cards(df: pd.DataFrame) -> None:
-    """Render 3-column KPI row (총 레코드 / 생산일 수 / 일 평균 배치) + spacer."""
-    kpi1, kpi2, kpi3 = st.columns(3)
+    """Render 3-column KPI row (총 레코드 / 생산일 수 / 일 평균 배치) + spacer.
+
+    overview 페이지와 동일한 시각 계층(bordered metric, help 툴팁)을 따른다.
+    """
     unique_days = df["production_dt"].dt.date.nunique() if not df.empty else 0
     avg_daily = len(df) / max(unique_days, 1) if not df.empty else 0
-    with kpi1:
-        st.metric("총 레코드", f"{len(df):,}건")
-    with kpi2:
-        st.metric("생산일 수", f"{unique_days}일")
-    with kpi3:
-        st.metric("일 평균 배치", f"{avg_daily:.1f}건")
+    with st.container(horizontal=True):
+        st.metric(
+            "총 레코드",
+            f"{len(df):,}건",
+            border=True,
+            height=150,
+            help="선택 기간 내 생산 레코드(행) 총 건수",
+        )
+        st.metric(
+            "생산일 수",
+            f"{unique_days}일",
+            border=True,
+            height=150,
+            help="선택 기간 중 실제 생산이 기록된 고유 일수",
+        )
+        st.metric(
+            "일 평균 배치",
+            f"{avg_daily:.1f}건",
+            border=True,
+            height=150,
+            help="총 레코드 ÷ 생산일 수",
+        )
     st.space(8)
 
 

@@ -25,7 +25,12 @@ from components import (
     render_last_update,
 )
 from components.charts import create_top10_bar_chart
-from components.layout import get_page_columns, render_ai_column, render_page_header
+from components.layout import (
+    empty_state,
+    get_page_columns,
+    render_ai_column,
+    render_page_header,
+)
 from data import get_filter_state, load_monthly_summary, load_records
 from plotly.subplots import make_subplots
 
@@ -90,7 +95,10 @@ def _render_chart_row_1(df, date_from, date_to, db_ver, chart_template, colors) 
             fig.update_yaxes(title_text="배치 수", secondary_y=True)
             st.plotly_chart(fig, width="stretch", config=get_chart_config("monthly_trend"))
         else:
-            st.info("데이터가 없습니다.")
+            empty_state(
+                "해당 기간의 월별 추세 데이터가 없습니다.",
+                hint="사이드바에서 기간/제품 필터를 조정해 보세요.",
+            )
 
     with chart_col2:
         st.markdown("**:material/leaderboard: Top 10 제품별 생산량**")
@@ -127,7 +135,10 @@ def _render_chart_row_2(df, chart_template) -> None:
             })
             st.dataframe(recent, width="stretch", hide_index=True, height=340)
         else:
-            st.info("데이터가 없습니다.")
+            empty_state(
+                "최근 현황 요약 데이터가 없습니다.",
+                hint="데이터가 수집되면 최근 7건이 여기 표시됩니다.",
+            )
 
 
 # ==========================================================

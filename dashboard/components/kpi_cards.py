@@ -146,9 +146,13 @@ def _format_number(n: int) -> str:
     return str(n)
 
 
-def _has_signal(data: list[int] | None) -> bool:
+def _has_signal(data: list[int] | list[float] | None) -> bool:
     """True if sparkline data exists and is not all zeros."""
     return bool(data) and max(data) > 0
+
+
+# 카드 높이를 통일해 스파크라인 유무와 무관하게 4칸이 한 줄로 정렬된다.
+_KPI_CARD_HEIGHT = 150
 
 
 def render_kpi_cards(
@@ -160,6 +164,10 @@ def render_kpi_cards(
 ) -> None:
     """
     Render 4 KPI cards as native bordered metrics with sparklines.
+
+    Visual hierarchy (ui-consistency-v1): 모든 카드가 같은 높이·테두리를 갖고,
+    값은 천 단위 구분자로 강조되며, help 툴팁으로 지표 의미를 한 줄씩 제공한다.
+    delta(전기 대비)는 별도 기준 데이터가 없으므로 무리하게 가짜 값을 만들지 않는다.
 
     Args:
         kpis: KPI values dict from calculate_kpis()
@@ -174,6 +182,8 @@ def render_kpi_cards(
             "총 생산량",
             _format_number(kpis["total_qty"]),
             border=True,
+            height=_KPI_CARD_HEIGHT,
+            help="선택 기간 내 양품 생산량 합계",
             chart_data=sparkline_data if _has_signal(sparkline_data) else None,
             chart_type="line",
         )
@@ -181,18 +191,24 @@ def render_kpi_cards(
             "배치 수",
             f"{kpis['batch_count']:,}",
             border=True,
+            height=_KPI_CARD_HEIGHT,
+            help="선택 기간 내 생산 배치(레코드) 건수",
             chart_data=batch_sparkline if _has_signal(batch_sparkline) else None,
             chart_type="bar",
         )
         st.metric(
             "활성 제품",
-            str(kpis.get("active_products", 0)),
+            f"{kpis.get('active_products', 0):,}",
             border=True,
+            height=_KPI_CARD_HEIGHT,
+            help="선택 기간 내 생산된 고유 제품(코드) 수",
         )
         st.metric(
             "평균 배치 크기",
             f"{kpis.get('avg_batch_size', 0):,}",
             border=True,
+            height=_KPI_CARD_HEIGHT,
+            help="건당 평균 양품 수량 (총 생산량 ÷ 배치 수)",
             chart_data=(
                 avg_batch_sparkline if _has_signal(avg_batch_sparkline) else None
             ),

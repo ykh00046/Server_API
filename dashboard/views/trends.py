@@ -13,7 +13,12 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from components import get_chart_config
-from components.layout import get_page_columns, render_ai_column, render_page_header
+from components.layout import (
+    empty_state,
+    get_page_columns,
+    render_ai_column,
+    render_page_header,
+)
 from data import (
     get_filter_state,
     load_daily_summary,
@@ -125,7 +130,10 @@ with col_main:
     chart_template = colors.get("chart_template", "plotly_white")
 
     if len(summary_df) == 0:
-        st.info("선택한 기간에 데이터가 없습니다.")
+        empty_state(
+            "선택한 기간에 데이터가 없습니다.",
+            hint="기간을 넓히거나 집계 단위(일별/주별/월별)를 바꿔 보세요.",
+        )
     else:
         _render_trend_chart(summary_df, x_col, agg_unit, colors, chart_template)
         _render_summary_table(summary_df)

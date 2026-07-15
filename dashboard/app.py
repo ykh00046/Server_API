@@ -61,17 +61,21 @@ elif check_msg:
 
 # ==========================================================
 # Navigation (st.navigation + st.Page)
+# 그룹핑: 데이터 분석 페이지(대시보드/생산 관리) vs 자재 데이터 페이지(수집
+# 데이터셋) vs 운영 페이지(모니터링·알림) — 운영 페이지와 데이터 페이지를
+# 명확히 구분한다. st.Page 경로는 라우팅 딥링크의 기반이므로 유지하고
+# 라벨·아이콘·그룹 순서만 정리.
 # ==========================================================
 pages = {
     "대시보드": [
         st.Page("views/overview.py", title="종합 현황", icon=":material/dashboard:", default=True),
         st.Page("views/trends.py", title="생산 추세", icon=":material/trending_up:"),
     ],
-    "생산 관리": [
+    "생산 데이터": [
         st.Page("views/batches.py", title="배치 내역", icon=":material/list_alt:"),
         st.Page("views/products.py", title="제품별 분석", icon=":material/inventory_2:"),
     ],
-    "자재": [
+    "자재 데이터": [
         st.Page("views/materials.py", title="자재요청", icon=":material/receipt_long:"),
         st.Page("views/binder.py", title="액상바인더출고", icon=":material/water_drop:"),
     ],

@@ -13,11 +13,11 @@ Provides interactive charts:
 import pandas as pd
 import plotly.graph_objects as go
 
-from shared.ui.theme import CHART_SERIES_COLORS
+from shared.ui.theme import CHART_SERIES_COLORS, get_chart_palette
 
 
 def create_top10_bar_chart(
-    df: pd.DataFrame, template: str, marker_color: str = "#2563eb"
+    df: pd.DataFrame, template: str, marker_color: str | None = None
 ) -> go.Figure:
     """
     Create horizontal bar chart for top 10 products.
@@ -53,7 +53,7 @@ def create_top10_bar_chart(
         orientation='h',
         text=item_totals["good_quantity"].apply(lambda x: f"{x:,.0f}"),
         textposition='outside',
-        marker_color=marker_color,
+        marker_color=marker_color if marker_color is not None else get_chart_palette(1)[0],
         hovertemplate=(
             "<b>%{y}</b><br>"
             "생산량: %{x:,} 개<br>"
@@ -117,6 +117,7 @@ def create_distribution_pie(df: pd.DataFrame, template: str) -> go.Figure:
         labels=top10["item_code"],
         values=top10["good_quantity"],
         hole=0.4,
+        marker=dict(colors=get_chart_palette(len(top10))),
         textinfo='percent+label',
         textposition='outside',
         hovertemplate=(

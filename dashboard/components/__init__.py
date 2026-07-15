@@ -30,8 +30,10 @@ from .kpi_cards import (
     render_kpi_cards,
 )
 from .layout import (
+    empty_state,
     get_page_columns,
     init_ai_panel_state,
+    page_header,
     render_ai_column,
     render_page_header,
 )
@@ -75,6 +77,8 @@ __all__ = [
     "render_ai_header_with_animation",
     # layout
     "init_ai_panel_state",
+    "page_header",
+    "empty_state",
     "render_page_header",
     "get_page_columns",
     "render_ai_column",

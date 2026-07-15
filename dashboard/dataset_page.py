@@ -15,6 +15,7 @@ import datetime as dt
 import httpx
 import pandas as pd
 import streamlit as st
+from components.layout import empty_state, page_header
 from data import _cached_excel_bytes
 
 from shared.api_client import auth_headers
@@ -221,7 +222,10 @@ def _fetch_and_render_rows(
     st.metric("조회 건수", f"{len(df):,}건")
 
     if df.empty:
-        st.info(empty_msg)
+        empty_state(
+            empty_msg,
+            hint="필터(요청부서·날짜·건수)를 조정하거나 ‘지금 실행’으로 데이터를 수집해 보세요.",
+        )
         st.stop()
 
     st.dataframe(df, width="stretch", hide_index=True)
@@ -276,8 +280,11 @@ def render(
     """
     columns = columns or EXCEL_COLUMNS
 
-    st.title(f"{icon} {title}", anchor=False)
-    st.caption(f"API: `{API_BASE_URL}{prefix}` · 정렬/필터 기준: 문서번호 날짜(doc_date)")
+    page_header(
+        title,
+        caption=f"API: `{API_BASE_URL}{prefix}` · 정렬/필터 기준: 문서번호 날짜(doc_date)",
+        icon=icon,
+    )
 
     # ----------------------------------------------------------
     # 실행 상태 / 이력 / 수동 실행
