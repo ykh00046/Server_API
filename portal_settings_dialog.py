@@ -23,11 +23,12 @@ import customtkinter as ctk
 
 from manager_theme import (
     BG_INNER,
-    ERROR,
-    PRIMARY_HOVER,
-    SUCCESS,
     TEXT,
     TEXT_MUTED,
+    btn_danger,
+    btn_ghost,
+    btn_outline_primary,
+    btn_primary,
     ctk_font,
 )
 
@@ -165,7 +166,8 @@ class PortalSettingsDialog(ctk.CTkToplevel):
         self.ent_job_keyword.pack(side="left")
         self.ent_job_times = ctk.CTkEntry(add_row, width=150, placeholder_text="시각 09:00,13:00 (비우면 수동)")
         self.ent_job_times.pack(side="left", padx=(8, 8))
-        ctk.CTkButton(add_row, text="추가", width=60, command=self._add_job).pack(side="left")
+        ctk.CTkButton(add_row, text="추가", width=60, command=self._add_job,
+                      **btn_outline_primary()).pack(side="left")
         self._refresh_job_list()
 
         # ── Run Options Section ── (시각은 위 '수집 작업'에서 작업별로 지정)
@@ -195,10 +197,10 @@ class PortalSettingsDialog(ctk.CTkToplevel):
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(fill="x", padx=20, pady=(20, 20))
 
-        ctk.CTkButton(btn_frame, text="💾 저장", command=self._save, fg_color=SUCCESS,
-                       hover_color=PRIMARY_HOVER, width=120).pack(side="right", padx=(10, 0))
-        ctk.CTkButton(btn_frame, text="취소", command=self.destroy, fg_color=BG_INNER,
-                       width=80).pack(side="right")
+        ctk.CTkButton(btn_frame, text="저장", command=self._save, width=120,
+                       **btn_primary()).pack(side="right", padx=(10, 0))
+        ctk.CTkButton(btn_frame, text="취소", command=self.destroy, width=80,
+                       **btn_ghost()).pack(side="right")
 
     # ── Helpers ──
     def _section_label(self, text: str):
@@ -279,8 +281,7 @@ class PortalSettingsDialog(ctk.CTkToplevel):
             times_txt = ", ".join(j["times"]) if j["times"] else "(수동 전용)"
             ctk.CTkLabel(row, text=times_txt,
                          font=ctk.CTkFont(size=12)).pack(side="left", padx=(8, 0))
-            ctk.CTkButton(row, text="✕", width=28, fg_color=ERROR,
-                          hover_color=PRIMARY_HOVER,
+            ctk.CTkButton(row, text="✕", width=28, **btn_danger(),
                           command=lambda k=j: self._remove_job(k)).pack(side="right")
 
     def _add_job(self):

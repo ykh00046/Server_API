@@ -35,9 +35,10 @@ TEXT = ("#0f172a", "#e2e8f0")
 TEXT_MUTED = ("#64748b", "#94a3b8")
 TEXT_INVERSE = ("#ffffff", "#0f172a")  # primary 배경 위 글자
 
-# 로그 레벨 색 (텍스트 태그용 — 다크 배경 로그박스 기준으로도 읽혀야 함)
-# textbox 는 모드와 무관하게 어두운 배경이므로 다크 계열을 기본으로 하나,
-# 라이트 모드에서도 대비를 유지하도록 한 값으로 고정한다(로그는 어두운 패널).
+# 로그 박스는 두 모드 모두 다크 터미널로 고정한다(LOG_BG) — 라이트 모드에서
+# 연회색 로그 글자가 흰 배경에 묻히는 것을 막고, 터미널 관례를 따른다.
+LOG_BG = "#0f172a"
+LOG_BORDER = ("#e2e8f0", "#1e293b")
 LOG_INFO = "#cbd5e1"
 LOG_WARN = "#fbbf24"
 LOG_ERROR = "#f87171"
@@ -47,6 +48,12 @@ LOG_SUCCESS = "#34d399"
 STATUS_RUNNING = SUCCESS
 STATUS_STOPPED = ("#94a3b8", "#64748b")
 STATUS_ONE_SHOT = WARNING
+
+# 상태 pill 뱃지 — 소프트 배경 + 진한 글자 (원색 채움 대신 저채도 pill)
+PILL_RUNNING_BG = ("#ccfbf1", "#134e4a")
+PILL_RUNNING_TEXT = ("#0f766e", "#5eead4")
+PILL_STOPPED_BG = ("#e2e8f0", "#334155")
+PILL_STOPPED_TEXT = ("#64748b", "#94a3b8")
 
 # 포털 1회 실행(amber) 단색 — _launch_portal_auto에서 단일 hex로 쓰던 값의 호환
 ONE_SHOT_AMBER = "#ffb74d"
@@ -72,6 +79,57 @@ FONT_PANEL_TITLE = {"family": "Segoe UI", "size": 18, "weight": "bold"}
 FONT_PANEL_TITLE_COMPACT = {"family": "Segoe UI", "size": 16, "weight": "bold"}
 FONT_STATUS = {"family": "Segoe UI", "size": 14}
 FONT_BADGE = {"family": "Segoe UI", "size": 12, "weight": "bold"}
+
+
+# ==========================================================
+# 버튼 위계 — 채색(filled) 면적은 primary 액션 하나로 제한한다.
+#   primary  : 각 패널의 주 액션(Start, 전체 시작)만 파랑 채움
+#   outline  : 보조 강조(Run Now) — 파랑 테두리, 투명 배경
+#   danger   : 파괴적 액션(Stop, 전체 중지) — 빨강 테두리, hover 시에만 채움 느낌
+#   ghost    : 나머지 전부(Open/Docs/Settings/복사/지우기) — 중립 테두리
+# CTkButton(**btn_*()) 형태로 쓴다.
+# ==========================================================
+_GHOST_HOVER = ("#e2e8f0", "#475569")
+_PRIMARY_SOFT = ("#dbeafe", "#1e3a5f")
+_DANGER_SOFT = ("#fee2e2", "#450a0a")
+
+
+def btn_primary() -> dict:
+    return {"fg_color": PRIMARY, "hover_color": PRIMARY_HOVER, "text_color": "#ffffff"}
+
+
+def btn_outline_primary() -> dict:
+    return {
+        "fg_color": "transparent", "border_width": 1,
+        "border_color": PRIMARY, "text_color": PRIMARY, "hover_color": _PRIMARY_SOFT,
+    }
+
+
+def btn_danger() -> dict:
+    return {
+        "fg_color": "transparent", "border_width": 1,
+        "border_color": ERROR, "text_color": ERROR, "hover_color": _DANGER_SOFT,
+    }
+
+
+def btn_ghost() -> dict:
+    return {
+        "fg_color": "transparent", "border_width": 1,
+        "border_color": BORDER, "text_color": TEXT, "hover_color": _GHOST_HOVER,
+    }
+
+
+def seg_style() -> dict:
+    """세그먼트 버튼: 연슬레이트 트랙 + 흰(다크: 슬레이트) pill 선택 — 무채색 유지."""
+    selected = ("#ffffff", "#475569")
+    return {
+        "fg_color": BG_INNER,
+        "selected_color": selected,
+        "selected_hover_color": selected,
+        "unselected_color": BG_INNER,
+        "unselected_hover_color": _GHOST_HOVER,
+        "text_color": TEXT,
+    }
 
 
 def ctk_font(spec: dict):

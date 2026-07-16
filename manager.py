@@ -30,7 +30,6 @@ from manager_theme import (
     BG_CARD,
     BG_INNER,
     BUTTON_WIDTH,
-    ERROR,
     FONT_BADGE,
     FONT_LOG,
     FONT_LOG_COMPACT,
@@ -39,6 +38,8 @@ from manager_theme import (
     FONT_STATUS,
     FONT_TITLE,
     GAP_CONTROL,
+    LOG_BG,
+    LOG_BORDER,
     LOG_ERROR,
     LOG_INFO,
     LOG_SUCCESS,
@@ -46,8 +47,10 @@ from manager_theme import (
     PAD_OUTER,
     PAD_PANEL,
     PAD_TIGHT,
-    PRIMARY,
-    PRIMARY_HOVER,
+    PILL_RUNNING_BG,
+    PILL_RUNNING_TEXT,
+    PILL_STOPPED_BG,
+    PILL_STOPPED_TEXT,
     RADIUS_BADGE,
     RADIUS_PANEL,
     RADIUS_SMALL,
@@ -55,11 +58,14 @@ from manager_theme import (
     STATUS_ONE_SHOT,
     STATUS_RUNNING,
     STATUS_STOPPED,
-    SUCCESS,
     TEXT,
     TEXT_MUTED,
-    WARNING,
+    btn_danger,
+    btn_ghost,
+    btn_outline_primary,
+    btn_primary,
     ctk_font,
+    seg_style,
 )
 from shared import (
     API_PORT,
@@ -143,12 +149,15 @@ def _create_tray_icon() -> Image.Image:
 # ==========================================================
 @dataclass
 class ServicePanelConfig:
-    """Configuration for a service panel."""
+    """Configuration for a service panel.
+
+    버튼 색은 개별 지정하지 않는다 — Start는 항상 btn_primary, Stop은 btn_danger,
+    extra_buttons는 (text, style_kwargs, command)로 manager_theme의 btn_*() 스타일을 받는다.
+    """
     title: str
-    start_color: str
     start_command: Callable[[], None]
     stop_command: Callable[[], None]
-    extra_buttons: list[tuple[str, str, Callable[[], None]]]  # (text, color, command)
+    extra_buttons: list[tuple[str, dict, Callable[[], None]]]  # (text, style, command)
 
 
 # ==========================================================
@@ -189,7 +198,7 @@ class ServicePanel(ctk.CTkFrame):
 
         # Grid placement
         self.grid(**grid_args)
-        self.grid_rowconfigure(4, weight=1)
+        self.grid_rowconfigure(5, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
         self._init_status_bar()
@@ -232,35 +241,39 @@ class ServicePanel(ctk.CTkFrame):
 
         self.btn_start = ctk.CTkButton(
             ctrl_frame,
-            text="▶ Start",
+            text="Start",
             command=self.config.start_command,
-            fg_color=self.config.start_color,
             width=BUTTON_WIDTH,
+            **btn_primary(),
         )
         self.btn_start.pack(side="left", padx=(0, GAP_CONTROL))
 
         self.btn_stop = ctk.CTkButton(
             ctrl_frame,
-            text="■ Stop",
+            text="Stop",
             command=self.config.stop_command,
-            fg_color=ERROR,
             state="disabled",
             width=BUTTON_WIDTH,
+            **btn_danger(),
         )
         self.btn_stop.pack(side="left", padx=GAP_CONTROL)
 
         # Extra buttons (subclass-specific)
-        for text, color, command in self.config.extra_buttons:
+        for text, style, command in self.config.extra_buttons:
             ctk.CTkButton(
                 ctrl_frame,
                 text=text,
                 command=command,
-                fg_color=color,
                 width=BUTTON_WIDTH,
+                **style,
             ).pack(side="left", padx=GAP_CONTROL)
 
     def _init_log_toolbar(self):
-        """로그 편의 툴바: 레벨 필터 / 검색 / 복사 / 지우기 / 자동스크롤."""
+        """로그 편의 툴바 2단: (레벨 필터 + 자동스크롤) / (검색 + 복사 + 지우기).
+
+        좁은 패널 폭에서도 잘리지 않도록 두 줄로 나누고, 검색창이 남는 폭을
+        흡수(fill/expand)한다.
+        """
         bar = ctk.CTkFrame(self, fg_color="transparent")
         bar.grid(row=3, column=0, sticky="ew", padx=PAD_OUTER, pady=(0, 4))
 
@@ -269,32 +282,37 @@ class ServicePanel(ctk.CTkFrame):
             values=["ALL", "INFO", "WARN", "ERROR"],
             command=self._on_level_change,
             width=20,
+            height=26,
+            **seg_style(),
         )
         self.level_filter.set("ALL")
         self.level_filter.pack(side="left", padx=(0, GAP_CONTROL))
 
+        self.autoscroll_switch = ctk.CTkSwitch(
+            bar, text="자동스크롤", command=self._on_autoscroll_toggle, width=56,
+        )
+        self.autoscroll_switch.select()  # 기본 켜짐
+        self.autoscroll_switch.pack(side="right", padx=(GAP_CONTROL, 0))
+
+        bar2 = ctk.CTkFrame(self, fg_color="transparent")
+        bar2.grid(row=4, column=0, sticky="ew", padx=PAD_OUTER, pady=(0, 4))
+
+        ctk.CTkButton(
+            bar2, text="지우기", width=52, height=26,
+            command=self._clear_log, **btn_ghost(),
+        ).pack(side="right", padx=(GAP_CONTROL, 0))
+        ctk.CTkButton(
+            bar2, text="복사", width=46, height=26,
+            command=self._copy_log, **btn_ghost(),
+        ).pack(side="right", padx=(GAP_CONTROL, 0))
+
         self.search_var = ctk.StringVar(value="")
         self.search_var.trace_add("write", lambda *_: self._on_search_change())
         self.search_entry = ctk.CTkEntry(
-            bar, textvariable=self.search_var, placeholder_text="🔍 검색",
-            width=140,
+            bar2, textvariable=self.search_var, placeholder_text="검색",
+            height=26, width=120,
         )
-        self.search_entry.pack(side="left", padx=(0, GAP_CONTROL))
-
-        ctk.CTkButton(
-            bar, text="📋 복사", width=60, fg_color=PRIMARY, hover_color=PRIMARY_HOVER,
-            command=self._copy_log,
-        ).pack(side="left", padx=GAP_CONTROL)
-        ctk.CTkButton(
-            bar, text="🗑 지우기", width=70, fg_color=WARNING,
-            command=self._clear_log,
-        ).pack(side="left", padx=GAP_CONTROL)
-
-        self.autoscroll_switch = ctk.CTkSwitch(
-            bar, text="자동스크롤", command=self._on_autoscroll_toggle, width=40,
-        )
-        self.autoscroll_switch.select()  # 기본 켜짐
-        self.autoscroll_switch.pack(side="right")
+        self.search_entry.pack(side="left", fill="x", expand=True, padx=(0, GAP_CONTROL))
 
     def _init_log_textbox(self):
         """로그 텍스트박스 + 색 태그."""
@@ -302,9 +320,13 @@ class ServicePanel(ctk.CTkFrame):
             self,
             font=FONT_LOG,
             text_color=LOG_INFO,
+            fg_color=LOG_BG,
+            border_width=1,
+            border_color=LOG_BORDER,
+            corner_radius=RADIUS_SMALL,
             activate_scrollbars=True,
         )
-        self.log_textbox.grid(row=4, column=0, sticky="nsew", padx=PAD_OUTER, pady=(0, PAD_OUTER))
+        self.log_textbox.grid(row=5, column=0, sticky="nsew", padx=PAD_OUTER, pady=(0, PAD_OUTER))
         self.log_textbox.configure(state="disabled")
 
         # 색 태그 — 로그박스는 어두운 배경 기준 고정색(manager_theme.LOG_*)
@@ -489,25 +511,26 @@ class ServerManager(ctk.CTk):
 
         self.appearance_mode = ctk.CTkSegmentedButton(
             right, values=["Light", "Dark", "System"],
-            command=self._set_appearance, width=20,
+            command=self._set_appearance, width=20, height=28,
+            **seg_style(),
         )
         self.appearance_mode.set("System")
         self.appearance_mode.pack(side="right", padx=(GAP_CONTROL, 0))
 
         ctk.CTkButton(
-            right, text="■ 전체 중지", width=90, fg_color=ERROR,
-            command=self.stop_all,
+            right, text="전체 중지", width=84, height=28,
+            command=self.stop_all, **btn_danger(),
         ).pack(side="right", padx=(GAP_CONTROL, 0))
         ctk.CTkButton(
-            right, text="▶ 전체 시작", width=90, fg_color=PRIMARY,
-            hover_color=PRIMARY_HOVER, command=self.start_all,
+            right, text="전체 시작", width=84, height=28,
+            command=self.start_all, **btn_primary(),
         ).pack(side="right", padx=(GAP_CONTROL, 0))
 
         ip_badge = ctk.CTkButton(
             right, text=f"Host: {self.local_ip}",
             font=ctk_font(FONT_BADGE),
             fg_color=BG_INNER, hover=False, height=28, corner_radius=RADIUS_BADGE,
-            text_color_disabled=TEXT, state="disabled",
+            text_color_disabled=TEXT_MUTED, state="disabled",
         )
         ip_badge.pack(side="right", padx=(0, GAP_CONTROL))
 
@@ -521,10 +544,11 @@ class ServerManager(ctk.CTk):
         ]
         for key, label in self._badge_specs:
             ctk.CTkLabel(parent, text=label, font=ctk_font(FONT_BADGE),
-                         text_color=TEXT_MUTED).pack(side="left", padx=(0, 2))
+                         text_color=TEXT_MUTED).pack(side="left", padx=(0, 4))
             badge = ctk.CTkLabel(
-                parent, text="중지", width=44,
-                font=ctk_font(FONT_BADGE), text_color=STATUS_STOPPED,
+                parent, text="중지", width=52, height=22, corner_radius=11,
+                font=ctk_font(FONT_BADGE),
+                fg_color=PILL_STOPPED_BG, text_color=PILL_STOPPED_TEXT,
             )
             badge.pack(side="left", padx=(0, 12))
             self.status_badges[key] = badge
@@ -560,19 +584,19 @@ class ServerManager(ctk.CTk):
                 continue
             badge.configure(
                 text="실행중" if running else "중지",
-                text_color=STATUS_RUNNING if running else STATUS_STOPPED,
+                fg_color=PILL_RUNNING_BG if running else PILL_STOPPED_BG,
+                text_color=PILL_RUNNING_TEXT if running else PILL_STOPPED_TEXT,
             )
         self.after(STATUS_REFRESH_MS, self._refresh_status)
 
     def _init_web_panel(self):
         """Initialize Dashboard panel using ServicePanel base class."""
         config = ServicePanelConfig(
-            title="📊 Dashboard",
-            start_color=PRIMARY,
+            title="Dashboard",
             start_command=self.start_web,
             stop_command=self.stop_web,
             extra_buttons=[
-                ("🔗 Open", BG_INNER, lambda: webbrowser.open(f"http://{self.local_ip}:{DASHBOARD_PORT}"))
+                ("Open", btn_ghost(), lambda: webbrowser.open(f"http://{self.local_ip}:{DASHBOARD_PORT}"))
             ]
         )
         self.web_panel = ServicePanel(
@@ -587,12 +611,11 @@ class ServerManager(ctk.CTk):
     def _init_api_panel(self):
         """Initialize API Gateway panel using ServicePanel base class."""
         config = ServicePanelConfig(
-            title="⚡ API Gateway",
-            start_color=SUCCESS,
+            title="API Gateway",
             start_command=self.start_api,
             stop_command=self.stop_api,
             extra_buttons=[
-                ("🔗 Docs", BG_INNER, lambda: webbrowser.open(f"http://{self.local_ip}:{API_PORT}/docs"))
+                ("Docs", btn_ghost(), lambda: webbrowser.open(f"http://{self.local_ip}:{API_PORT}/docs"))
             ]
         )
         self.api_panel = ServicePanel(
@@ -607,13 +630,12 @@ class ServerManager(ctk.CTk):
     def _init_portal_panel(self):
         """Initialize Portal Automation panel using ServicePanel base class."""
         config = ServicePanelConfig(
-            title="🤖 Portal Automation",
-            start_color=PRIMARY,
+            title="Portal Automation",
             start_command=self.start_portal,
             stop_command=self.stop_portal,
             extra_buttons=[
-                ("🚀 Run Now", WARNING, self.run_portal_now),
-                ("⚙️ Settings", BG_INNER, self.open_portal_settings)
+                ("Run Now", btn_outline_primary(), self.run_portal_now),
+                ("Settings", btn_ghost(), self.open_portal_settings)
             ]
         )
         self.portal_panel = ServicePanel(
@@ -643,7 +665,7 @@ class ServerManager(ctk.CTk):
         header_frame = ctk.CTkFrame(self.db_frame, fg_color="transparent")
         header_frame.grid(row=1, column=0, sticky="ew", padx=PAD_PANEL, pady=10)
 
-        ctk.CTkLabel(header_frame, text="🔧 DB Automation", text_color=TEXT,
+        ctk.CTkLabel(header_frame, text="DB Automation", text_color=TEXT,
                      font=ctk_font(FONT_PANEL_TITLE_COMPACT)).pack(side="left")
 
         self.lbl_watcher_status = ctk.CTkLabel(header_frame, text="Active (1h)",
@@ -653,7 +675,10 @@ class ServerManager(ctk.CTk):
 
         # Compact Log Area
         self.log_db = ctk.CTkTextbox(self.db_frame, height=100, font=FONT_LOG_COMPACT,
-                                      text_color=LOG_INFO, activate_scrollbars=True)
+                                      text_color=LOG_INFO, fg_color=LOG_BG,
+                                      border_width=1, border_color=LOG_BORDER,
+                                      corner_radius=RADIUS_SMALL,
+                                      activate_scrollbars=True)
         self.log_db.grid(row=2, column=0, sticky="nsew", padx=PAD_PANEL, pady=(0, PAD_PANEL))
         self.log_db.configure(state="disabled")
 
@@ -918,9 +943,9 @@ class ServerManager(ctk.CTk):
             self._launch_portal_auto(kw)
 
         for k in keywords:
-            ctk.CTkButton(win, text=f"🚀 {k}", width=260,
+            ctk.CTkButton(win, text=k, width=260, **btn_primary(),
                           command=lambda kw=k: choose(kw)).pack(pady=4)
-        ctk.CTkButton(win, text="취소", width=260, fg_color=BG_INNER,
+        ctk.CTkButton(win, text="취소", width=260, **btn_ghost(),
                       command=win.destroy).pack(pady=(10, 14))
 
     def _launch_portal_auto(self, keyword: str | None = None):
