@@ -38,7 +38,7 @@ from .database import (
     DBTargets,
 )
 from .logging_config import get_logger, setup_logging
-from .rate_limiter import RateLimiter, api_rate_limiter, chat_rate_limiter
+from .rate_limiter import RateLimiter, api_rate_limiter, chat_rate_limiter, read_rate_limiter
 from .validators import (
     validate_date_format,
     validate_date_range,
@@ -75,6 +75,7 @@ __all__ = [
     "RateLimiter",
     "chat_rate_limiter",
     "api_rate_limiter",
+    "read_rate_limiter",
     # validators
     "validate_date_format",
     "validate_date_range",

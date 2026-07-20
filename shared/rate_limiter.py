@@ -213,5 +213,11 @@ class RateLimiter:
 # Chat endpoint: 20 requests per minute (more restrictive)
 chat_rate_limiter = RateLimiter(max_requests=20, window_seconds=60)
 
-# General API: 60 requests per minute
+# General API (writes / non-GET): 60 requests per minute
 api_rate_limiter = RateLimiter(max_requests=60, window_seconds=60)
+
+# Read-only API (GET/HEAD/OPTIONS): 600 requests per minute.
+# Intranet dashboards (Dashboard-Raw_material) legitimately burst dozens of
+# GETs per refresh (production + materials + binder + pagination retries);
+# the 60/min general limit was returning 429 on normal use (2026-07-20).
+read_rate_limiter = RateLimiter(max_requests=600, window_seconds=60)

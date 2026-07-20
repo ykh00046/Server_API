@@ -20,6 +20,7 @@ from shared import (
     get_logger,
     is_public_path,
     load_auth_settings,
+    read_rate_limiter,
     setup_logging,
 )
 from shared.config import (
@@ -184,13 +185,19 @@ async def add_request_id_and_rate_limit(request, call_next):
         response.headers["X-Request-ID"] = request_id
         return response
 
-    # General API rate limiting
+    # General API rate limiting — read-only requests (GET/HEAD/OPTIONS) get a
+    # much higher budget: intranet dashboards legitimately burst dozens of GETs
+    # per refresh (production + materials + binder + pagination), and the
+    # 60/min budget was 429-ing normal use. Writes keep the strict limit.
     client_ip = request.client.host if request.client else "unknown"
-    if not api_rate_limiter.is_allowed(client_ip):
-        retry_after = api_rate_limiter.retry_after(client_ip)
+    is_read = request.method in ("GET", "HEAD", "OPTIONS")
+    limiter = read_rate_limiter if is_read else api_rate_limiter
+    limit_label = str(limiter.max_requests)
+    if not limiter.is_allowed(client_ip):
+        retry_after = limiter.retry_after(client_ip)
         logger.warning(
-            f"[Rate Limited] ip={client_ip} | path={request.url.path} | "
-            f"retry_after={retry_after}s"
+            f"[Rate Limited] ip={client_ip} | method={request.method} | "
+            f"path={request.url.path} | retry_after={retry_after}s"
         )
         return JSONResponse(
             status_code=429,
@@ -198,7 +205,7 @@ async def add_request_id_and_rate_limit(request, call_next):
             headers={
                 "Retry-After": str(retry_after),
                 "X-Request-ID": request_id,
-                "X-RateLimit-Limit": "60",
+                "X-RateLimit-Limit": limit_label,
                 "X-RateLimit-Remaining": "0",
             }
         )
@@ -206,8 +213,8 @@ async def add_request_id_and_rate_limit(request, call_next):
     # Add rate limit headers to response
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
-    response.headers["X-RateLimit-Limit"] = "60"
-    response.headers["X-RateLimit-Remaining"] = str(api_rate_limiter.remaining(client_ip))
+    response.headers["X-RateLimit-Limit"] = limit_label
+    response.headers["X-RateLimit-Remaining"] = str(limiter.remaining(client_ip))
 
     # Periodic cleanup (every 100 requests — no lock needed with itertools.count)
     should_cleanup = next(_request_counter) % _CLEANUP_INTERVAL == 0
@@ -215,7 +222,11 @@ async def add_request_id_and_rate_limit(request, call_next):
     if should_cleanup:
         # chat 리미터도 함께 정리 — /chat 경로는 이 미들웨어를 우회하므로
         # 여기서 정리하지 않으면 IP별 deque가 무한히 쌓인다.
-        removed = api_rate_limiter.cleanup() + chat_rate_limiter.cleanup()
+        removed = (
+            api_rate_limiter.cleanup()
+            + chat_rate_limiter.cleanup()
+            + read_rate_limiter.cleanup()
+        )
         if removed > 0:
             logger.debug(f"[Rate Limiter Cleanup] Removed {removed} expired IPs")
 

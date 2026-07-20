@@ -174,6 +174,39 @@ def test_public_paths_skip_rate_limit(client, monkeypatch):
             assert r.status_code != 429, f"{path} hit the rate limiter"
 
 
+def test_read_requests_use_generous_limiter(client, monkeypatch):
+    """GET traffic must NOT be throttled by the strict write limiter.
+
+    2026-07-20: the intranet dashboard's normal refresh (production +
+    materials + binder GET bursts) was 429-ing under the 60/min general
+    limit. Reads now ride read_rate_limiter (600/min); the strict limiter
+    only governs non-GET. Tighten the write limiter to 1/min and verify
+    GETs keep flowing.
+    """
+    from shared import api_rate_limiter, read_rate_limiter
+
+    monkeypatch.setattr(api_rate_limiter, "max_requests", 1)
+    api_rate_limiter._requests.clear()
+    read_rate_limiter._requests.clear()
+    for _ in range(5):
+        r = client.get("/items", params={"limit": 1})
+        assert r.status_code != 429, "GET must not hit the write limiter"
+    assert r.headers["X-RateLimit-Limit"] == str(read_rate_limiter.max_requests)
+
+
+def test_read_limiter_still_enforced(client, monkeypatch):
+    """The read limiter itself must still cap runaway GET floods."""
+    from shared import read_rate_limiter
+
+    monkeypatch.setattr(read_rate_limiter, "max_requests", 2)
+    read_rate_limiter._requests.clear()
+    for _ in range(2):
+        assert client.get("/items", params={"limit": 1}).status_code != 429
+    r = client.get("/items", params={"limit": 1})
+    assert r.status_code == 429
+    assert "Retry-After" in r.headers
+
+
 def test_metrics_performance_shape(client):
     """GET /metrics/performance returns dict of per-query stats (possibly empty)."""
     r = client.get("/metrics/performance")
