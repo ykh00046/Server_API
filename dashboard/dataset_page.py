@@ -66,6 +66,13 @@ def _fetch_runs(prefix: str, limit: int = 20) -> list[dict]:
         return resp.json()
 
 
+def _fetch_tombstones(prefix: str) -> list[dict]:
+    with httpx.Client(base_url=API_BASE_URL, timeout=15.0) as c:
+        resp = c.get(f"{prefix}/tombstones", headers=_headers())
+        resp.raise_for_status()
+        return resp.json()
+
+
 def _json_body_or_empty(resp: httpx.Response) -> dict:
     """응답 본문을 dict로 파싱 — 본문이 없거나 dict가 아니면 {} 로 폴백."""
     try:
@@ -103,6 +110,20 @@ def _delete(prefix: str, doc_number: str) -> tuple[bool, str]:
         return True, f"문서 {doc_number} 삭제 완료 (품목 {body.get('deleted', 0)}행)."
     detail = body.get("detail")
     return False, detail or f"삭제 실패 (HTTP {resp.status_code})"
+
+
+def _restore(prefix: str, doc_number: str) -> tuple[bool, str]:
+    """POST {prefix}/{doc_number}/restore. Returns (ok, message). 404 → (False, detail)."""
+    try:
+        with httpx.Client(base_url=API_BASE_URL, timeout=15.0) as c:
+            resp = c.post(f"{prefix}/{doc_number}/restore", headers=_headers())
+    except httpx.HTTPError as e:
+        return False, f"API 연결 실패 ({e}). 서버 상태를 확인하세요."
+    body = _json_body_or_empty(resp)
+    if resp.status_code == 200:
+        return True, f"문서 {doc_number} 복원 대기 — 다음 백업 때 다시 들어옵니다."
+    detail = body.get("detail")
+    return False, detail or f"복원 실패 (HTTP {resp.status_code})"
 
 
 def _render_runs_panel(prefix: str) -> None:
@@ -154,15 +175,21 @@ def _render_runs_panel(prefix: str) -> None:
 
 
 def _render_delete_expander(prefix: str) -> None:
-    """문서 삭제 (실수 기안·중복 문서 제거) — 목록 유무와 무관하게 항상 노출."""
+    """문서 삭제 (실수 기안·중복 문서 제거) — 목록 유무와 무관하게 항상 노출.
+
+    삭제한 문서는 tombstone으로 막히고, 복원(restore)으로 되돌릴 수 있다.
+    tombstone 목록 조회는 페이지를 깨면 안 되므로 실패 시 경고만 남긴다.
+    """
     with st.expander("문서 삭제 (실수 기안·중복 문서 제거)", expanded=False):
         st.caption(
             "문서번호로 해당 문서의 모든 품목 행을 서버에서 삭제합니다. "
-            "봇 처리이력(Excel)과는 독립이라, 재수집을 막으려면 봇 쪽 데이터도 "
-            "함께 정리하세요. 되돌릴 수 없습니다."
+            "삭제하면 tombstone이 남아 봇이 전체 Excel을 재전송(백업)해도 "
+            "제외되어 다시 살아나지 않습니다. 복원하면 다음 백업 때 다시 들어옵니다."
         )
         del_doc = st.text_input(
-            "삭제할 문서번호", placeholder="예: 20260706P001", key=f"del_{prefix}"
+            "삭제할 문서번호",
+            placeholder="예: 20260721P227-0001",
+            key=f"del_{prefix}",
         ).strip()
         confirm = st.checkbox("삭제를 확인합니다", key=f"delok_{prefix}")
         if st.button(
@@ -175,6 +202,40 @@ def _render_delete_expander(prefix: str) -> None:
             (st.success if ok else st.error)(msg)
             if ok:
                 st.rerun()
+
+        # ----------------------------------------------------------
+        # 삭제된 문서 (복원 가능) — tombstone 목록
+        # ----------------------------------------------------------
+        st.markdown("##### 삭제된 문서 (복원 가능)")
+        try:
+            tombstones = _fetch_tombstones(prefix)
+        except httpx.HTTPError as e:
+            st.caption(f"⚠️ 삭제된 문서 목록을 불러오지 못했습니다 ({e}).")
+            return
+
+        if not tombstones:
+            st.caption("삭제된 문서가 없습니다.")
+            return
+
+        for t in tombstones:
+            doc = t.get("doc_number", "")
+            when = t.get("deleted_at", "")
+            cols = st.columns([4, 3, 1])
+            with cols[0]:
+                st.markdown(f"`{doc}`" if doc else "—")
+            with cols[1]:
+                st.caption(f":material/schedule: {when}" if when else "")
+            with cols[2]:
+                if st.button(
+                    "복원",
+                    icon=":material/restore:",
+                    key=f"rst_{prefix}_{doc}",
+                    width="stretch",
+                ):
+                    ok, msg = _restore(prefix, doc)
+                    (st.success if ok else st.error)(msg)
+                    if ok:
+                        st.rerun()
 
 
 def _render_filters() -> dict:
