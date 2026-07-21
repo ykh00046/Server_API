@@ -216,6 +216,134 @@ class TestStoreDelete:
 
 
 # ==========================================================
+# tombstone (삭제된 문서 묘비 — 봇 재전송으로 서버 삭제가 덮어씌워지지 않도록)
+# ==========================================================
+class TestTombstone:
+    def test_delete_then_reupsert_filters_tombstoned_rows(self, materials_db):
+        # 삭제 후 같은 문서 재전송 → skipped가 행 수와 같고 문서는 계속 없다.
+        rows = [
+            MaterialRow(**_row("20260706P001", seq=1)),
+            MaterialRow(**_row("20260706P001", seq=2)),
+            MaterialRow(**_row("20260706P001", seq=3)),
+        ]
+        store.upsert_materials(rows)
+        assert store.delete_document("20260706P001") == 3
+        # 봇이 같은 문서를 다시 전송해도 tombstone이 가로챈다.
+        res = store.upsert_materials(rows)
+        assert res.skipped == 3                       # 필터링된 행 수
+        assert (res.upserted, res.inserted, res.updated) == (0, 0, 0)
+        assert store.get_document("20260706P001") == []
+        assert store.count_materials() == 0
+
+    def test_restore_then_reupsert_brings_document_back(self, materials_db):
+        rows = [MaterialRow(**_row("20260706P001", seq=1))]
+        store.upsert_materials(rows)
+        store.delete_document("20260706P001")
+        # tombstone을 restore하면 다음 재전송이 다시 받아들여진다.
+        assert store.restore_document("20260706P001") == 1
+        res = store.upsert_materials(rows)
+        assert res.skipped == 0
+        assert res.inserted == 1
+        assert store.get_material("20260706P001") is not None
+
+    def test_tombstone_is_dataset_scoped(self, materials_db):
+        # 한 데이터셋의 tombstone이 다른 데이터셋 upsert를 막지 않는다.
+        rows = [MaterialRow(**_row("SHARED-1", seq=1))]
+        store.upsert_materials(rows, table="material_requests")
+        store.upsert_materials(rows, table="binder_requests")
+        # materials 테이블에서만 삭제 → binder 테이블의 tombstone은 없음.
+        store.delete_document("SHARED-1", table="material_requests")
+        res = store.upsert_materials(rows, table="binder_requests")
+        assert res.skipped == 0
+        assert store.get_material("SHARED-1", table="binder_requests") is not None
+        # 반대편(materials)은 여전히 차단.
+        res_m = store.upsert_materials(rows, table="material_requests")
+        assert res_m.skipped == 1
+
+    def test_delete_missing_creates_no_tombstone(self, materials_db):
+        # 존재하지 않는 문서 삭제는 0이며 tombstone도 남기지 않는다.
+        assert store.delete_document("NOPE") == 0
+        assert store.list_tombstones() == []
+
+    def test_list_tombstones_present_after_delete_and_empty_after_restore(
+        self, materials_db
+    ):
+        store.upsert_materials([MaterialRow(**_row("20260706P001", seq=1))])
+        store.delete_document("20260706P001")
+        tombs = store.list_tombstones()
+        assert len(tombs) == 1
+        assert tombs[0]["doc_number"] == "20260706P001"
+        assert "deleted_at" in tombs[0] and tombs[0]["deleted_at"]
+        # restore 후엔 비어야 한다.
+        store.restore_document("20260706P001")
+        assert store.list_tombstones() == []
+
+
+# ==========================================================
+# tombstone HTTP API (삭제된 문서 — 봇 재전송 차단 + 복원)
+# ==========================================================
+class TestTombstoneApi:
+    def test_delete_then_backup_skipped_and_doc_absent(self, client):
+        # 백업 후 API로 삭제 → 같은 rows 재전송 시 skipped가 발생하고 문서는 404.
+        rows = [
+            _row("20260721P001", seq=1),
+            _row("20260721P001", seq=2),
+        ]
+        client.post("/materials/backup", json={"rows": rows})
+        assert client.delete("/materials/20260721P001").status_code == 200
+
+        r = client.post("/materials/backup", json={"rows": rows})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["skipped"] >= 1
+        assert (body["upserted"], body["inserted"], body["updated"]) == (0, 0, 0)
+        assert client.get("/materials/20260721P001").status_code == 404
+
+    def test_tombstones_endpoint_lists_deleted_doc(self, client):
+        client.post("/materials/backup", json={"rows": [_row("20260721P002")]})
+        client.delete("/materials/20260721P002")
+        r = client.get("/materials/tombstones")
+        assert r.status_code == 200
+        docs = [t["doc_number"] for t in r.json()]
+        assert "20260721P002" in docs
+        # deleted_at 키가 각 항목에 존재한다.
+        assert all("deleted_at" in t for t in r.json())
+
+    def test_restore_then_second_restore_404(self, client):
+        client.post("/materials/backup", json={"rows": [_row("20260721P003")]})
+        client.delete("/materials/20260721P003")
+        r1 = client.post("/materials/20260721P003/restore")
+        assert r1.status_code == 200
+        assert r1.json() == {"doc_number": "20260721P003", "restored": 1}
+        # tombstone이 이미 지워졌으므로 두 번째 restore는 404.
+        r2 = client.post("/materials/20260721P003/restore")
+        assert r2.status_code == 404
+        assert "no tombstone for 20260721P003" in r2.json()["detail"]
+
+    def test_after_restore_backup_brings_doc_back(self, client):
+        rows = [_row("20260721P004")]
+        client.post("/materials/backup", json={"rows": rows})
+        client.delete("/materials/20260721P004")
+        client.post("/materials/20260721P004/restore")
+        # restore 후 백업 재전송 → 다시 들어온다.
+        r = client.post("/materials/backup", json={"rows": rows})
+        assert r.status_code == 200
+        assert r.json()["skipped"] == 0
+        assert client.get("/materials/20260721P004").status_code == 200
+
+    def test_binder_tombstone_does_not_block_materials_backup(self, client):
+        # binder에서 삭제한 tombstone은 materials 백업에 영향을 주지 않는다.
+        rows = [_row("SHARED-DOC")]
+        client.post("/materials/backup", json={"rows": rows})
+        client.post("/binder/backup", json={"rows": [_row("SHARED-DOC")]})
+        client.delete("/binder/SHARED-DOC")
+        r = client.post("/materials/backup", json={"rows": rows})
+        assert r.status_code == 200
+        assert r.json()["skipped"] == 0
+        assert client.get("/materials/SHARED-DOC").status_code == 200
+
+
+# ==========================================================
 # keyword (시간대별 멀티 프로필 크롤링 구분)
 # ==========================================================
 class TestKeyword:
@@ -307,13 +435,13 @@ class TestRouter:
     def test_backup_endpoint(self, client):
         r = client.post("/materials/backup", json={"rows": [_row("DOC-001"), _row("DOC-002")]})
         assert r.status_code == 200
-        assert r.json() == {"upserted": 2, "inserted": 2, "updated": 0}
+        assert r.json() == {"upserted": 2, "inserted": 2, "updated": 0, "skipped": 0}
 
     def test_backup_is_idempotent(self, client):
         payload = {"rows": [_row("DOC-001")]}
         client.post("/materials/backup", json=payload)
         r2 = client.post("/materials/backup", json=payload)
-        assert r2.json() == {"upserted": 1, "inserted": 0, "updated": 1}
+        assert r2.json() == {"upserted": 1, "inserted": 0, "updated": 1, "skipped": 0}
 
     def test_backup_empty_rows_rejected(self, client):
         r = client.post("/materials/backup", json={"rows": []})

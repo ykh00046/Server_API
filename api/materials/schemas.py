@@ -36,11 +36,18 @@ class MaterialBackupRequest(BaseModel):
 
 
 class BackupResult(BaseModel):
-    """Outcome of a batch upsert."""
+    """Outcome of a batch upsert.
+
+    `skipped` counts rows filtered out because their doc_number has a
+    tombstone in `deleted_documents` for this table (서버에서 삭제된 문서가
+    봇의 재전송으로 다시 살아나는 것을 방지). 항상 직렬화된다 — additive
+    JSON 필드라 봇 쪽 payload contract에 무해하다(봇은 아는 키만 읽음).
+    """
 
     upserted: int
     inserted: int
     updated: int
+    skipped: int = 0
 
 
 class MaterialRun(BaseModel):
@@ -71,6 +78,20 @@ class DeleteResult(BaseModel):
 
     doc_number: str
     deleted: int   # 삭제된 품목 행 수
+
+
+class TombstoneEntry(BaseModel):
+    """삭제된 문서의 묘비(tombstone) 1행 (GET {prefix}/tombstones)."""
+
+    doc_number: str
+    deleted_at: str
+
+
+class RestoreResult(BaseModel):
+    """Outcome of restoring a tombstoned doc (POST {prefix}/{doc_number}/restore)."""
+
+    doc_number: str
+    restored: int   # 제거된 tombstone 행 수 (0이면 404)
 
 
 class MaterialPublic(MaterialRow):

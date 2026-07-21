@@ -163,6 +163,19 @@ def _runs_ddl(runs_table: str) -> str:
     """
 
 
+# 삭제된 문서의 묘비(tombstone) 테이블 — 모든 데이터셋이 공유한다.
+# (table_name, doc_number) 단위로 삭제 시각을 기록하여, 봇이 같은 문서를
+# 재전송해도 upsert가 무시되도록 한다. restore가 아니면 사라지지 않는다.
+_TOMBSTONE_DDL = """
+CREATE TABLE IF NOT EXISTS deleted_documents (
+    table_name  TEXT NOT NULL,
+    doc_number  TEXT NOT NULL,
+    deleted_at  TEXT NOT NULL,
+    PRIMARY KEY (table_name, doc_number)
+);
+"""
+
+
 def _migrate_table(conn: sqlite3.Connection, table: str) -> None:
     """기존 DB를 현재 스키마로 멱등 마이그레이션한다.
 
@@ -213,6 +226,8 @@ def _ensure_schema(conn: sqlite3.Connection, path: Path) -> None:
             conn.executescript(_table_ddl(ds.table))
             _migrate_table(conn, ds.table)
             conn.executescript(_indexes_ddl(ds.table))
+        # 삭제된 문서 묘비 테이블 — 모든 데이터셋이 공유 (dataset마다 table_name으로 격리).
+        conn.executescript(_TOMBSTONE_DDL)
         conn.commit()
         _schema_initialized.add(key)
 
@@ -251,6 +266,9 @@ def upsert_materials(
     한 문서(doc_number)는 품목마다 순번이 다른 여러 행을 가지므로 (doc_number,
     seq) 단위로 upsert한다. 같은 키가 배치 안에 중복이면 마지막 값이 이긴다
     (full-snapshot 의도). 반환 카운트는 행(품목) 단위.
+
+    삭제된 문서(tombstone)의 행은 이 배치에서 제외된다 — 서버에서 지운 문서를
+    봇이 재전송해도 다시 살아나지 않는다. 제외된 행 수는 `skipped`로 반환.
     """
     conn = _get_conn()
     now = _now_iso()
@@ -259,8 +277,29 @@ def upsert_materials(
     deduped: dict[tuple[str, int], MaterialRow] = {}
     for r in rows:
         deduped[(r.doc_number, _seq_key(r))] = r
-    incoming = list(deduped.values())
     incoming_keys = list(deduped.keys())
+
+    # 서버에서 삭제된 문서(tombstone) 조회 — 이 배치의 doc_number에 한해.
+    # existing-keys 조회와 동일한 청크 패턴(500단위)을 쓴다. tombstone에 있는
+    # doc_number는 배치에서 완전히 빠진다(모든 seq). skipped는 제외된 '행' 수.
+    batch_docs = list({k[0] for k in incoming_keys})
+    tombstoned_docs: set[str] = set()
+    for start in range(0, len(batch_docs), 500):
+        chunk = batch_docs[start:start + 500]
+        placeholders = ",".join("?" * len(chunk))
+        tombstoned_docs.update(
+            r["doc_number"]
+            for r in conn.execute(
+                "SELECT doc_number FROM deleted_documents "
+                "WHERE table_name = ? "
+                f"AND doc_number IN ({placeholders})",
+                [table, *chunk],
+            ).fetchall()
+        )
+    if tombstoned_docs:
+        incoming_keys = [k for k in incoming_keys if k[0] not in tombstoned_docs]
+    incoming = [deduped[k] for k in incoming_keys]
+    skipped = sum(1 for k in deduped if k[0] in tombstoned_docs)
 
     # 기존 (doc_number, seq) 조합 조회 — inserted/updated 카운트용.
     # doc_number로 모아 조회 후 (doc, seq) 집합을 만든다(복합 IN 회피).
@@ -303,7 +342,12 @@ def upsert_materials(
 
     updated = sum(1 for k in incoming_keys if k in existing)
     inserted = len(incoming_keys) - updated
-    return BackupResult(upserted=len(incoming_keys), inserted=inserted, updated=updated)
+    return BackupResult(
+        upserted=len(incoming_keys),
+        inserted=inserted,
+        updated=updated,
+        skipped=skipped,
+    )
 
 
 def _row_to_public(row: sqlite3.Row) -> MaterialPublic:
@@ -352,13 +396,60 @@ def delete_document(
     """한 문서(doc_number)의 모든 품목 행을 삭제하고 삭제된 행 수를 반환한다.
 
     실수로 기안된 문서·중복 문서를 서버에서 제거하기 위한 관리용 연산. 문서
-    번호가 없으면 0을 반환한다(멱등). 삭제는 이 데이터셋 테이블에만 적용되며
-    (table은 registry의 신뢰된 식별자), 봇 처리이력(Excel)과는 독립이다.
+    번호가 없으면 0을 반환한다(멱등). 삭제는 이 데이터셋 테이블에만 적용된다
+    (table은 registry의 신뢰된 식별자).
+
+    행이 실제로 지워졌으면(rowcount>0) 같은 커밋에 묘비(tombstone)를 남긴다
+    — 이후 봇이 전체 Excel을 재전송해도 이 문서는 upsert에서 제외되어 다시
+    살아나지 않는다. 되돌리려면 restore_document()로 tombstone만 지우면
+    다음 백업 시 재유입된다.
     """
     conn = _get_conn()
     cur = conn.execute(f"DELETE FROM {table} WHERE doc_number = ?", (doc_number,))
+    if cur.rowcount > 0:
+        conn.execute(
+            "INSERT OR REPLACE INTO deleted_documents "
+            "(table_name, doc_number, deleted_at) VALUES (?, ?, ?)",
+            (table, doc_number, _now_iso()),
+        )
     conn.commit()
     return cur.rowcount
+
+
+def restore_document(
+    doc_number: str, table: str = DEFAULT_DATASET.table
+) -> int:
+    """한 문서의 묘비(tombstone)를 제거해 봇 재전송 시 다시 받아들이도록 한다.
+
+    delete_document가 남긴 tombstone을 지운다 — 데이터 행 자체는 복구하지
+    않으므로, 문서 내용은 봇의 다음 재전송으로 upsert되어야 돌아온다.
+    tombstone이 없으면 0(멱등). 반환은 제거된 tombstone 행 수.
+    """
+    conn = _get_conn()
+    cur = conn.execute(
+        "DELETE FROM deleted_documents WHERE table_name = ? AND doc_number = ?",
+        (table, doc_number),
+    )
+    conn.commit()
+    return cur.rowcount
+
+
+def list_tombstones(
+    table: str = DEFAULT_DATASET.table
+) -> list[dict]:
+    """해당 데이터셋의 tombstone 목록을 반환 (최근 삭제 순).
+
+    반환 항목: [{'doc_number': str, 'deleted_at': str}, ...]
+    정렬: deleted_at DESC, doc_number (tie-breaker).
+    """
+    rows = _get_conn().execute(
+        "SELECT doc_number, deleted_at FROM deleted_documents "
+        "WHERE table_name = ? "
+        "ORDER BY deleted_at DESC, doc_number ASC",
+        (table,),
+    ).fetchall()
+    return [{"doc_number": r["doc_number"], "deleted_at": r["deleted_at"]}
+            for r in rows]
 
 
 def list_materials(
