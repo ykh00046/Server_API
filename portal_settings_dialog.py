@@ -153,7 +153,8 @@ class PortalSettingsDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             self,
             text="키워드마다 독립된 수집 작업입니다(자재·PBHAv1.0 등 동등). 시각은 쉼표로\n"
-                 "여러 개, 비우면 수동 전용. 예: 자재 → 09:00 / PBHAv1.0 → 13:00,17:00",
+                 "여러 개, 비우면 수동 전용. 예: 자재 → 09:00 / PBHAv1.0 → 13:00,17:00\n"
+                 "추가/삭제는 즉시 저장되며, 실행 중인 스케줄에는 봇 재시작 후 적용됩니다.",
             font=ctk.CTkFont(size=11), text_color=TEXT_MUTED, justify="left",
         ).pack(anchor="w", padx=20, pady=(0, 4))
 
@@ -312,10 +313,21 @@ class PortalSettingsDialog(ctk.CTkToplevel):
         self.jobs.append({"keyword": k, "times": sorted(times)})
         self.ent_job_keyword.delete(0, "end")
         self.ent_job_times.delete(0, "end")
-        self._refresh_job_list()
+        self._persist_jobs()
 
     def _remove_job(self, target: dict):
         self.jobs = [j for j in self.jobs if j["keyword"] != target["keyword"]]
+        self._persist_jobs()
+
+    def _persist_jobs(self):
+        """추가/삭제 즉시 config.json에 저장한다.
+
+        하단 '저장' 버튼은 .env 검증(로그인 정보 필수)에 묶여 있어, 작업만
+        고치고 창을 닫으면 변경이 버려지는 함정이 있었다(창을 다시 열면
+        삭제한 키워드가 부활). 실패 시엔 config.json 기준으로 되돌린다.
+        """
+        if not self._write_jobs():
+            self.jobs = self._read_jobs()
         self._refresh_job_list()
 
     def _save(self):
