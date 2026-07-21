@@ -23,7 +23,9 @@ from ..materials.schemas import (
     DeleteResult,
     MaterialPublic,
     MaterialRun,
+    RestoreResult,
     RunTriggerResult,
+    TombstoneEntry,
 )
 
 logger = get_logger(__name__)
@@ -36,8 +38,8 @@ def _backup_body(ds: Dataset, req: MaterialBackupRequest) -> BackupResult:
         runs_table=ds.runs_table,
     )
     logger.info(
-        "[%s] backup: upserted=%d (inserted=%d, updated=%d)",
-        ds.key, result.upserted, result.inserted, result.updated,
+        "[%s] backup: upserted=%d (inserted=%d, updated=%d, skipped=%d)",
+        ds.key, result.upserted, result.inserted, result.updated, result.skipped,
     )
     return result
 
@@ -74,6 +76,16 @@ def _delete_row_body(ds: Dataset, doc_number: str) -> DeleteResult:
         raise HTTPException(status_code=404, detail=f"document {doc_number} not found")
     logger.info("[%s] delete: doc_number=%s rows=%d", ds.key, doc_number, deleted)
     return DeleteResult(doc_number=doc_number, deleted=deleted)
+
+
+def _restore_row_body(ds: Dataset, doc_number: str) -> RestoreResult:
+    restored = store.restore_document(doc_number, table=ds.table)
+    if restored == 0:
+        raise HTTPException(
+            status_code=404, detail=f"no tombstone for {doc_number}"
+        )
+    logger.info("[%s] restore: doc_number=%s", ds.key, doc_number)
+    return RestoreResult(doc_number=doc_number, restored=restored)
 
 
 def make_router(ds: Dataset) -> APIRouter:
@@ -115,6 +127,15 @@ def make_router(ds: Dataset) -> APIRouter:
         """단일 실행 상태 (대시보드 폴링용)."""
         return _get_run_body(ds, run_id)
 
+    # Tombstones: 삭제된 문서 목록 (/{doc_number}보다 먼저 등록해 "tombstones"가
+    # doc_number로 캡처되지 않게 함 — /runs와 같은 이유).
+    @router.get("/tombstones", response_model=list[TombstoneEntry])
+    def list_tombstones() -> list[TombstoneEntry]:
+        """삭제된 문서(tombstone) 목록 — 최근 삭제순. 복원 대상 조회용."""
+        return [
+            TombstoneEntry(**t) for t in store.list_tombstones(table=ds.table)
+        ]
+
     @router.get("", response_model=list[MaterialPublic])
     def list_rows(
         request_dept: str | None = Query(default=None, max_length=200, description="요청부서 필터"),
@@ -151,12 +172,19 @@ def make_router(ds: Dataset) -> APIRouter:
         """한 문서(문서번호)의 모든 품목 행을 삭제한다 (관리용).
 
         실수로 기안된 문서·중복 문서를 서버에서 제거한다. 존재하지 않으면 404.
-        봇 처리이력(Excel)과는 독립이므로, 재수집을 막으려면 봇 쪽 데이터도
-        함께 정리해야 한다. doc_number upsert는 멱등이라 재전송돼도 서버에서는
-        중복으로 쌓이지 않지만, 삭제한 문서가 봇 검색 범위에 다시 들어오면
-        재수집될 수 있다.
+        삭제 시 tombstone이 남아 봇이 전체 Excel을 재전송해도 이 문서는
+        제외되어 다시 살아나지 않는다. 되돌리려면 POST /{doc_number}/restore.
         """
         return _delete_row_body(ds, doc_number)
+
+    @router.post("/{doc_number}/restore", response_model=RestoreResult)
+    def restore_row(doc_number: str) -> RestoreResult:
+        """삭제된 문서의 tombstone을 제거해 복원 대기 상태로 돌린다.
+
+        데이터 행 자체는 복구하지 않는다 — 다음 봇 백업(전체 Excel 재전송)이
+        들어올 때 다시 upsert되어야 내용이 돌아온다. tombstone이 없으면 404.
+        """
+        return _restore_row_body(ds, doc_number)
 
     return router
 
