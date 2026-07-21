@@ -38,10 +38,12 @@ class MaterialBackupRequest(BaseModel):
 class BackupResult(BaseModel):
     """Outcome of a batch upsert.
 
-    `skipped` counts rows filtered out because their doc_number has a
-    tombstone in `deleted_documents` for this table (서버에서 삭제된 문서가
-    봇의 재전송으로 다시 살아나는 것을 방지). 항상 직렬화된다 — additive
-    JSON 필드라 봇 쪽 payload contract에 무해하다(봇은 아는 키만 읽음).
+    `upserted`는 inserted + updated와 다를 수 있다 — tombstone으로 건너뛴
+    행(skipped)이 upserted에서는 빠지기 때문. `updated`는 실제 내용이 바뀐
+    행 수다 (재전송된 동일 내용 행은 rewrite하지 않아 updated_at이 실제
+    변경 시각을 유지). `skipped`는 tombstone으로 배치에서 제외된 행 수.
+    항상 직렬화된다 — additive JSON 필드라 봇 쪽 payload contract에
+    무해하다(봇은 아는 키만 읽음).
     """
 
     upserted: int

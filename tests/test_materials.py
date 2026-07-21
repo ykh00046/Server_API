@@ -69,9 +69,9 @@ class TestStoreUpsert:
         assert store.count_materials() == 1  # no duplicate row
 
     def test_mixed_insert_and_update(self, materials_db):
-        store.upsert_materials([MaterialRow(**_row("DOC-001"))])
+        store.upsert_materials([MaterialRow(**_row("DOC-001", reason="초안"))])
         res = store.upsert_materials([
-            MaterialRow(**_row("DOC-001")),  # update
+            MaterialRow(**_row("DOC-001", reason="수정됨")),  # update (내용 변경)
             MaterialRow(**_row("DOC-002")),  # insert
             MaterialRow(**_row("DOC-003")),  # insert
         ])
@@ -89,6 +89,37 @@ class TestStoreUpsert:
     def test_qty_coerced_to_string(self, materials_db):
         store.upsert_materials([MaterialRow(**_row("DOC-001", request_qty_g=500))])
         assert store.get_material("DOC-001").request_qty_g == "500"
+
+    def test_identical_repost_is_noop(self, materials_db):
+        # 봇이 전체 Excel을 재전송 — 동일 내용 행은 rewrite하지 않는다.
+        rows = [MaterialRow(**_row("DOC-001", reason="초안"))]
+        store.upsert_materials(rows)
+        res = store.upsert_materials(rows)
+        assert res.updated == 0           # 내용이 같으면 갱신하지 않는다
+        assert res.inserted == 0
+        assert res.upserted == 1
+
+    def test_one_field_changed_updates_only_that_row(self, materials_db):
+        # 한 품목만 한 필드를 바꿔 재전송 → updated==1, 바뀐 행의 updated_at만
+        # 움직이고 건드리지 않은 행의 updated_at은 그대로 유지된다.
+        rows = [
+            MaterialRow(**_row("DOC-001", seq=1, reason="초안1")),
+            MaterialRow(**_row("DOC-001", seq=2, reason="초안2")),
+        ]
+        store.upsert_materials(rows)
+        before = {i.seq: i.updated_at for i in store.get_document("DOC-001")}
+        # 1초 이상 경과 후 재전송 (timespec=seconds 이하로는 차이가 안 남).
+        import time
+        time.sleep(1.1)
+        changed = [
+            MaterialRow(**_row("DOC-001", seq=1, reason="초안1")),   # 동일 → no-op
+            MaterialRow(**_row("DOC-001", seq=2, reason="수정2")),   # 변경 → 1행 갱신
+        ]
+        res = store.upsert_materials(changed)
+        assert res.updated == 1
+        after = {i.seq: i.updated_at for i in store.get_document("DOC-001")}
+        assert after[1] == before[1]          # 건드리지 않은 행은 updated_at 유지
+        assert after[2] != before[2]          # 바뀐 행만 updated_at 갱신
 
 
 # ==========================================================
@@ -116,13 +147,14 @@ class TestMultiItemDocument:
             MaterialRow(**_row("D-1", seq=2, reason="초안2")),
         ]
         store.upsert_materials(base)
-        # 같은 문서 재전송 (한 품목 수정) → 행 수 유지, 해당 품목만 갱신.
+        # 같은 문서 재전송 (한 품목만 수정) → 행수 유지, 바뀐 품목만 1행 갱신.
+        # 동일 내용 품목(seq=1)은 no-op이라 updated에 안 센다 (쓰기 최적화).
         again = [
             MaterialRow(**_row("D-1", seq=1, reason="초안1")),
             MaterialRow(**_row("D-1", seq=2, reason="수정2")),
         ]
         res = store.upsert_materials(again)
-        assert (res.upserted, res.inserted, res.updated) == (2, 0, 2)
+        assert (res.upserted, res.inserted, res.updated) == (2, 0, 1)
         items = store.get_document("D-1")
         assert [i.reason for i in items] == ["초안1", "수정2"]
         assert store.count_materials() == 2
@@ -441,7 +473,8 @@ class TestRouter:
         payload = {"rows": [_row("DOC-001")]}
         client.post("/materials/backup", json=payload)
         r2 = client.post("/materials/backup", json=payload)
-        assert r2.json() == {"upserted": 1, "inserted": 0, "updated": 1, "skipped": 0}
+        # 동일 내용 재전송 → rewrite하지 않는다 (updated=0). upserted는 여전히 1.
+        assert r2.json() == {"upserted": 1, "inserted": 0, "updated": 0, "skipped": 0}
 
     def test_backup_empty_rows_rejected(self, client):
         r = client.post("/materials/backup", json={"rows": []})
@@ -533,6 +566,19 @@ class TestRunsHistory:
         assert run["kind"] == "backup"
         assert run["status"] == "success"
         assert (run["rows"], run["inserted"], run["updated"]) == (2, 2, 0)
+        # 일반 백업은 message가 None (tombstone skip이 없으면 비고 없음).
+        assert run["message"] is None
+
+    def test_backup_records_tombstone_skip_message(self, client):
+        # tombstone으로 건너뛴 행이 있으면 run의 message에 'skipped='가 남는다.
+        client.post("/materials/backup", json={"rows": [_row("DOC-X")]})
+        client.delete("/materials/DOC-X")
+        client.post("/materials/backup", json={"rows": [_row("DOC-X")]})
+        r = client.get("/materials/runs")
+        backup_runs = [r for r in r.json() if r["kind"] == "backup"]
+        skip_run = next(r for r in backup_runs if r["message"])
+        assert "skipped=" in skip_run["message"]
+        assert skip_run["message"] is not None
 
     def test_runs_kind_filter_and_get(self, materials_db):
         runs.record_backup_run(1, 1, 0)

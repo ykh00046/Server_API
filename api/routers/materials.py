@@ -33,9 +33,11 @@ logger = get_logger(__name__)
 
 def _backup_body(ds: Dataset, req: MaterialBackupRequest) -> BackupResult:
     result = store.upsert_materials(req.rows, table=ds.table)
+    note = f"tombstone skipped={result.skipped}" if result.skipped > 0 else None
     runs.record_backup_run(
         result.upserted, result.inserted, result.updated,
         runs_table=ds.runs_table,
+        message=note,
     )
     logger.info(
         "[%s] backup: upserted=%d (inserted=%d, updated=%d, skipped=%d)",

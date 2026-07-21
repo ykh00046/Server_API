@@ -39,15 +39,21 @@ def _row_to_run(row: sqlite3.Row) -> MaterialRun:
 def record_backup_run(
     rows: int, inserted: int, updated: int,
     runs_table: str = DEFAULT_DATASET.runs_table,
+    *,
+    message: str | None = None,
 ) -> int:
-    """Record a completed backup as a success run in `runs_table`."""
+    """Record a completed backup as a success run in `runs_table`.
+
+    `message`는 비고란(message 컬럼)에 쓰는 짧은 메모. 예: tombstone으로
+    행이 건너뛰어졌을 때 'tombstone skipped=N'. None이면 컬럼에 NULL.
+    """
     now = _now_iso()
     conn = _get_conn()
     cur = conn.execute(
         f"INSERT INTO {runs_table} "
-        "(kind, status, started_at, finished_at, rows, inserted, updated) "
-        "VALUES ('backup', 'success', ?, ?, ?, ?, ?)",
-        (now, now, rows, inserted, updated),
+        "(kind, status, started_at, finished_at, rows, inserted, updated, message) "
+        "VALUES ('backup', 'success', ?, ?, ?, ?, ?, ?)",
+        (now, now, rows, inserted, updated, message),
     )
     conn.commit()
     return cur.lastrowid

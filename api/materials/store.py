@@ -132,12 +132,16 @@ def _table_ddl(table: str) -> str:
 
 
 def _indexes_ddl(table: str) -> str:
-    """데이터 테이블 인덱스 (모든 컬럼이 존재한 뒤 생성)."""
+    """데이터 테이블 인덱스 (모든 컬럼이 존재한 뒤 생성).
+
+    idx_{table}_doc는 의도적으로 빠졌다 — (doc_number) 단일 인덱스는
+    PRIMARY KEY (doc_number, seq)의 좌측 접두부와 중복이라 순수 낭비다.
+    레거시 DB에 남은 인덱스는 _ensure_schema에서 DROP한다.
+    """
     return f"""
         CREATE INDEX IF NOT EXISTS idx_{table}_dept ON {table}(request_dept);
         CREATE INDEX IF NOT EXISTS idx_{table}_doc_date ON {table}(doc_date DESC);
         CREATE INDEX IF NOT EXISTS idx_{table}_keyword ON {table}(keyword);
-        CREATE INDEX IF NOT EXISTS idx_{table}_doc ON {table}(doc_number);
     """
 
 
@@ -226,6 +230,8 @@ def _ensure_schema(conn: sqlite3.Connection, path: Path) -> None:
             conn.executescript(_table_ddl(ds.table))
             _migrate_table(conn, ds.table)
             conn.executescript(_indexes_ddl(ds.table))
+            # 레거시 DB 정리: PK 접두부와 중복되는 idx_{table}_doc 제거 (멱등).
+            conn.execute(f"DROP INDEX IF EXISTS idx_{ds.table}_doc")
         # 삭제된 문서 묘비 테이블 — 모든 데이터셋이 공유 (dataset마다 table_name으로 격리).
         conn.executescript(_TOMBSTONE_DDL)
         conn.commit()
@@ -269,6 +275,12 @@ def upsert_materials(
 
     삭제된 문서(tombstone)의 행은 이 배치에서 제외된다 — 서버에서 지운 문서를
     봇이 재전송해도 다시 살아나지 않는다. 제외된 행 수는 `skipped`로 반환.
+
+    쓰기 최적화: ON CONFLICT의 UPDATE는 내용이 실제로 바뀐 행에만 적용된다
+    (NULL-safe `IS NOT` 비교 9개 컬럼). 봇이 전체 Excel을 매 실행마다 재전송해
+    같은 내용 행이 반복 들어와도 rewrite하지 않으므로 updated_at이 실제 변경
+    시각을 유지한다. `updated`는 executemany 전후 total_changes delta에서 inserted
+    만큼을 뺀, '실제로 갱신된 행 수'를 반환한다.
     """
     conn = _get_conn()
     now = _now_iso()
@@ -301,8 +313,10 @@ def upsert_materials(
     incoming = [deduped[k] for k in incoming_keys]
     skipped = sum(1 for k in deduped if k[0] in tombstoned_docs)
 
-    # 기존 (doc_number, seq) 조합 조회 — inserted/updated 카운트용.
+    # 기존 (doc_number, seq) 조합 조회 — inserted 카운트(새 키 식별)용.
     # doc_number로 모아 조회 후 (doc, seq) 집합을 만든다(복합 IN 회피).
+    # updated는 WHERE 절로 필터링된 실제 변경 행 수이므로 existing 집합으로는
+    # 잴 수 없다 — 아래 executemany 전후 total_changes delta로 잰다.
     batch_docs = list({k[0] for k in incoming_keys})
     existing: set[tuple[str, int]] = set()
     for start in range(0, len(batch_docs), 500):
@@ -317,6 +331,9 @@ def upsert_materials(
             ).fetchall()
         )
 
+    # ON CONFLICT의 UPDATE는 9개 내용 컬럼 중 하나라도 달라야만 수행된다
+    # (NULL-safe `IS NOT`). received_at/updated_at은 비교에서 제외 —
+    # updated_at은 이 갱신이 일어날 때만 새로 쓰이므로 '실제 변경 시각'이 된다.
     sql = f"""
         INSERT INTO {table}
             (doc_number, seq, material_code, material_name, request_qty_g,
@@ -334,14 +351,26 @@ def upsert_materials(
             keyword       = excluded.keyword,
             doc_date      = excluded.doc_date,
             updated_at    = excluded.updated_at
+        WHERE excluded.material_code IS NOT {table}.material_code
+           OR excluded.material_name IS NOT {table}.material_name
+           OR excluded.request_qty_g IS NOT {table}.request_qty_g
+           OR excluded.reason        IS NOT {table}.reason
+           OR excluded.request_dept  IS NOT {table}.request_dept
+           OR excluded.drafter       IS NOT {table}.drafter
+           OR excluded.processed_at  IS NOT {table}.processed_at
+           OR excluded.keyword       IS NOT {table}.keyword
+           OR excluded.doc_date      IS NOT {table}.doc_date
     """
     # doc_date is server-derived from doc_number (SSOT) — the primary date basis.
     params = [(*_row_values(r), _doc_date(r.doc_number), now, now) for r in incoming]
+    # updated = 실제로 갱신된 행 수. executemany 전후 total_changes delta에서
+    # 신규 INSERT(inserted) 만큼을 뺀다 (INSERT도 total_changes에 1씩 기여).
+    changes_before = conn.total_changes
     conn.executemany(sql, params)
     conn.commit()
-
-    updated = sum(1 for k in incoming_keys if k in existing)
-    inserted = len(incoming_keys) - updated
+    written = conn.total_changes - changes_before
+    inserted = sum(1 for k in incoming_keys if k not in existing)
+    updated = written - inserted
     return BackupResult(
         upserted=len(incoming_keys),
         inserted=inserted,
