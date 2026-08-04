@@ -9,7 +9,7 @@ from __future__ import annotations
 import streamlit as st
 
 from components.kpi_cards import kpi_row
-from components.layout import section_header
+from components.layout import empty_state, section_header
 
 from . import formatters
 from .api_client import WebhookAdminClient, WebhookAdminError
@@ -25,6 +25,34 @@ except ImportError:  # pragma: no cover (defensive — toasts are a UX nicety)
 
 
 _SECRET_KEY = "_webhook_last_secret"
+
+# 표 컬럼 서식 — 영문 키를 한글 헤더로 바꾸고 폭만 준다.
+# 값 자체는 formatters 가 만든 문자열 그대로 두므로(다운로드/테스트 계약 불변)
+# 타입을 강제하지 않는 generic Column 을 쓴다. LinkColumn/DatetimeColumn 을
+# 쓰지 않는 이유는 아래 각 dict 의 주석 참고.
+_WEBHOOK_COLUMNS = {
+    "id": st.column_config.Column("ID", width="small"),
+    # url 은 format_webhook_row 가 60자로 잘라 놓은 표시용 문자열이라
+    # LinkColumn 을 걸면 잘린 주소로 링크가 걸린다(깨진 href). 폭만 넓힌다.
+    "url": st.column_config.Column("URL", width="large"),
+    "events": st.column_config.Column("구독 이벤트", width="medium"),
+    "active": st.column_config.Column("활성", width="small"),
+    "description": st.column_config.Column("설명", width="medium"),
+    # created_at 은 'YYYY-MM-DDTHH:MM:SS' 문자열(object dtype)이라
+    # DatetimeColumn 은 타입 불일치가 된다 — 라벨/폭만 준다.
+    "created_at": st.column_config.Column("등록 시각", width="medium"),
+}
+
+_DELIVERY_COLUMNS = {
+    "id": st.column_config.Column("ID", width="small"),
+    "event_type": st.column_config.Column("이벤트", width="medium"),
+    "status": st.column_config.Column("상태", width="small"),
+    "response_status": st.column_config.Column("HTTP", width="small"),
+    "duration": st.column_config.Column("소요", width="small"),
+    # attempted_at 도 ISO 문자열이라 DatetimeColumn 미적용 (위와 동일 이유).
+    "attempted_at": st.column_config.Column("시도 시각", width="medium"),
+    "summary": st.column_config.Column("응답/오류", width="large"),
+}
 
 
 # =====================================================================
@@ -152,11 +180,17 @@ def render_webhook_list_section(client: WebhookAdminClient) -> int | None:
         return None
 
     if not items:
-        st.info("등록된 webhook이 없습니다.")
+        empty_state(
+            "등록된 webhook이 없습니다.",
+            hint="위 ‘신규 등록 › 새 webhook 등록’을 펼쳐 수신 URL을 추가하세요. "
+                 "필터가 ‘활성/비활성’이면 ‘전체’로도 확인해 보세요.",
+        )
         return None
 
     rows = [formatters.format_webhook_row(w) for w in items]
-    st.dataframe(rows, width="stretch", hide_index=True)
+    st.dataframe(
+        rows, width="stretch", hide_index=True, column_config=_WEBHOOK_COLUMNS
+    )
 
     options = {f"#{w['id']} — {formatters.truncate(str(w.get('url','')), 50)}": w["id"] for w in items}
     label = st.selectbox(
@@ -320,11 +354,17 @@ def render_deliveries_section(client: WebhookAdminClient, webhook_id: int) -> No
         return
 
     if not items:
-        st.info("해당 필터로 발송 이력이 없습니다.")
+        empty_state(
+            "해당 필터로 발송 이력이 없습니다.",
+            hint="status를 ‘전체’로 바꾸거나 최대 건수를 늘려 범위를 넓혀 보세요. "
+                 "그래도 비어 있으면 아직 이 webhook으로 발송된 이벤트가 없습니다.",
+        )
         return
 
     rows = [formatters.format_delivery_row(d) for d in items]
-    st.dataframe(rows, width="stretch", hide_index=True)
+    st.dataframe(
+        rows, width="stretch", hide_index=True, column_config=_DELIVERY_COLUMNS
+    )
 
     # Retry buttons for the failed/dead subset only.
     retryable = [d for d in items if formatters.is_retryable_status(d.get("status"))]

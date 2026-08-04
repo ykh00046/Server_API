@@ -100,9 +100,15 @@ last_scan = (
 )
 
 def _render_refresh_button() -> None:
-    """지표 행 끝에 같은 줄로 붙는 새로고침 버튼 (kpi_row trailing 슬롯)."""
+    """지표 행 끝에 같은 줄로 붙는 새로고침 버튼 (kpi_row trailing 슬롯).
+
+    이 페이지의 캐시(`_fetch`)만 비운다. 전역 `st.cache_data.clear()`는 제품
+    목록·생산 레코드·자재 행·Excel 바이트 등 다른 페이지의 캐시까지 통째로
+    날려 다음 이동 때 전부 재조회하게 만든다. what-if 미리보기는 캐시를 쓰지
+    않는 `_fetch_fresh` 경로라 비울 대상이 없다.
+    """
     if st.button("새로고침", icon=":material/refresh:", width="stretch"):
-        st.cache_data.clear()
+        _fetch.clear()
         st.rerun()
 
 

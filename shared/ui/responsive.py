@@ -1,5 +1,5 @@
 """
-Responsive Layout Utilities — global CSS for mobile/tablet/desktop adaptation.
+Responsive Layout Utilities — global CSS for mobile/desktop adaptation.
 
 Currently the only public API is `apply_responsive_css()`, which is called
 once during dashboard app initialization (`dashboard/app.py`).
@@ -15,6 +15,12 @@ History:
   the global CSS, so they were also removed.
   If real viewport detection is needed in the future, consider integrating
   `streamlit-js-eval` (separate cycle).
+- v3 (dashboard-ui-med, 2026-08): Removed the tablet (768–1024px) block. It
+  forced **every** `stHorizontalBlock` column to `flex: 0 0 50%`, which threw
+  away the deliberate column ratios the pages are built on (헤더 [8,2],
+  AI 분할 [7,3], 4-up KPI 행, 액션 행 [3,1,1]) and reflowed them into an
+  arbitrary 2-up grid. Mobile (<768px, full stacking) and desktop (>1024px,
+  padding) remain — tablet widths now simply render the desktop ratios.
 """
 
 import streamlit as st
@@ -22,12 +28,13 @@ import streamlit as st
 
 def apply_responsive_css() -> None:
     """
-    Apply responsive CSS for mobile / tablet / desktop layouts.
+    Apply responsive CSS for mobile / desktop layouts.
 
     Injects CSS that:
     - Stacks chart/content columns vertically on mobile (<768px)
-    - Switches to 2-column layout on tablet (768-1024px)
     - Provides full-width breathing room on desktop (>1024px)
+    - Leaves tablet widths (768-1024px) on the desktop column ratios — a
+      blanket 2-up override destroyed the pages' intentional ratios
     - Enforces touch-friendly button sizing (min 44x44 globally)
     - Allows tables and Plotly charts to scroll horizontally when needed
 
@@ -63,17 +70,6 @@ def apply_responsive_css() -> None:
             /* Keep metric columns side-by-side on mobile (2-up) */
             [data-testid="stMetric"] {
                 min-width: 0;
-            }
-        }
-
-        /* ─── Tablet ─── */
-        @media (min-width: 768px) and (max-width: 1024px) {
-            .block-container div[data-testid="stHorizontalBlock"] {
-                flex-wrap: wrap;
-            }
-            .block-container div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-                flex: 0 0 50% !important;
-                max-width: 50% !important;
             }
         }
 

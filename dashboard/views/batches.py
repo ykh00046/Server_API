@@ -72,7 +72,21 @@ def _render_detail_table(df: pd.DataFrame) -> pd.DataFrame:
             "lot_number": "LOT 번호",
         }
     )
-    st.dataframe(display_detail, width="stretch", hide_index=True)
+    # 표시 전용: 생산일을 datetime64 로 되돌려 DateColumn 을 쓴다. 반환하는
+    # display_detail(=CSV 다운로드용)은 문자열 "YYYY-MM-DD" 그대로 유지한다.
+    view = display_detail.copy()
+    view["생산일"] = df["production_dt"].dt.normalize()
+    st.dataframe(
+        view,
+        width="stretch",
+        hide_index=True,
+        column_config={
+            # 기본 포맷이 "YYYY-MM-DD" — 화면 문자열과 동일하되 날짜로 정렬된다.
+            "생산일": st.column_config.DateColumn(),
+            # good_quantity 는 data.load_records 에서 to_numeric 처리돼 수치형이다.
+            "양품수량": st.column_config.NumberColumn(format="localized"),
+        },
+    )
     return display_detail
 
 

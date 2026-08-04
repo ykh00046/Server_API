@@ -37,6 +37,10 @@ EXCEL_COLUMNS: list[tuple[str, str]] = [
 _STATUS_ICON = {"running": "🔄", "success": "✅", "failed": "❌"}
 _KIND_LABEL = {"backup": "백업 수신", "automation": "자동 실행"}
 
+# 표시 서식을 붙일 api_field (데이터셋 공통 스키마라 헤더가 아니라 필드로 건다).
+_QTY_FIELD = "request_qty_g"
+_TIMESTAMP_FIELD = "processed_at"
+
 
 def _headers() -> dict:
     return auth_headers()
@@ -50,6 +54,46 @@ def _to_excel_frame(
         return pd.DataFrame(columns=[ko for _, ko in columns])
     data = {ko: [r.get(api_field) for r in rows] for api_field, ko in columns}
     return pd.DataFrame(data)
+
+
+def _display_view(
+    df: pd.DataFrame, columns: list[tuple[str, str]]
+) -> tuple[pd.DataFrame, dict]:
+    """st.dataframe 전용 프레임 + column_config 을 만든다 (표시 전용).
+
+    다운로드(Excel/CSV)에 넘기는 원본 df 는 절대 바꾸지 않는다 — 값 변환은
+    사본에만 적용한다.
+
+    요청수량·처리일시는 DB에 TEXT 로 저장돼 그대로는 object dtype 이라
+    NumberColumn/DatetimeColumn 을 붙이면 프론트에서 타입 불일치 셀이 된다.
+    그래서 값이 **전량** 파싱될 때만 숫자/일시로 바꿔 서식을 붙이고, 한 건이라도
+    실패하면 원문 문자열 그대로 둔다 (빈칸으로 뭉개는 것보다 원문이 낫다).
+    순번(seq)·문서번호 등 나머지는 기본 추론에 맡긴다.
+    """
+    header = dict(columns)
+    replacements: dict[str, pd.Series] = {}
+    config: dict = {}
+
+    qty_col = header.get(_QTY_FIELD)
+    if qty_col in df.columns:
+        nums = pd.to_numeric(df[qty_col], errors="coerce")
+        if nums.notna().sum() == df[qty_col].notna().sum():
+            replacements[qty_col] = nums
+            config[qty_col] = st.column_config.NumberColumn(format="localized")
+
+    ts_col = header.get(_TIMESTAMP_FIELD)
+    if ts_col in df.columns:
+        stamps = pd.to_datetime(df[ts_col], errors="coerce")
+        if stamps.notna().sum() == df[ts_col].notna().sum():
+            replacements[ts_col] = stamps
+            config[ts_col] = st.column_config.DatetimeColumn()
+
+    if not replacements:
+        return df, config
+    view = df.copy()
+    for col, series in replacements.items():
+        view[col] = series
+    return view, config
 
 
 def _fetch_rows(prefix: str, params: dict) -> list[dict]:
@@ -300,10 +344,13 @@ def _fetch_and_render_rows(
         )
         return
 
-    st.dataframe(df, width="stretch", hide_index=True)
+    view, column_config = _display_view(df, columns)
+    st.dataframe(
+        view, width="stretch", hide_index=True, column_config=column_config
+    )
 
     # ----------------------------------------------------------
-    # Downloads (기존 Excel 레이아웃 그대로)
+    # Downloads (기존 Excel 레이아웃 그대로 — df 원본, view 아님)
     # ----------------------------------------------------------
     download_pair(
         df,
