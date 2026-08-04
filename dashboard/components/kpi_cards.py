@@ -5,8 +5,12 @@ Pure KPI/sparkline computation + a thin render layer using
 st.metric(border=True, chart_data=...) inside a horizontal container
 (wraps responsively, unlike st.columns). Colors come from the native
 theme — no custom HTML/CSS.
+
+`kpi_row()` 는 이 렌더 패턴의 단일 진입점이다 — 모든 뷰의 지표 행이
+같은 테두리·높이·정렬을 갖도록 여기서만 st.metric 인자를 조립한다.
 """
 
+from collections.abc import Callable, Mapping, Sequence
 from datetime import date
 from typing import Any
 
@@ -155,6 +159,47 @@ def _has_signal(data: list[int] | list[float] | None) -> bool:
 _KPI_CARD_HEIGHT = 150
 
 
+def kpi_row(
+    items: Sequence[Mapping[str, Any]],
+    *,
+    height: int = _KPI_CARD_HEIGHT,
+    trailing: Callable[[], None] | None = None,
+) -> None:
+    """지표 카드 한 줄을 통일된 모양으로 렌더한다.
+
+    모든 카드는 테두리(border=True)와 동일 높이를 가지며, 가로 컨테이너
+    안에 놓여 좁은 화면에서 st.columns 처럼 찌그러지지 않고 줄바꿈된다.
+    이전에는 뷰마다 st.columns/가로 컨테이너, 테두리 유무, 높이 지정 유무가
+    섞여 있어 페이지를 옮길 때마다 같은 역할의 카드가 다르게 보였다.
+
+    Args:
+        items: 카드 정의 목록. 각 항목은 아래 키를 갖는 매핑이다.
+            - label (필수): 지표 이름
+            - value (필수): 표시 값 (문자열 포매팅은 호출 측 책임)
+            - delta: 증감 표시 (없으면 생략 — 가짜 기준값을 만들지 않는다)
+            - help: 툴팁 문구
+            - chart_data: 스파크라인 데이터 (없거나 전부 0이면 미표시)
+            - chart_type: "line" | "bar" (chart_data 가 있을 때만 의미 있음)
+        height: 카드 높이(px). 한 줄 안에서는 모두 같은 값을 쓴다.
+        trailing: 카드 뒤에 같은 줄로 붙일 위젯 렌더 콜백 (예: 새로고침 버튼).
+    """
+    with st.container(horizontal=True):
+        for item in items:
+            chart_data = item.get("chart_data")
+            st.metric(
+                item["label"],
+                item["value"],
+                delta=item.get("delta"),
+                border=True,
+                height=height,
+                help=item.get("help"),
+                chart_data=chart_data if _has_signal(chart_data) else None,
+                chart_type=item.get("chart_type", "line"),
+            )
+        if trailing is not None:
+            trailing()
+
+
 def render_kpi_cards(
     kpis: dict[str, Any],
     colors: dict[str, str] | None = None,
@@ -177,40 +222,31 @@ def render_kpi_cards(
         batch_sparkline: Daily batch count trend for last 7 days
         avg_batch_sparkline: Daily average batch size for last 7 days
     """
-    with st.container(horizontal=True):
-        st.metric(
-            "총 생산량",
-            _format_number(kpis["total_qty"]),
-            border=True,
-            height=_KPI_CARD_HEIGHT,
-            help="선택 기간 내 양품 생산량 합계",
-            chart_data=sparkline_data if _has_signal(sparkline_data) else None,
-            chart_type="line",
-        )
-        st.metric(
-            "배치 수",
-            f"{kpis['batch_count']:,}",
-            border=True,
-            height=_KPI_CARD_HEIGHT,
-            help="선택 기간 내 생산 배치(레코드) 건수",
-            chart_data=batch_sparkline if _has_signal(batch_sparkline) else None,
-            chart_type="bar",
-        )
-        st.metric(
-            "활성 제품",
-            f"{kpis.get('active_products', 0):,}",
-            border=True,
-            height=_KPI_CARD_HEIGHT,
-            help="선택 기간 내 생산된 고유 제품(코드) 수",
-        )
-        st.metric(
-            "평균 배치 크기",
-            f"{kpis.get('avg_batch_size', 0):,}",
-            border=True,
-            height=_KPI_CARD_HEIGHT,
-            help="건당 평균 양품 수량 (총 생산량 ÷ 배치 수)",
-            chart_data=(
-                avg_batch_sparkline if _has_signal(avg_batch_sparkline) else None
-            ),
-            chart_type="line",
-        )
+    kpi_row([
+        {
+            "label": "총 생산량",
+            "value": _format_number(kpis["total_qty"]),
+            "help": "선택 기간 내 양품 생산량 합계",
+            "chart_data": sparkline_data,
+            "chart_type": "line",
+        },
+        {
+            "label": "배치 수",
+            "value": f"{kpis['batch_count']:,}",
+            "help": "선택 기간 내 생산 배치(레코드) 건수",
+            "chart_data": batch_sparkline,
+            "chart_type": "bar",
+        },
+        {
+            "label": "활성 제품",
+            "value": f"{kpis.get('active_products', 0):,}",
+            "help": "선택 기간 내 생산된 고유 제품(코드) 수",
+        },
+        {
+            "label": "평균 배치 크기",
+            "value": f"{kpis.get('avg_batch_size', 0):,}",
+            "help": "건당 평균 양품 수량 (총 생산량 ÷ 배치 수)",
+            "chart_data": avg_batch_sparkline,
+            "chart_type": "line",
+        },
+    ])

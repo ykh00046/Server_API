@@ -15,7 +15,7 @@ import datetime as dt
 import httpx
 import pandas as pd
 import streamlit as st
-from components.layout import empty_state, page_header
+from components.layout import download_pair, empty_state, page_header, section_header
 from data import _cached_excel_bytes
 
 from shared.api_client import auth_headers
@@ -209,7 +209,7 @@ def _render_delete_expander(prefix: str) -> None:
         # ----------------------------------------------------------
         # 삭제된 문서 (복원 가능) — tombstone 목록
         # ----------------------------------------------------------
-        st.markdown("##### 삭제된 문서 (복원 가능)")
+        section_header("삭제된 문서 (복원 가능)")
         try:
             with st.spinner("삭제된 문서 목록 조회 중…"):
                 tombstones = _fetch_tombstones(prefix)
@@ -305,26 +305,13 @@ def _fetch_and_render_rows(
     # ----------------------------------------------------------
     # Downloads (기존 Excel 레이아웃 그대로)
     # ----------------------------------------------------------
-    c1, c2, _ = st.columns([1, 1, 4])
-    with c1:
-        st.download_button(
-            "Excel 다운로드",
-            # 캐시 필수: download_button의 data=는 클릭과 무관하게 매 rerun마다
-            # 평가되므로 eager 직렬화는 위젯 상호작용마다 전체 시트를 재생성한다
-            data=_cached_excel_bytes(df, sheet_name=sheet_name),
-            file_name=f"{file_base}.xlsx",
-            icon=":material/download:",
-            width="stretch",
-        )
-    with c2:
-        st.download_button(
-            "CSV 다운로드",
-            data=df.to_csv(index=False).encode("utf-8-sig"),
-            file_name=f"{file_base}.csv",
-            mime="text/csv",
-            icon=":material/csv:",
-            width="stretch",
-        )
+    download_pair(
+        df,
+        # 캐시 필수: download_button의 data=는 클릭과 무관하게 매 rerun마다
+        # 평가되므로 eager 직렬화는 위젯 상호작용마다 전체 시트를 재생성한다
+        _cached_excel_bytes(df, sheet_name=sheet_name),
+        file_base,
+    )
 
 
 def render(
@@ -373,7 +360,7 @@ def render(
     # 운영 작업 — 실행 상태/이력/수동 실행 + 문서 삭제·복원.
     # 데이터 조회가 실패해도 여기까지 도달해야 하므로 위 함수는 st.stop() 금지.
     # ----------------------------------------------------------
-    st.markdown("#### :material/settings: 운영 작업")
+    section_header("운영 작업", ":material/settings:")
 
     # 실행 패널은 내부에 "실행 이력" expander를 갖고 있어 expander로 감쌀 수 없다
     # (Streamlit은 expander 중첩을 금지). 테두리 컨테이너로 묶어 구획만 준다.

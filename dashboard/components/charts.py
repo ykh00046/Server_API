@@ -15,6 +15,24 @@ import plotly.graph_objects as go
 
 from shared.ui.theme import CHART_SERIES_COLORS, get_chart_palette
 
+# ==========================================================
+# Layout constants — 차트 높이·범례 배치의 SSOT
+# ==========================================================
+# 빌더가 반환하는 차트의 기본 높이. 뷰가 좁은 2단 컬럼에 넣을 때만
+# update_layout(height=...) 로 낮춘다 (360/340 등은 그 자리의 의도적 예외).
+CHART_HEIGHT = 400
+
+# 제목은 호출 측(view)의 section_header가 담당하므로 plotly 내부 title 을 두지
+# 않는다 — 상단 여백은 "제목 없음" 기준값으로 통일한다.
+CHART_MARGIN_TOP = 30
+
+# 가로 범례를 플롯 영역 위(왼쪽 정렬)에 붙이는 표준 배치.
+# x/xanchor 는 plotly 의 가로 범례 기본값을 명시한 것이라 기존 렌더와 동일하다.
+LEGEND_TOP = dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0)
+
+# 파이/도넛처럼 플롯 위쪽에 라벨이 놓여 상단 범례가 겹치는 차트 전용 배치.
+LEGEND_BOTTOM = dict(orientation="h", yanchor="bottom", y=-0.2)
+
 
 def create_top10_bar_chart(
     df: pd.DataFrame, template: str, marker_color: str | None = None
@@ -62,14 +80,14 @@ def create_top10_bar_chart(
     ))
 
     # 제목은 호출 측(view)의 섹션 헤더가 담당한다 — plotly 내부 title 을 두면
-    # 같은 문구가 두 번 렌더된다. t 여백은 제목 없는 기준(30)으로 통일.
+    # 같은 문구가 두 번 렌더된다. t 여백은 제목 없는 기준(CHART_MARGIN_TOP)으로 통일.
     fig.update_layout(
         xaxis_title="생산량 (개)",
         yaxis_title="제품코드",
         template=template,
-        height=400,
+        height=CHART_HEIGHT,
         yaxis=dict(autorange="reversed"),  # Top product at top
-        margin=dict(l=100, r=50, t=30, b=50)
+        margin=dict(l=100, r=50, t=CHART_MARGIN_TOP, b=50)
     )
 
     return fig
@@ -131,10 +149,10 @@ def create_distribution_pie(df: pd.DataFrame, template: str) -> go.Figure:
     # 제목은 호출 측 섹션 헤더가 담당 (중복 렌더 방지).
     fig.update_layout(
         template=template,
-        height=400,
+        height=CHART_HEIGHT,
         showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=-0.2),
-        margin=dict(l=20, r=20, t=30, b=40)
+        legend=LEGEND_BOTTOM,
+        margin=dict(l=20, r=20, t=CHART_MARGIN_TOP, b=40)
     )
 
     return fig
@@ -231,11 +249,11 @@ def create_trend_lines(
         xaxis_title="기간",
         yaxis_title="생산량 (개)",
         template=template,
-        height=400,
+        height=CHART_HEIGHT,
         hovermode="x unified",
         xaxis_type="category",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(l=60, r=30, t=30, b=40)
+        legend=LEGEND_TOP,
+        margin=dict(l=60, r=30, t=CHART_MARGIN_TOP, b=40)
     )
 
     return fig

@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.kpi_cards import kpi_row
+from components.layout import section_header
+
 from . import formatters
 from .api_client import WebhookAdminClient, WebhookAdminError
 
@@ -28,7 +31,7 @@ _SECRET_KEY = "_webhook_last_secret"
 # Section: queue stats
 # =====================================================================
 def render_queue_stats_section(client: WebhookAdminClient) -> None:
-    st.subheader(":material/monitoring: 큐 상태", anchor=False)
+    section_header("큐 상태", ":material/monitoring:")
     try:
         with st.spinner("큐 상태 조회 중…"):
             stats = client.queue_stats()
@@ -36,10 +39,9 @@ def render_queue_stats_section(client: WebhookAdminClient) -> None:
         # 조회 실패를 0건으로 표시하면 "큐가 비었다"로 오독된다 — 렌더 중단.
         st.error(f"큐 상태를 불러오지 못했습니다: {e}")
         return
+    # _hint 는 심각도 토큰(ok/warn/danger)이라 툴팁 문구가 아니다 — 표시하지 않는다.
     cards = formatters.format_queue_stats_cards(stats)
-    cols = st.columns(len(cards))
-    for col, (label, value, _hint) in zip(cols, cards, strict=True):
-        col.metric(label, value)
+    kpi_row([{"label": label, "value": value} for label, value, _hint in cards])
 
     try:
         dead_n = int(stats.get("dead", 0) or 0)
@@ -70,7 +72,7 @@ def render_register_form(
     client: WebhookAdminClient,
     event_catalog: list[dict],
 ) -> None:
-    st.subheader(":material/add_circle: 신규 등록", anchor=False)
+    section_header("신규 등록", ":material/add_circle:")
     event_names = [e.get("name", "") for e in event_catalog if e.get("name")]
     with st.expander("새 webhook 등록", expanded=False):
         with st.form("webhook_register_form", clear_on_submit=True):
@@ -128,7 +130,7 @@ def render_secret_banner_if_any() -> None:
 # Section: webhook list + selection
 # =====================================================================
 def render_webhook_list_section(client: WebhookAdminClient) -> int | None:
-    st.subheader(":material/webhook: 등록된 webhook", anchor=False)
+    section_header("등록된 webhook", ":material/webhook:")
     filt_label = st.radio(
         "필터",
         options=["전체", "활성", "비활성"],
@@ -176,7 +178,7 @@ def render_webhook_detail(
     webhook_id: int,
     event_catalog: list[dict],
 ) -> None:
-    st.subheader(f":material/settings: webhook #{webhook_id}", anchor=False)
+    section_header(f"webhook #{webhook_id}", ":material/settings:")
     try:
         wh = client.get_webhook(webhook_id)
     except WebhookAdminError as e:
@@ -300,7 +302,7 @@ _DELIVERY_STATUSES = ("전체", "success", "queued", "in_flight", "retrying", "f
 
 
 def render_deliveries_section(client: WebhookAdminClient, webhook_id: int) -> None:
-    st.subheader(":material/outbox: 최근 발송 이력", anchor=False)
+    section_header("최근 발송 이력", ":material/outbox:")
     cols = st.columns([1, 1, 4])
     status_choice = cols[0].selectbox(
         "status",

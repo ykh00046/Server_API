@@ -13,7 +13,9 @@ three `_render_*` helpers. `_render_detail_table` returns the renamed DataFrame 
 
 import pandas as pd
 import streamlit as st
+from components.kpi_cards import kpi_row
 from components.layout import (
+    download_pair,
     empty_state,
     get_page_columns,
     render_ai_column,
@@ -32,28 +34,23 @@ def _render_kpi_cards(df: pd.DataFrame) -> None:
     """
     unique_days = df["production_dt"].dt.date.nunique() if not df.empty else 0
     avg_daily = len(df) / max(unique_days, 1) if not df.empty else 0
-    with st.container(horizontal=True):
-        st.metric(
-            "총 레코드",
-            f"{len(df):,}건",
-            border=True,
-            height=150,
-            help="선택 기간 내 생산 레코드(행) 총 건수",
-        )
-        st.metric(
-            "생산일 수",
-            f"{unique_days}일",
-            border=True,
-            height=150,
-            help="선택 기간 중 실제 생산이 기록된 고유 일수",
-        )
-        st.metric(
-            "일 평균 배치",
-            f"{avg_daily:.1f}건",
-            border=True,
-            height=150,
-            help="총 레코드 ÷ 생산일 수",
-        )
+    kpi_row([
+        {
+            "label": "총 레코드",
+            "value": f"{len(df):,}건",
+            "help": "선택 기간 내 생산 레코드(행) 총 건수",
+        },
+        {
+            "label": "생산일 수",
+            "value": f"{unique_days}일",
+            "help": "선택 기간 중 실제 생산이 기록된 고유 일수",
+        },
+        {
+            "label": "일 평균 배치",
+            "value": f"{avg_daily:.1f}건",
+            "help": "총 레코드 ÷ 생산일 수",
+        },
+    ])
     st.space(8)
 
 
@@ -83,26 +80,16 @@ def _render_detail_table(df: pd.DataFrame) -> pd.DataFrame:
 # Section 3: Export buttons
 # ==========================================================
 def _render_export_buttons(df: pd.DataFrame, display_detail: pd.DataFrame) -> None:
-    """Render Excel + CSV download buttons. display_detail reuses the renamed frame."""
-    export_col1, export_col2, _ = st.columns([1, 1, 4])
-    with export_col1:
-        st.download_button(
-            "Excel 다운로드",
-            data=_cached_excel_bytes(df),
-            file_name="production_records.xlsx",
-            icon=":material/download:",
-            width="stretch",
-        )
-    with export_col2:
-        csv_data = display_detail.to_csv(index=False).encode("utf-8-sig")
-        st.download_button(
-            "CSV 다운로드",
-            data=csv_data,
-            file_name="production_records.csv",
-            mime="text/csv",
-            icon=":material/csv:",
-            width="stretch",
-        )
+    """Render Excel + CSV download buttons. display_detail reuses the renamed frame.
+
+    Excel 은 원본 df(_cached_excel_bytes 캐시)를, CSV 는 화면과 같은 한글 헤더
+    프레임을 내보낸다 — 기존 동작 그대로다.
+    """
+    download_pair(
+        display_detail,
+        _cached_excel_bytes(df),
+        "production_records",
+    )
 
 
 # ==========================================================

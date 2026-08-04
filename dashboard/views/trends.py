@@ -12,7 +12,7 @@ two `_render_*` helpers. Module top-level handles aggregation selector + data lo
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from components import get_chart_config
+from components import CHART_HEIGHT, get_chart_config
 from components.layout import (
     empty_state,
     get_page_columns,
@@ -65,7 +65,7 @@ def _render_trend_chart(
         title_text=f"{agg_unit} 생산 추세",
         hovermode="x unified",
         template=chart_template,
-        height=400,
+        height=CHART_HEIGHT,
         margin=dict(l=50, r=50, t=50, b=50),
         xaxis_type="category",
     )
