@@ -336,7 +336,7 @@ def _render_trend_comparison(df: pd.DataFrame, db_ver: str, chart_template: str)
 # ==========================================================
 # Page entry
 # ==========================================================
-render_page_header("제품별 분석", "생산 관리 > 제품별 분석")
+render_page_header("제품별 분석", "생산 데이터 > 제품별 분석")
 
 fs = get_filter_state()
 item_codes = fs["item_codes"]

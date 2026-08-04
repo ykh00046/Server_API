@@ -108,7 +108,7 @@ def _render_export_buttons(df: pd.DataFrame, display_detail: pd.DataFrame) -> No
 # ==========================================================
 # Page entry
 # ==========================================================
-render_page_header("배치 내역", "생산 관리 > 배치 내역")
+render_page_header("배치 내역", "생산 데이터 > 배치 내역")
 
 fs = get_filter_state()
 item_codes = fs["item_codes"]

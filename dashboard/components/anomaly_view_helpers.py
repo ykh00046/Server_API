@@ -14,10 +14,14 @@ KIND_LABELS: dict[str, str] = {
     "stale_item": "장기 미생산",
 }
 
-SEVERITY_COLORS: dict[str, str] = {
-    "critical": "#dc2626",
-    "warning": "#f59e0b",
-    "info": "#64748b",
+# severity → 공용 차트 팔레트 인덱스. 색 hex 를 여기서 굳히지 않는 이유:
+# 팔레트 SSOT 는 shared/ui/theme.py:get_chart_palette() 이고(라이트/다크 대응),
+# 그 모듈은 streamlit 을 import 하므로 이 파일(streamlit-free)에서는 인덱스만
+# 들고 있다. 실제 색 변환은 views/anomaly.py 가 담당한다.
+SEVERITY_PALETTE_INDEX: dict[str, int] = {
+    "critical": 4,  # red
+    "warning": 2,   # amber
+    "info": 6,      # slate
 }
 
 

@@ -21,7 +21,7 @@ import streamlit as st
 from components import get_chart_config
 from components.anomaly_view_helpers import (
     KIND_LABELS,
-    SEVERITY_COLORS,
+    SEVERITY_PALETTE_INDEX,
     findings_to_daily_counts,
     humanize_remaining,
 )
@@ -29,7 +29,7 @@ from components.layout import empty_state, page_header
 
 from shared.api_client import auth_headers
 from shared.config import API_BASE_URL
-from shared.ui.theme import get_colors
+from shared.ui.theme import get_chart_palette, get_colors
 
 _SEV_BADGE = {"critical": "red", "warning": "orange", "info": "gray"}
 
@@ -137,13 +137,15 @@ if hist is not None:
         )
     else:
         daily = findings_to_daily_counts(rows)
+        # severity 색은 공용 팔레트(SSOT)에서 인덱스로 해석 — 라이트/다크 대응
+        palette = get_chart_palette(7)
         fig = go.Figure()
         for sev in ("critical", "warning", "info"):
             sub = daily[daily["severity"] == sev]
             if len(sub):
                 fig.add_trace(go.Bar(
                     x=sub["day"], y=sub["count"], name=sev,
-                    marker_color=SEVERITY_COLORS[sev],
+                    marker_color=palette[SEVERITY_PALETTE_INDEX[sev]],
                 ))
         colors = get_colors()
         fig.update_layout(

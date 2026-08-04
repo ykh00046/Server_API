@@ -61,7 +61,7 @@ def render_page_header(title: str, breadcrumb: str = "") -> None:
     """
     col_title, col_toggle = st.columns([8, 2])
     with col_title:
-        st.markdown(f"### {title}")
+        st.title(title, anchor=False)
         if breadcrumb:
             st.caption(breadcrumb)
     with col_toggle:
