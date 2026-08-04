@@ -38,7 +38,7 @@ def _headers() -> dict:
     return auth_headers()
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner="이상탐지 데이터 조회 중…")
 def _fetch(path: str, params: dict | None = None) -> dict:
     with httpx.Client(base_url=API_BASE_URL, timeout=15.0) as c:
         resp = c.get(path, params=params or {}, headers=_headers())
@@ -247,11 +247,12 @@ with st.expander("what-if 임계치 미리보기", expanded=False):
             )
         if submitted:
             try:
-                preview = _fetch_fresh("/anomaly/scan", {
-                    "drop_pct": w_drop, "spike_pct": w_spike,
-                    "stale_days": w_stale, "min_baseline_qty": w_min,
-                    "baseline_days": w_base,
-                })
+                with st.spinner("what-if 미리보기 계산 중…"):
+                    preview = _fetch_fresh("/anomaly/scan", {
+                        "drop_pct": w_drop, "spike_pct": w_spike,
+                        "stale_days": w_stale, "min_baseline_qty": w_min,
+                        "baseline_days": w_base,
+                    })
             except httpx.HTTPError as e:
                 st.warning(f"미리보기 실패 ({e}).")
             else:

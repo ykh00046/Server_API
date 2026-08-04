@@ -129,7 +129,8 @@ def _restore(prefix: str, doc_number: str) -> tuple[bool, str]:
 def _render_runs_panel(prefix: str) -> None:
     """실행 상태 / 이력 / 수동 실행 패널. 이력 조회 실패 시 경고만 남긴다."""
     try:
-        run_list = _fetch_runs(prefix, 20)
+        with st.spinner("실행 이력 조회 중…"):
+            run_list = _fetch_runs(prefix, 20)
     except httpx.HTTPError as e:
         st.warning(f"실행 이력을 불러오지 못했습니다 ({e}).")
         return
@@ -146,7 +147,8 @@ def _render_runs_panel(prefix: str) -> None:
             st.metric("마지막 실행", "기록 없음")
     with s2:
         if st.button("지금 실행", icon=":material/play_arrow:", width="stretch"):
-            ok, msg = _trigger_run(prefix)
+            with st.spinner("자동화 실행 요청 중…"):
+                ok, msg = _trigger_run(prefix)
             (st.success if ok else st.warning)(msg)
             if ok:
                 st.rerun()
@@ -198,7 +200,8 @@ def _render_delete_expander(prefix: str) -> None:
             disabled=not (del_doc and confirm),
             key=f"delbtn_{prefix}",
         ):
-            ok, msg = _delete(prefix, del_doc)
+            with st.spinner("문서 삭제 중…"):
+                ok, msg = _delete(prefix, del_doc)
             (st.success if ok else st.error)(msg)
             if ok:
                 st.rerun()
@@ -208,7 +211,8 @@ def _render_delete_expander(prefix: str) -> None:
         # ----------------------------------------------------------
         st.markdown("##### 삭제된 문서 (복원 가능)")
         try:
-            tombstones = _fetch_tombstones(prefix)
+            with st.spinner("삭제된 문서 목록 조회 중…"):
+                tombstones = _fetch_tombstones(prefix)
         except httpx.HTTPError as e:
             st.caption(f"⚠️ 삭제된 문서 목록을 불러오지 못했습니다 ({e}).")
             return
@@ -232,7 +236,8 @@ def _render_delete_expander(prefix: str) -> None:
                     key=f"rst_{prefix}_{doc}",
                     width="stretch",
                 ):
-                    ok, msg = _restore(prefix, doc)
+                    with st.spinner("문서 복원 중…"):
+                        ok, msg = _restore(prefix, doc)
                     (st.success if ok else st.error)(msg)
                     if ok:
                         st.rerun()
@@ -273,7 +278,8 @@ def _fetch_and_render_rows(
 ) -> None:
     """데이터 fetch + 표/건수/다운로드 렌더. 데이터 없으면 st.stop()."""
     try:
-        rows = _fetch_rows(prefix, params)
+        with st.spinner(f"{title} 데이터 조회 중…"):
+            rows = _fetch_rows(prefix, params)
     except httpx.HTTPError as e:
         st.error(f"{title} 데이터를 불러오지 못했습니다 ({e}). API 서버 상태를 확인하세요.")
         st.stop()
