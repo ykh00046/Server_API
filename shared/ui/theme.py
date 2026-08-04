@@ -3,16 +3,17 @@ Theme helpers — industrial blue/slate palette (ui-design-overhaul-v1, 2026-06-
 
 The theme itself lives in `.streamlit/config.toml` ([theme.light]/[theme.dark]);
 light/dark switching is native via the app settings menu. This module only
-keeps what Streamlit cannot theme for us:
-
-- plotly chart palettes (Streamlit's chartCategoricalColors does not reach
-  manually-built plotly figures), and
-- a minimal CSS block for the AI starter-card buttons (multi-line tall
-  buttons have no native equivalent).
+keeps what Streamlit cannot theme for us: plotly chart palettes
+(Streamlit's chartCategoricalColors does not reach manually-built plotly
+figures).
 
 History: the previous Pink/Sky CSS-token system (3 modes, ~165 lines of
 injected CSS) was replaced by native theming — see the design doc
-ui-design-overhaul-v1.design.md.
+ui-design-overhaul-v1.design.md. The last CSS remnant (_STARTER_CARD_CSS
+for AI starter cards) was removed 2026-08: DOM inspection showed its
+selector never matched on Streamlit 1.58 ([data-testid="column"] no longer
+exists and stBaseButton-secondary IS the button element), and the starter
+cards themselves were unreachable code. This module injects no HTML.
 """
 
 from __future__ import annotations
@@ -57,18 +58,6 @@ CHART_COLORS: dict[str, dict[str, str]] = {
 # used only when a chart exceeds 7 series, so the categorical identity is
 # preserved for the common case.
 CHART_SERIES_COLORS = CHART_CATEGORICAL_COLORS + ["#60a5fa", "#2dd4bf", "#94a3b8"]
-
-# AI starter-card buttons: tall, left-aligned, multi-line. No native
-# equivalent in Streamlit 1.58 — kept as the single CSS remnant.
-_STARTER_CARD_CSS = """
-[data-testid="stVerticalBlock"] [data-testid="column"]
-[data-testid="stBaseButton-secondary"] button {
-    min-height: 120px;
-    text-align: left;
-    white-space: pre-wrap;
-}
-"""
-
 
 def get_theme() -> ThemeMode:
     """Return the active base theme ("light" | "dark") from Streamlit."""
@@ -119,8 +108,3 @@ def render_theme_toggle() -> bool:
 
 def apply_dark_mode_css() -> None:
     """Legacy hook — superseded by native theming."""
-
-
-def apply_custom_css() -> None:
-    """Inject the minimal CSS remnant (starter-card buttons only)."""
-    st.markdown(f"<style>{_STARTER_CARD_CSS}</style>", unsafe_allow_html=True)

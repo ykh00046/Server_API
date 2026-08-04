@@ -60,18 +60,37 @@ class TestThemeHooks:
         monkeypatch.setattr(th.st, "sidebar", MagicMock())
         assert th.render_theme_toggle() is False
 
-    def test_apply_custom_css_injects_style(self, monkeypatch):
-        fake_md = MagicMock()
-        monkeypatch.setattr(th.st, "markdown", fake_md)
-        th.apply_custom_css()
-        fake_md.assert_called_once()
-        html, kwargs = fake_md.call_args[0][0], fake_md.call_args[1]
-        assert "<style>" in html
-        assert kwargs.get("unsafe_allow_html") is True
-
     def test_series_colors_constant(self):
         assert th.CHART_SERIES_COLORS[0] == "#2563eb"
         assert len(th.CHART_SERIES_COLORS) == 10
+
+    def test_theme_module_injects_no_html(self):
+        # ui-design-overhaul-v1 이후 theme.py는 palette 전용이다. 마지막 CSS
+        # 잔재(_STARTER_CARD_CSS)는 1.58 DOM과 셀렉터가 맞지 않아 휴면 상태로
+        # 확인돼 제거됐다 — HTML 주입이 다시 생기면 여기서 잡는다.
+        import inspect
+
+        src = inspect.getsource(th)
+        assert "unsafe_allow_html" not in src
+        assert not hasattr(th, "apply_custom_css")
+
+
+# ==========================================================
+# config.toml palette mirror drift guard
+# ==========================================================
+class TestPaletteMirror:
+    def test_categorical_colors_mirror_config_toml(self):
+        # CHART_CATEGORICAL_COLORS는 .streamlit/config.toml의
+        # chartCategoricalColors를 수동 미러링한다(plotly 수제 figure에는
+        # 네이티브 테마 팔레트가 닿지 않으므로). 한쪽만 고치면 차트와
+        # 네이티브 요소의 색이 조용히 어긋난다 — 이 테스트가 드리프트를 막는다.
+        import tomllib
+        from pathlib import Path
+
+        cfg_path = Path(__file__).resolve().parent.parent / ".streamlit" / "config.toml"
+        with cfg_path.open("rb") as f:
+            cfg = tomllib.load(f)
+        assert cfg["theme"]["chartCategoricalColors"] == th.CHART_CATEGORICAL_COLORS
 
 
 # ==========================================================
