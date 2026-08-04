@@ -17,6 +17,10 @@ from .ai_section import (
     render_ai_status_indicator,
 )
 from .charts import (
+    CHART_HEIGHT,
+    CHART_MARGIN_TOP,
+    LEGEND_BOTTOM,
+    LEGEND_TOP,
     create_distribution_pie,
     create_top10_bar_chart,
     create_trend_lines,
@@ -27,15 +31,18 @@ from .kpi_cards import (
     get_avg_batch_sparkline,
     get_batch_count_sparkline,
     get_sparkline_data,
+    kpi_row,
     render_kpi_cards,
 )
 from .layout import (
+    download_pair,
     empty_state,
     get_page_columns,
     init_ai_panel_state,
     page_header,
     render_ai_column,
     render_page_header,
+    section_header,
 )
 from .loading import render_last_update
 from .presets import (
@@ -53,6 +60,7 @@ __all__ = [
     "render_last_update",
     # kpi_cards
     "calculate_kpis",
+    "kpi_row",
     "render_kpi_cards",
     "get_sparkline_data",
     "get_batch_count_sparkline",
@@ -62,6 +70,10 @@ __all__ = [
     "create_distribution_pie",
     "create_trend_lines",
     "get_chart_config",
+    "CHART_HEIGHT",
+    "CHART_MARGIN_TOP",
+    "LEGEND_BOTTOM",
+    "LEGEND_TOP",
     # presets
     "init_presets",
     "apply_pending_preset",
@@ -78,7 +90,9 @@ __all__ = [
     # layout
     "init_ai_panel_state",
     "page_header",
+    "section_header",
     "empty_state",
+    "download_pair",
     "render_page_header",
     "get_page_columns",
     "render_ai_column",

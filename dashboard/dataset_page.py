@@ -15,7 +15,7 @@ import datetime as dt
 import httpx
 import pandas as pd
 import streamlit as st
-from components.layout import empty_state, page_header
+from components.layout import download_pair, empty_state, page_header, section_header
 from data import _cached_excel_bytes
 
 from shared.api_client import auth_headers
@@ -37,6 +37,10 @@ EXCEL_COLUMNS: list[tuple[str, str]] = [
 _STATUS_ICON = {"running": "🔄", "success": "✅", "failed": "❌"}
 _KIND_LABEL = {"backup": "백업 수신", "automation": "자동 실행"}
 
+# 표시 서식을 붙일 api_field (데이터셋 공통 스키마라 헤더가 아니라 필드로 건다).
+_QTY_FIELD = "request_qty_g"
+_TIMESTAMP_FIELD = "processed_at"
+
 
 def _headers() -> dict:
     return auth_headers()
@@ -50,6 +54,46 @@ def _to_excel_frame(
         return pd.DataFrame(columns=[ko for _, ko in columns])
     data = {ko: [r.get(api_field) for r in rows] for api_field, ko in columns}
     return pd.DataFrame(data)
+
+
+def _display_view(
+    df: pd.DataFrame, columns: list[tuple[str, str]]
+) -> tuple[pd.DataFrame, dict]:
+    """st.dataframe 전용 프레임 + column_config 을 만든다 (표시 전용).
+
+    다운로드(Excel/CSV)에 넘기는 원본 df 는 절대 바꾸지 않는다 — 값 변환은
+    사본에만 적용한다.
+
+    요청수량·처리일시는 DB에 TEXT 로 저장돼 그대로는 object dtype 이라
+    NumberColumn/DatetimeColumn 을 붙이면 프론트에서 타입 불일치 셀이 된다.
+    그래서 값이 **전량** 파싱될 때만 숫자/일시로 바꿔 서식을 붙이고, 한 건이라도
+    실패하면 원문 문자열 그대로 둔다 (빈칸으로 뭉개는 것보다 원문이 낫다).
+    순번(seq)·문서번호 등 나머지는 기본 추론에 맡긴다.
+    """
+    header = dict(columns)
+    replacements: dict[str, pd.Series] = {}
+    config: dict = {}
+
+    qty_col = header.get(_QTY_FIELD)
+    if qty_col in df.columns:
+        nums = pd.to_numeric(df[qty_col], errors="coerce")
+        if nums.notna().sum() == df[qty_col].notna().sum():
+            replacements[qty_col] = nums
+            config[qty_col] = st.column_config.NumberColumn(format="localized")
+
+    ts_col = header.get(_TIMESTAMP_FIELD)
+    if ts_col in df.columns:
+        stamps = pd.to_datetime(df[ts_col], errors="coerce")
+        if stamps.notna().sum() == df[ts_col].notna().sum():
+            replacements[ts_col] = stamps
+            config[ts_col] = st.column_config.DatetimeColumn()
+
+    if not replacements:
+        return df, config
+    view = df.copy()
+    for col, series in replacements.items():
+        view[col] = series
+    return view, config
 
 
 def _fetch_rows(prefix: str, params: dict) -> list[dict]:
@@ -209,7 +253,7 @@ def _render_delete_expander(prefix: str) -> None:
         # ----------------------------------------------------------
         # 삭제된 문서 (복원 가능) — tombstone 목록
         # ----------------------------------------------------------
-        st.markdown("##### 삭제된 문서 (복원 가능)")
+        section_header("삭제된 문서 (복원 가능)")
         try:
             with st.spinner("삭제된 문서 목록 조회 중…"):
                 tombstones = _fetch_tombstones(prefix)
@@ -300,31 +344,21 @@ def _fetch_and_render_rows(
         )
         return
 
-    st.dataframe(df, width="stretch", hide_index=True)
+    view, column_config = _display_view(df, columns)
+    st.dataframe(
+        view, width="stretch", hide_index=True, column_config=column_config
+    )
 
     # ----------------------------------------------------------
-    # Downloads (기존 Excel 레이아웃 그대로)
+    # Downloads (기존 Excel 레이아웃 그대로 — df 원본, view 아님)
     # ----------------------------------------------------------
-    c1, c2, _ = st.columns([1, 1, 4])
-    with c1:
-        st.download_button(
-            "Excel 다운로드",
-            # 캐시 필수: download_button의 data=는 클릭과 무관하게 매 rerun마다
-            # 평가되므로 eager 직렬화는 위젯 상호작용마다 전체 시트를 재생성한다
-            data=_cached_excel_bytes(df, sheet_name=sheet_name),
-            file_name=f"{file_base}.xlsx",
-            icon=":material/download:",
-            width="stretch",
-        )
-    with c2:
-        st.download_button(
-            "CSV 다운로드",
-            data=df.to_csv(index=False).encode("utf-8-sig"),
-            file_name=f"{file_base}.csv",
-            mime="text/csv",
-            icon=":material/csv:",
-            width="stretch",
-        )
+    download_pair(
+        df,
+        # 캐시 필수: download_button의 data=는 클릭과 무관하게 매 rerun마다
+        # 평가되므로 eager 직렬화는 위젯 상호작용마다 전체 시트를 재생성한다
+        _cached_excel_bytes(df, sheet_name=sheet_name),
+        file_base,
+    )
 
 
 def render(
@@ -373,7 +407,7 @@ def render(
     # 운영 작업 — 실행 상태/이력/수동 실행 + 문서 삭제·복원.
     # 데이터 조회가 실패해도 여기까지 도달해야 하므로 위 함수는 st.stop() 금지.
     # ----------------------------------------------------------
-    st.markdown("#### :material/settings: 운영 작업")
+    section_header("운영 작업", ":material/settings:")
 
     # 실행 패널은 내부에 "실행 이력" expander를 갖고 있어 expander로 감쌀 수 없다
     # (Streamlit은 expander 중첩을 금지). 테두리 컨테이너로 묶어 구획만 준다.

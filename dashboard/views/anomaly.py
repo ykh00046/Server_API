@@ -18,14 +18,15 @@ import httpx
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from components import get_chart_config
+from components import LEGEND_TOP, get_chart_config
 from components.anomaly_view_helpers import (
     KIND_LABELS,
     SEVERITY_PALETTE_INDEX,
     findings_to_daily_counts,
     humanize_remaining,
 )
-from components.layout import empty_state, page_header
+from components.kpi_cards import kpi_row
+from components.layout import empty_state, page_header, section_header
 
 from shared.api_client import auth_headers
 from shared.config import API_BASE_URL
@@ -98,20 +99,36 @@ last_scan = (
     if last_scan_ts else "기록 없음"
 )
 
-m1, m2, m3, m4 = st.columns([1, 1, 1, 1])
-m1.metric("현재 findings", (scan or {}).get("count", "—"), border=True)
-m2.metric("마지막 발행 스캔", last_scan, border=True,
-          help="발행 경로(POST/데몬)가 상태를 갱신한 시각")
-m3.metric("활성 쿨다운", len(active_cooldowns), border=True)
-with m4:
+def _render_refresh_button() -> None:
+    """지표 행 끝에 같은 줄로 붙는 새로고침 버튼 (kpi_row trailing 슬롯).
+
+    이 페이지의 캐시(`_fetch`)만 비운다. 전역 `st.cache_data.clear()`는 제품
+    목록·생산 레코드·자재 행·Excel 바이트 등 다른 페이지의 캐시까지 통째로
+    날려 다음 이동 때 전부 재조회하게 만든다. what-if 미리보기는 캐시를 쓰지
+    않는 `_fetch_fresh` 경로라 비울 대상이 없다.
+    """
     if st.button("새로고침", icon=":material/refresh:", width="stretch"):
-        st.cache_data.clear()
+        _fetch.clear()
         st.rerun()
+
+
+kpi_row(
+    [
+        {"label": "현재 findings", "value": (scan or {}).get("count", "—")},
+        {
+            "label": "마지막 발행 스캔",
+            "value": last_scan,
+            "help": "발행 경로(POST/데몬)가 상태를 갱신한 시각",
+        },
+        {"label": "활성 쿨다운", "value": len(active_cooldowns)},
+    ],
+    trailing=_render_refresh_button,
+)
 
 # ==========================================================
 # ① 현재 스캔 결과
 # ==========================================================
-st.markdown("**:material/radar: 현재 스캔 결과**")
+section_header("현재 스캔 결과", ":material/radar:")
 if scan is None:
     pass  # _try_fetch가 이미 warning 표시
 elif not scan.get("enabled", True):
@@ -126,7 +143,7 @@ st.divider()
 # ==========================================================
 # ② 최근 30일 발행 이력 타임라인
 # ==========================================================
-st.markdown("**:material/timeline: 최근 30일 발행 이력**")
+section_header("최근 30일 발행 이력", ":material/timeline:")
 hist = _try_fetch("/anomaly/findings", {"days": 30, "limit": 500})
 if hist is not None:
     rows = hist.get("findings", [])
@@ -152,7 +169,7 @@ if hist is not None:
             barmode="stack", height=260,
             template=colors.get("chart_template", "plotly_white"),
             margin=dict(l=40, r=20, t=10, b=30),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02),
+            legend=LEGEND_TOP,
             xaxis_type="category",
         )
         st.plotly_chart(

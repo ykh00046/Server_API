@@ -17,14 +17,18 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from components import (
+    CHART_HEIGHT,
+    LEGEND_TOP,
     create_trend_lines,
     get_chart_config,
 )
+from components.kpi_cards import kpi_row
 from components.layout import (
     empty_state,
     get_page_columns,
     render_ai_column,
     render_page_header,
+    section_header,
 )
 from data import get_filter_state, load_item_list, load_records
 
@@ -91,7 +95,7 @@ def _render_distribution_charts(
     chart_col1, chart_col2 = st.columns(2)
 
     with chart_col1:
-        st.markdown("**:material/donut_small: 카테고리별 생산 비중**")
+        section_header("카테고리별 생산 비중", ":material/donut_small:")
         cat_colors = [_get_category_info(c)["color"] for c in cat_summary["category"]]
         cat_labels = [_get_category_info(c)["label"] for c in cat_summary["category"]]
         fig_cat = go.Figure(go.Pie(
@@ -116,7 +120,7 @@ def _render_distribution_charts(
         st.plotly_chart(fig_cat, width="stretch", config=get_chart_config("category_dist"))
 
     with chart_col2:
-        st.markdown("**:material/bar_chart: 카테고리별 Top 5 제품**")
+        section_header("카테고리별 Top 5 제품", ":material/bar_chart:")
         item_totals = (
             df.groupby(["category", "item_code"])["good_quantity"]
             .sum()
@@ -145,7 +149,7 @@ def _render_distribution_charts(
             barmode="group",
             xaxis_title="제품코드",
             yaxis_title="생산량",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02),
+            legend=LEGEND_TOP,
             margin=dict(l=50, r=20, t=40, b=60),
         )
         st.plotly_chart(fig_stack, width="stretch", config=get_chart_config("cat_top5"))
@@ -168,22 +172,19 @@ def _render_drilldown_item_detail(
     both defaulting to top product BW0021) do not collide on Streamlit's
     auto-generated element IDs (StreamlitDuplicateElementId).
     """
-    d_col1, d_col2, d_col3, d_col4 = st.columns(4)
-    with d_col1:
-        st.metric("총 생산량", f"{item_df['good_quantity'].sum():,.0f}")
-    with d_col2:
-        st.metric("배치 수", f"{len(item_df):,}")
-    with d_col3:
-        avg_batch = item_df["good_quantity"].mean() if not item_df.empty else 0
-        st.metric("평균 배치 크기", f"{avg_batch:,.0f}")
-    with d_col4:
-        days_active = item_df["production_dt"].dt.date.nunique() if not item_df.empty else 0
-        st.metric("생산일 수", f"{days_active}")
+    avg_batch = item_df["good_quantity"].mean() if not item_df.empty else 0
+    days_active = item_df["production_dt"].dt.date.nunique() if not item_df.empty else 0
+    kpi_row([
+        {"label": "총 생산량", "value": f"{item_df['good_quantity'].sum():,.0f}"},
+        {"label": "배치 수", "value": f"{len(item_df):,}"},
+        {"label": "평균 배치 크기", "value": f"{avg_batch:,.0f}"},
+        {"label": "생산일 수", "value": f"{days_active}"},
+    ])
 
     detail_col1, detail_col2 = st.columns([3, 2])
 
     with detail_col1:
-        st.markdown(f"**:material/trending_up: {selected_code} 월별 추이**")
+        section_header(f"{selected_code} 월별 추이", ":material/trending_up:")
         if not item_df.empty:
             monthly = (
                 item_df.groupby("year_month")["good_quantity"]
@@ -222,7 +223,7 @@ def _render_drilldown_item_detail(
             )
 
     with detail_col2:
-        st.markdown("**:material/list_alt: 최근 배치 이력**")
+        section_header("최근 배치 이력", ":material/list_alt:")
         if not item_df.empty:
             recent = (
                 item_df.sort_values("production_dt", ascending=False)
@@ -325,7 +326,7 @@ def _render_trend_comparison(df: pd.DataFrame, db_ver: str, chart_template: str)
     )
 
     fig_trend = create_trend_lines(df, selected_compare, trend_agg, chart_template)
-    fig_trend.update_layout(height=400)
+    fig_trend.update_layout(height=CHART_HEIGHT)
     st.plotly_chart(
         fig_trend,
         width="stretch",
@@ -371,18 +372,18 @@ with col_main:
         )
         categories_present = cat_summary["category"].tolist()
 
-        st.markdown("#### :material/category: 카테고리별 현황")
+        section_header("카테고리별 현황", ":material/category:")
         _render_category_kpis(cat_summary, len(categories_present))
         st.space(8)
 
         _render_distribution_charts(df, cat_summary, categories_present, chart_template)
 
         st.divider()
-        st.markdown("#### :material/search: 제품 상세 드릴다운")
+        section_header("제품 상세 드릴다운", ":material/search:")
         _render_drilldown(df, categories_present, colors, chart_template)
 
         st.divider()
-        st.markdown("#### :material/stacked_line_chart: 제품 추세 비교")
+        section_header("제품 추세 비교", ":material/stacked_line_chart:")
         _render_trend_comparison(df, db_ver, chart_template)
 
 render_ai_column(col_ai)

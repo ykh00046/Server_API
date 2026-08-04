@@ -10,12 +10,14 @@ pure functions never call st.*.
 """
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import sys
 from datetime import date
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 _ROOT = Path(__file__).resolve().parent.parent
 _KPI = _ROOT / "dashboard" / "components" / "kpi_cards.py"
@@ -147,3 +149,81 @@ def test_has_signal():
     assert _kpi._has_signal([]) is False
     assert _kpi._has_signal([0, 0, 0]) is False
     assert _kpi._has_signal([0, 1]) is True
+
+
+# ----------------------------------------------------------
+# kpi_row — 지표 행의 통일 계약 (dashboard-ui-med)
+#
+# 렌더 함수라 Streamlit 런타임이 필요하지만, kpi_row 는 st.* 호출을 조립하는
+# 얇은 층이므로 모듈의 `st` 를 기록용 스텁으로 갈아끼워 "무엇을 어떤 인자로
+# 그리는지"를 검증한다 (test_ui_theme.py 의 monkeypatch 패턴과 동일).
+# ----------------------------------------------------------
+class _FakeSt:
+    """st.container / st.metric 호출을 기록하는 최소 스텁."""
+
+    def __init__(self) -> None:
+        self.containers: list[dict] = []
+        self.metrics: list[tuple[str, object, dict]] = []
+
+    def container(self, **kwargs):
+        self.containers.append(kwargs)
+        return contextlib.nullcontext()
+
+    def metric(self, label, value, **kwargs):
+        self.metrics.append((label, value, kwargs))
+
+
+@pytest.fixture
+def fake_st(monkeypatch):
+    fake = _FakeSt()
+    monkeypatch.setattr(_kpi, "st", fake)
+    return fake
+
+
+def test_kpi_row_renders_uniform_bordered_cards(fake_st):
+    _kpi.kpi_row([
+        {"label": "총 레코드", "value": "10건"},
+        {"label": "생산일 수", "value": "3일", "help": "고유 일수"},
+    ])
+    # 한 줄 = 가로 컨테이너 하나 (좁은 화면에서 st.columns 처럼 찌그러지지 않는다)
+    assert fake_st.containers == [{"horizontal": True}]
+    assert [(m[0], m[1]) for m in fake_st.metrics] == [("총 레코드", "10건"), ("생산일 수", "3일")]
+    heights = {m[2]["height"] for m in fake_st.metrics}
+    assert len(heights) == 1  # 카드 높이는 한 줄 안에서 항상 동일
+    assert all(m[2]["border"] is True for m in fake_st.metrics)
+    assert fake_st.metrics[0][2]["help"] is None
+    assert fake_st.metrics[1][2]["help"] == "고유 일수"
+
+
+def test_kpi_row_suppresses_flat_sparkline(fake_st):
+    _kpi.kpi_row([
+        {"label": "신호 있음", "value": "1", "chart_data": [0, 3], "chart_type": "bar"},
+        {"label": "전부 0", "value": "0", "chart_data": [0, 0]},
+        {"label": "없음", "value": "-"},
+    ])
+    assert fake_st.metrics[0][2]["chart_data"] == [0, 3]
+    assert fake_st.metrics[0][2]["chart_type"] == "bar"
+    assert fake_st.metrics[1][2]["chart_data"] is None
+    assert fake_st.metrics[2][2]["chart_data"] is None
+
+
+def test_kpi_row_trailing_widget_renders_in_same_row(fake_st):
+    calls: list[str] = []
+    _kpi.kpi_row([{"label": "A", "value": 1}], trailing=lambda: calls.append("btn"))
+    assert calls == ["btn"]
+    assert len(fake_st.containers) == 1  # 버튼도 같은 가로 컨테이너 안
+
+
+def test_render_kpi_cards_delegates_to_kpi_row(fake_st):
+    _kpi.render_kpi_cards(
+        {"total_qty": 1500, "batch_count": 3, "active_products": 2, "avg_batch_size": 500},
+        None,
+        sparkline_data=[1, 2, 3],
+        batch_sparkline=[0, 0, 0],
+    )
+    labels = [m[0] for m in fake_st.metrics]
+    assert labels == ["총 생산량", "배치 수", "활성 제품", "평균 배치 크기"]
+    assert fake_st.metrics[0][1] == "1,500"
+    assert fake_st.metrics[0][2]["chart_data"] == [1, 2, 3]
+    assert fake_st.metrics[1][2]["chart_data"] is None  # 전부 0 → 미표시
+    assert all(m[2]["border"] is True for m in fake_st.metrics)

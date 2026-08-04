@@ -24,12 +24,13 @@ from components import (
     render_kpi_cards,
     render_last_update,
 )
-from components.charts import create_top10_bar_chart
+from components.charts import LEGEND_TOP, create_top10_bar_chart
 from components.layout import (
     empty_state,
     get_page_columns,
     render_ai_column,
     render_page_header,
+    section_header,
 )
 from data import get_filter_state, load_monthly_summary, load_records
 from plotly.subplots import make_subplots
@@ -60,7 +61,7 @@ def _render_chart_row_1(df, date_from, date_to, db_ver, chart_template, colors) 
     chart_col1, chart_col2 = st.columns(2)
 
     with chart_col1:
-        st.markdown("**:material/trending_up: 월별 생산 추세**")
+        section_header("월별 생산 추세", ":material/trending_up:")
         summary_df = load_monthly_summary(date_from, date_to, db_ver=db_ver)
         if len(summary_df) > 0:
             fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -88,7 +89,7 @@ def _render_chart_row_1(df, date_from, date_to, db_ver, chart_template, colors) 
                 template=chart_template,
                 height=360,
                 margin=dict(l=40, r=40, t=30, b=40),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02),
+                legend=LEGEND_TOP,
                 xaxis_type="category",
             )
             fig.update_yaxes(title_text="생산량", secondary_y=False)
@@ -101,7 +102,7 @@ def _render_chart_row_1(df, date_from, date_to, db_ver, chart_template, colors) 
             )
 
     with chart_col2:
-        st.markdown("**:material/leaderboard: Top 10 제품별 생산량**")
+        section_header("Top 10 제품별 생산량", ":material/leaderboard:")
         fig_bar = create_top10_bar_chart(df, chart_template, marker_color=colors["primary"])
         fig_bar.update_layout(height=360, margin=dict(l=80, r=20, t=30, b=40))
         st.plotly_chart(fig_bar, width="stretch", config=get_chart_config("top10"))
@@ -115,13 +116,13 @@ def _render_chart_row_2(df, chart_template) -> None:
     chart_col3, chart_col4 = st.columns(2)
 
     with chart_col3:
-        st.markdown("**:material/donut_small: 생산 분포**")
+        section_header("생산 분포", ":material/donut_small:")
         fig_pie = create_distribution_pie(df, chart_template)
         fig_pie.update_layout(height=340, margin=dict(l=20, r=20, t=30, b=40))
         st.plotly_chart(fig_pie, width="stretch", config=get_chart_config("distribution"))
 
     with chart_col4:
-        st.markdown("**:material/table_chart: 최근 현황 요약**")
+        section_header("최근 현황 요약", ":material/table_chart:")
         if not df.empty:
             recent = df.head(7)[
                 ["production_date", "item_code", "item_name", "good_quantity"]
