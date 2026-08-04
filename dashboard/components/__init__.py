@@ -10,12 +10,7 @@ This package contains modular components for the Production Data Hub dashboard:
 - layout: Page layout helpers (header, AI toggle, columns)
 """
 
-from .ai_section import (
-    render_ai_header_with_animation,
-    render_ai_section,
-    render_ai_section_compact,
-    render_ai_status_indicator,
-)
+from .ai_section import render_ai_section_compact
 from .charts import (
     CHART_HEIGHT,
     CHART_MARGIN_TOP,
@@ -83,10 +78,7 @@ __all__ = [
     "delete_preset",
     "render_preset_manager",
     # ai_section
-    "render_ai_section",
     "render_ai_section_compact",
-    "render_ai_status_indicator",
-    "render_ai_header_with_animation",
     # layout
     "init_ai_panel_state",
     "page_header",

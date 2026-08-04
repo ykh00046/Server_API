@@ -24,11 +24,7 @@ from components.layout import init_ai_panel_state
 from data import get_db_mtime, load_item_list, run_self_check
 
 from shared.ui.responsive import apply_responsive_css
-from shared.ui.theme import (
-    apply_custom_css,
-    init_theme,
-    render_theme_toggle,
-)
+from shared.ui.theme import init_theme, render_theme_toggle
 
 # ==========================================================
 # Page Configuration
@@ -45,7 +41,6 @@ st.set_page_config(
 # ==========================================================
 init_theme()
 apply_responsive_css()
-apply_custom_css()
 init_presets()
 init_ai_panel_state()
 
