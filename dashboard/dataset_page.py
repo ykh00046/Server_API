@@ -276,13 +276,18 @@ def _render_filters() -> dict:
 def _fetch_and_render_rows(
     prefix: str, title: str, params: dict, columns, sheet_name: str, file_base: str, empty_msg: str
 ) -> None:
-    """데이터 fetch + 표/건수/다운로드 렌더. 데이터 없으면 st.stop()."""
+    """데이터 fetch + 표/건수/다운로드 렌더.
+
+    조회 실패·빈 결과에서는 `st.stop()`이 아니라 `return`으로 빠진다 — 이 함수
+    아래에 운영 작업 섹션(실행 패널·문서 삭제)이 렌더되므로 스크립트를 중단하면
+    복구 수단이 통째로 사라진다.
+    """
     try:
         with st.spinner(f"{title} 데이터 조회 중…"):
             rows = _fetch_rows(prefix, params)
     except httpx.HTTPError as e:
         st.error(f"{title} 데이터를 불러오지 못했습니다 ({e}). API 서버 상태를 확인하세요.")
-        st.stop()
+        return
 
     df = _to_excel_frame(rows, columns)
 
@@ -293,7 +298,7 @@ def _fetch_and_render_rows(
             empty_msg,
             hint="필터(요청부서·날짜·건수)를 조정하거나 ‘지금 실행’으로 데이터를 수집해 보세요.",
         )
-        st.stop()
+        return
 
     st.dataframe(df, width="stretch", hide_index=True)
 
@@ -354,25 +359,25 @@ def render(
     )
 
     # ----------------------------------------------------------
-    # 실행 상태 / 이력 / 수동 실행
+    # Filters → 표/다운로드 (페이지 본문 = 데이터가 최상단)
     # ----------------------------------------------------------
-    _render_runs_panel(prefix)
+    params = _render_filters()
 
-    # ----------------------------------------------------------
-    # 문서 삭제 (실수 기안·중복 문서 제거) — 목록 유무와 무관하게 항상 노출
-    # ----------------------------------------------------------
-    _render_delete_expander(prefix)
+    _fetch_and_render_rows(
+        prefix, title, params, columns, sheet_name, file_base, empty_msg
+    )
 
     st.divider()
 
     # ----------------------------------------------------------
-    # Filters
+    # 운영 작업 — 실행 상태/이력/수동 실행 + 문서 삭제·복원.
+    # 데이터 조회가 실패해도 여기까지 도달해야 하므로 위 함수는 st.stop() 금지.
     # ----------------------------------------------------------
-    params = _render_filters()
+    st.markdown("#### :material/settings: 운영 작업")
 
-    # ----------------------------------------------------------
-    # Fetch + render
-    # ----------------------------------------------------------
-    _fetch_and_render_rows(
-        prefix, title, params, columns, sheet_name, file_base, empty_msg
-    )
+    # 실행 패널은 내부에 "실행 이력" expander를 갖고 있어 expander로 감쌀 수 없다
+    # (Streamlit은 expander 중첩을 금지). 테두리 컨테이너로 묶어 구획만 준다.
+    with st.container(border=True):
+        _render_runs_panel(prefix)
+
+    _render_delete_expander(prefix)

@@ -85,6 +85,15 @@ pages = {
     ],
 }
 
+# 전역 검색 필터(키워드·날짜·제품…)를 실제로 소비하는 페이지 = get_filter_state()를
+# 호출하는 생산 데이터 페이지들. 나머지 페이지(자재·바인더·운영)에서는 죽은 위젯이
+# 되므로 렌더하지 않는다. 제목을 문자열로 다시 적으면 조용히 어긋나므로 위 pages
+# 딕셔너리에서 직접 유도한다.
+FILTERED_PAGE_GROUPS = ("대시보드", "생산 데이터")
+FILTERED_PAGE_TITLES = {
+    page.title for group in FILTERED_PAGE_GROUPS for page in pages[group]
+}
+
 nav = st.navigation(pages)
 
 # ==========================================================
@@ -95,61 +104,64 @@ with st.sidebar:
     st.markdown("### :material/factory: 생산 데이터 허브")
     st.caption("Production Data Hub")
 
-    # Filters section
-    st.markdown("#### :material/filter_list: 검색 필터")
+    if nav.title in FILTERED_PAGE_TITLES:
+        # Filters section
+        st.markdown("#### :material/filter_list: 검색 필터")
 
-    current_db_ver = get_db_mtime()
+        current_db_ver = get_db_mtime()
 
-    items_df = load_item_list(db_ver=current_db_ver)
-    labels = items_df["label"].tolist()
-    label_to_code = dict(zip(labels, items_df["item_code"].tolist(), strict=True))
+        items_df = load_item_list(db_ver=current_db_ver)
+        labels = items_df["label"].tolist()
+        label_to_code = dict(zip(labels, items_df["item_code"].tolist(), strict=True))
 
-    # Preset 적용 값을 위젯 생성 전에 flt_* 세션 키로 주입 (생성 후엔 금지)
-    apply_pending_preset({code: label for label, code in label_to_code.items()})
+        # Preset 적용 값을 위젯 생성 전에 flt_* 세션 키로 주입 (생성 후엔 금지)
+        apply_pending_preset({code: label for label, code in label_to_code.items()})
 
-    today = date.today()
-    st.session_state.setdefault("flt_limit", 5000)
-    st.session_state.setdefault("flt_keyword", "")
-    st.session_state.setdefault("flt_dates", (today - timedelta(days=90), today))
-    st.session_state.setdefault("flt_products", [])
-    # DB 교체로 사라진 제품 라벨이 남아 있으면 multiselect가 죽는다
-    _label_set = set(labels)
-    st.session_state["flt_products"] = [
-        x for x in st.session_state["flt_products"] if x in _label_set
-    ]
+        today = date.today()
+        st.session_state.setdefault("flt_limit", 5000)
+        st.session_state.setdefault("flt_keyword", "")
+        st.session_state.setdefault("flt_dates", (today - timedelta(days=90), today))
+        st.session_state.setdefault("flt_products", [])
+        # DB 교체로 사라진 제품 라벨이 남아 있으면 multiselect가 죽는다
+        _label_set = set(labels)
+        st.session_state["flt_products"] = [
+            x for x in st.session_state["flt_products"] if x in _label_set
+        ]
 
-    limit = st.slider(
-        "최대 레코드 수", min_value=500, max_value=50000, step=500, key="flt_limit"
-    )
-    keyword = st.text_input("키워드 (코드/명칭/LOT)", key="flt_keyword").strip() or None
+        limit = st.slider(
+            "최대 레코드 수", min_value=500, max_value=50000, step=500, key="flt_limit"
+        )
+        keyword = (
+            st.text_input("키워드 (코드/명칭/LOT)", key="flt_keyword").strip() or None
+        )
 
-    date_range = st.date_input("날짜 범위 (생산일)", key="flt_dates")
-    date_from, date_to = None, None
-    if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
-        date_from, date_to = date_range[0], date_range[1]
+        date_range = st.date_input("날짜 범위 (생산일)", key="flt_dates")
+        date_from, date_to = None, None
+        if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
+            date_from, date_to = date_range[0], date_range[1]
 
-    selected_labels = st.multiselect("제품 선택", options=labels, key="flt_products")
-    item_codes = (
-        [label_to_code[x] for x in selected_labels] if selected_labels else None
-    )
+        selected_labels = st.multiselect("제품 선택", options=labels, key="flt_products")
+        item_codes = (
+            [label_to_code[x] for x in selected_labels] if selected_labels else None
+        )
 
-    # Store filter state in session_state for pages to access
-    st.session_state["_filters"] = {
-        "item_codes": item_codes,
-        "keyword": keyword,
-        "date_from": date_from,
-        "date_to": date_to,
-        "limit": limit,
-    }
+        # Store filter state in session_state for pages to access
+        st.session_state["_filters"] = {
+            "item_codes": item_codes,
+            "keyword": keyword,
+            "date_from": date_from,
+            "date_to": date_to,
+            "limit": limit,
+        }
 
-    # Preset manager — 적용은 _pending_preset 큐잉 + rerun으로 위 flt_* 키에 반영
-    render_preset_manager(
-        current_item_codes=item_codes,
-        current_date_from=date_from,
-        current_date_to=date_to,
-        current_keyword=keyword,
-        current_limit=limit,
-    )
+        # Preset manager — 적용은 _pending_preset 큐잉 + rerun으로 위 flt_* 키에 반영
+        render_preset_manager(
+            current_item_codes=item_codes,
+            current_date_from=date_from,
+            current_date_to=date_to,
+            current_keyword=keyword,
+            current_limit=limit,
+        )
 
     if st.button("새로고침", icon=":material/refresh:", width="stretch"):
         st.cache_data.clear()
