@@ -13,7 +13,12 @@ three `_render_*` helpers. `_render_detail_table` returns the renamed DataFrame 
 
 import pandas as pd
 import streamlit as st
-from components.layout import get_page_columns, render_ai_column, render_page_header
+from components.layout import (
+    empty_state,
+    get_page_columns,
+    render_ai_column,
+    render_page_header,
+)
 from data import _cached_excel_bytes, get_filter_state, load_records
 
 
@@ -103,7 +108,7 @@ def _render_export_buttons(df: pd.DataFrame, display_detail: pd.DataFrame) -> No
 # ==========================================================
 # Page entry
 # ==========================================================
-render_page_header("배치 내역", "생산 관리 > 배치 내역")
+render_page_header("배치 내역", "생산 데이터 > 배치 내역")
 
 fs = get_filter_state()
 item_codes = fs["item_codes"]
@@ -124,8 +129,15 @@ with col_main:
             icon=":material/warning:",
         )
 
-    _render_kpi_cards(df)
-    display_detail = _render_detail_table(df)
-    _render_export_buttons(df, display_detail)
+    if df.empty:
+        # 0행 상태에서 KPI·표·다운로드를 그대로 두면 빈 파일을 받게 된다.
+        empty_state(
+            "선택한 조건에 해당하는 생산 레코드가 없습니다.",
+            hint="사이드바에서 기간을 넓히거나 제품·키워드 필터를 해제해 보세요.",
+        )
+    else:
+        _render_kpi_cards(df)
+        display_detail = _render_detail_table(df)
+        _render_export_buttons(df, display_detail)
 
 render_ai_column(col_ai)

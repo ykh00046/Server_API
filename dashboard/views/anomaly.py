@@ -21,7 +21,7 @@ import streamlit as st
 from components import get_chart_config
 from components.anomaly_view_helpers import (
     KIND_LABELS,
-    SEVERITY_COLORS,
+    SEVERITY_PALETTE_INDEX,
     findings_to_daily_counts,
     humanize_remaining,
 )
@@ -29,7 +29,7 @@ from components.layout import empty_state, page_header
 
 from shared.api_client import auth_headers
 from shared.config import API_BASE_URL
-from shared.ui.theme import get_colors
+from shared.ui.theme import get_chart_palette, get_colors
 
 _SEV_BADGE = {"critical": "red", "warning": "orange", "info": "gray"}
 
@@ -38,7 +38,7 @@ def _headers() -> dict:
     return auth_headers()
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner="이상탐지 데이터 조회 중…")
 def _fetch(path: str, params: dict | None = None) -> dict:
     with httpx.Client(base_url=API_BASE_URL, timeout=15.0) as c:
         resp = c.get(path, params=params or {}, headers=_headers())
@@ -137,13 +137,15 @@ if hist is not None:
         )
     else:
         daily = findings_to_daily_counts(rows)
+        # severity 색은 공용 팔레트(SSOT)에서 인덱스로 해석 — 라이트/다크 대응
+        palette = get_chart_palette(7)
         fig = go.Figure()
         for sev in ("critical", "warning", "info"):
             sub = daily[daily["severity"] == sev]
             if len(sub):
                 fig.add_trace(go.Bar(
                     x=sub["day"], y=sub["count"], name=sev,
-                    marker_color=SEVERITY_COLORS[sev],
+                    marker_color=palette[SEVERITY_PALETTE_INDEX[sev]],
                 ))
         colors = get_colors()
         fig.update_layout(
@@ -247,11 +249,12 @@ with st.expander("what-if 임계치 미리보기", expanded=False):
             )
         if submitted:
             try:
-                preview = _fetch_fresh("/anomaly/scan", {
-                    "drop_pct": w_drop, "spike_pct": w_spike,
-                    "stale_days": w_stale, "min_baseline_qty": w_min,
-                    "baseline_days": w_base,
-                })
+                with st.spinner("what-if 미리보기 계산 중…"):
+                    preview = _fetch_fresh("/anomaly/scan", {
+                        "drop_pct": w_drop, "spike_pct": w_spike,
+                        "stale_days": w_stale, "min_baseline_qty": w_min,
+                        "baseline_days": w_base,
+                    })
             except httpx.HTTPError as e:
                 st.warning(f"미리보기 실패 ({e}).")
             else:

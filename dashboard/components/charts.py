@@ -61,14 +61,15 @@ def create_top10_bar_chart(
         )
     ))
 
+    # 제목은 호출 측(view)의 섹션 헤더가 담당한다 — plotly 내부 title 을 두면
+    # 같은 문구가 두 번 렌더된다. t 여백은 제목 없는 기준(30)으로 통일.
     fig.update_layout(
-        title="Top 10 제품별 생산량",
         xaxis_title="생산량 (개)",
         yaxis_title="제품코드",
         template=template,
         height=400,
         yaxis=dict(autorange="reversed"),  # Top product at top
-        margin=dict(l=100, r=50, t=50, b=50)
+        margin=dict(l=100, r=50, t=30, b=50)
     )
 
     return fig
@@ -127,12 +128,13 @@ def create_distribution_pie(df: pd.DataFrame, template: str) -> go.Figure:
         )
     ))
 
+    # 제목은 호출 측 섹션 헤더가 담당 (중복 렌더 방지).
     fig.update_layout(
-        title="제품별 생산 분포",
         template=template,
         height=400,
         showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=-0.2)
+        legend=dict(orientation="h", yanchor="bottom", y=-0.2),
+        margin=dict(l=20, r=20, t=30, b=40)
     )
 
     return fig
@@ -224,15 +226,16 @@ def create_trend_lines(
             )
         ))
 
+    # 제목은 호출 측 섹션 헤더가 담당 (중복 렌더 방지).
     fig.update_layout(
-        title="제품별 생산 추세",
         xaxis_title="기간",
         yaxis_title="생산량 (개)",
         template=template,
         height=400,
         hovermode="x unified",
         xaxis_type="category",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(l=60, r=30, t=30, b=40)
     )
 
     return fig

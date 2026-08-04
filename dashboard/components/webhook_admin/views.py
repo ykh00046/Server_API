@@ -30,10 +30,12 @@ _SECRET_KEY = "_webhook_last_secret"
 def render_queue_stats_section(client: WebhookAdminClient) -> None:
     st.subheader(":material/monitoring: 큐 상태", anchor=False)
     try:
-        stats = client.queue_stats()
+        with st.spinner("큐 상태 조회 중…"):
+            stats = client.queue_stats()
     except WebhookAdminError as e:
-        toast_error(f"큐 상태 조회 실패: {e}")
-        stats = {}
+        # 조회 실패를 0건으로 표시하면 "큐가 비었다"로 오독된다 — 렌더 중단.
+        st.error(f"큐 상태를 불러오지 못했습니다: {e}")
+        return
     cards = formatters.format_queue_stats_cards(stats)
     cols = st.columns(len(cards))
     for col, (label, value, _hint) in zip(cols, cards, strict=True):
@@ -140,10 +142,12 @@ def render_webhook_list_section(client: WebhookAdminClient) -> int | None:
         active_param = False
 
     try:
-        items = client.list_webhooks(active=active_param)
+        with st.spinner("webhook 목록 조회 중…"):
+            items = client.list_webhooks(active=active_param)
     except WebhookAdminError as e:
-        toast_error(f"목록 조회 실패: {e}")
-        items = []
+        # 조회 실패는 "등록된 webhook 없음"과 다른 상태 — 빈 목록 안내로 덮지 않는다.
+        st.error(f"webhook 목록을 불러오지 못했습니다: {e}")
+        return None
 
     if not items:
         st.info("등록된 webhook이 없습니다.")
