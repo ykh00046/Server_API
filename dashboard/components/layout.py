@@ -100,23 +100,21 @@ def download_pair(
         excel_label: Excel 버튼 라벨.
         csv_label: CSV 버튼 라벨.
     """
-    col_excel, col_csv, _ = st.columns([1, 1, 4])
-    with col_excel:
+    # 고정 비율 컬럼([1,1,4]) 대신 horizontal 컨테이너: 버튼이 내용 폭을
+    # 유지하고 좁은 화면(768-1024px)에서도 세로 글자 뭉개짐 없이 줄바꿈된다.
+    with st.container(horizontal=True):
         st.download_button(
             excel_label,
             data=excel_bytes,
             file_name=f"{file_base}.xlsx",
             icon=":material/download:",
-            width="stretch",
         )
-    with col_csv:
         st.download_button(
             csv_label,
             data=df.to_csv(index=False).encode("utf-8-sig"),
             file_name=f"{file_base}.csv",
             mime="text/csv",
             icon=":material/csv:",
-            width="stretch",
         )
 
 
