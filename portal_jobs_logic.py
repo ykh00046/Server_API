@@ -98,6 +98,9 @@ def resolve_badge(collectors: dict, keyword: str) -> tuple[str, bool]:
       - type=="materials" (명시) → "완료문서함".
       - entry 없음(폴백) → "완료문서함(기본)", fallback=True.
 
+    attendance(근태허가원 수집, attendance-approvals-v1)는 모달에 없는 패턴이라
+    "부서공개함·근태"로만 보여준다 — 폴백이 아니므로 fallback=False.
+
     Returns:
         (badge_text, is_fallback)
     """
@@ -107,6 +110,10 @@ def resolve_badge(collectors: dict, keyword: str) -> tuple[str, bool]:
         if spec.get("weekdays"):
             return "부서공개함·평일", False
         return "부서공개함", False
+    if ctype == "attendance":
+        if spec.get("weekdays"):
+            return "부서공개함·근태·평일", False
+        return "부서공개함·근태", False
     if ctype == "materials":
         return "완료문서함", False
     return "완료문서함(기본)", True
@@ -160,6 +167,8 @@ def _apply_collectors(
 
     - binder: 항상 기록(type/box/drafter/title/weekdays).
     - materials: 기존 entry 가 있을 때만 type=materials 갱신(생성하지 않음).
+      단 모달이 표현하지 못하는 패턴(attendance 등)은 건드리지 않는다 — 시각만
+      고치러 들어온 저장이 수집기 스펙을 완료문서함으로 되돌리면 안 된다.
     """
     collectors = sec.setdefault("collectors", {})
     if not isinstance(collectors, dict):
@@ -177,6 +186,8 @@ def _apply_collectors(
     # materials — 폴백 유지: 기존 entry 가 있을 때만 갱신, 없으면 기록하지 않는다.
     existing = collectors.get(keyword)
     if isinstance(existing, dict):
+        if str(existing.get("type", "")).strip() not in _PATTERNS:
+            return  # 모달 밖 패턴(attendance …)은 보존
         existing["type"] = "materials"
         existing["box"] = _BOX_BY_PATTERN["materials"]
 

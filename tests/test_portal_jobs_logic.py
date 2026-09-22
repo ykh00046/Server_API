@@ -144,6 +144,13 @@ class TestResolveBadge:
         assert badge == "부서공개함"
         assert fallback is False
 
+    def test_attendance_badge(self):
+        """attendance-approvals-v1 — 모달에 없는 패턴도 폴백으로 보이면 안 된다."""
+        collectors = {"근태허가원": {"type": "attendance", "box": "dept_open"}}
+        badge, fallback = jobs_logic.resolve_badge(collectors, "근태허가원")
+        assert badge == "부서공개함·근태"
+        assert fallback is False
+
 
 # ==========================================================
 # merge_job_form — §4 collectors 규칙
@@ -173,6 +180,29 @@ class TestMergeCollectors:
         spec = cfg["search"]["collectors"]["자재"]
         assert spec["type"] == "materials"
         assert spec["box"] == "completed"
+
+    def test_materials_pattern_preserves_unknown_collector_type(self):
+        """attendance-approvals-v1 — 모달이 모르는 패턴을 되돌리면 안 된다.
+
+        매니저 모달에는 materials/binder 라디오뿐이라, 근태허가원 작업의 시각만
+        고치러 들어와 저장하면 pattern='materials' 로 온다. 이때 collectors 의
+        attendance 스펙을 완료문서함으로 덮어쓰면 수집기가 조용히 망가진다.
+        """
+        cfg = {"search": {"jobs": [], "collectors": {
+            "근태허가원": {"type": "attendance", "box": "dept_open",
+                            "drafter": "", "title": "근태허가원", "weekdays": False},
+        }}}
+        jobs_logic.merge_job_form(
+            cfg, keyword="근태허가원", times=["04:00"], enabled=True,
+            pattern="materials", drafter="", title="", weekdays=False,
+            dataset_route="/materials",
+        )
+        spec = cfg["search"]["collectors"]["근태허가원"]
+        assert spec["type"] == "attendance"
+        assert spec["box"] == "dept_open"
+        assert spec["title"] == "근태허가원"
+        # 작업 시각은 정상 갱신된다.
+        assert cfg["search"]["jobs"][0]["times"] == ["04:00"]
 
     def test_materials_does_not_create_entry(self):
         """materials + 기존 entry 없음 → collectors 에 기록하지 않는다(폴백 유지)."""
