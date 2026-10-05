@@ -97,7 +97,7 @@ Server_API(FastAPI + SQLite + Streamlit + manager/봇) 프로젝트의 2026 하�
 | B-4 | **dataset 확장 대비 정리** | 신규 키워드 데이터셋 추가 리허설: datasets.py 한 줄 + 봇 config + 대시보드 views 파일의 3점 체크리스트 문서화, binder 전용 컬럼 헤더 확정(da2cc29의 `render(columns=)` 활용) | 멀티키워드 모델이 성장 축. 다음 데이터셋 추가 때 절차가 머리에만 있음 | 소 |
 | B-5 | **materials-run 상태코드 세분화** | TriggerError를 사유별로 409(중복)/503(비활성)/500(설정오류) 분기 | 검토 M-6. 대시보드가 모든 실패를 "이미 실행 중"으로 오인 가능 | 소 |
 | B-6 | **anomaly-rules-v2 (품목별 규칙)** | 품목별 임계치 오버라이드(설정 파일 기반, UI 없이 시작) | v1 Out of Scope 항목. B-2로 관측이 생긴 뒤 오탐 데이터를 보고 결정. 2026-10 재검토: 오탐 신고 0건 → 계속 대기 | 중 |
-| B-7 | **dashboard-8502-sunset (신설, 2026-10-05)** — Server_API 자체 Streamlit 대시보드 폐지 | 범위: `dashboard/` 3,478 LOC + manager 런처(`manager.py` streamlit run) + `stop.bat` 8502 + streamlit 의존성. 전제: Dashboard `/data-hub`가 상태·문서 조회·수동 실행을 이미 서빙, `/production`이 생산실적 분석을 서빙. **8502만 가진 기능 4종의 거취를 먼저 결정**: ① webhook CRUD admin(Dashboard는 파괴적 조작을 의도적으로 제외 → manager GUI 또는 CLI로 이관 후보) ② anomaly findings·what-if 페이지 ③ 문서 삭제/tombstone 복원 UI ④ Gemini 챗(Dashboard 챗으로 일원화 후보). 1단계 = 운용 PC 8502 실사용 여부 확인(접속 로그/운영자 확인) | Dashboard 경계 리뷰 P1(최대 효과). 헌장상 "화면"은 Dashboard 소유. 사용자 창구 2개·LLM 창구 2개 유지 비용 제거. Dashboard 측 Streamlit sunset 플레이북(2026-05) 재사용 | 중~대 |
+| B-7 | ✅ **dashboard-8502-sunset — 완료 2026-10-05** (설계 `docs/02-design/features/dashboard-8502-sunset.design.md`). 운영자 결정: 8502 미사용 → UI + Gemini 챗 API + 툴 패키지까지 제거. 커밋 6개(f6baa7b UI·5c28aaf 챗·f719b36 툴·15e288d deps·b1080fa 문서). 코드 −10.6k줄, 테스트 768→486, lock 83→37핀, cov 93%, openapi 39경로. 잔여 운영: update.bat+매니저 재시작, 운용 .env 잔존 키 수동 삭제(operations_manual §9) | 원안 범위: `dashboard/` 3,478 LOC + manager 런처(`manager.py` streamlit run) + `stop.bat` 8502 + streamlit 의존성. 전제: Dashboard `/data-hub`가 상태·문서 조회·수동 실행을 이미 서빙, `/production`이 생산실적 분석을 서빙. **8502만 가진 기능 4종의 거취를 먼저 결정**: ① webhook CRUD admin(Dashboard는 파괴적 조작을 의도적으로 제외 → manager GUI 또는 CLI로 이관 후보) ② anomaly findings·what-if 페이지 ③ 문서 삭제/tombstone 복원 UI ④ Gemini 챗(Dashboard 챗으로 일원화 후보). 1단계 = 운용 PC 8502 실사용 여부 확인(접속 로그/운영자 확인) | Dashboard 경계 리뷰 P1(최대 효과). 헌장상 "화면"은 Dashboard 소유. 사용자 창구 2개·LLM 창구 2개 유지 비용 제거. Dashboard 측 Streamlit sunset 플레이북(2026-05) 재사용 | 중~대 |
 | B-8 | **manager collector-type 확장 (신설)** | 매니저 작업 모달이 materials/binder 패턴만 인식 → attendance 같은 신규 collector는 읽기 전용 배지로만 표시(d33e8ae). 패턴 레지스트리를 봇 collectors 스키마에서 파생하도록 일반화 | 봇 collector 추가가 실제로 발생(9/22). 다음 collector 추가 때 또 "spec 보호" 땜질이 필요 | 소 |
 | B-9 | **run 트리거 전역 동시 실행 가드 (신설)** | `automation.py` 가드를 데이터셋 단위 → 프로세스 전역(모든 runs 테이블 중 하나라도 `running`이면 409)으로 승격 | 2026-08-24 사고: 자재+바인더 동시 기동(포털 세션 공유). 현재는 Dashboard 프록시만 막고 있어 `/run` 직접 POST 경로는 무방비(매니저 Run Now가 같은 경로를 타는지는 착수 시 확인) | 소 |
 
@@ -129,7 +129,7 @@ Server_API(FastAPI + SQLite + Streamlit + manager/봇) 프로젝트의 2026 하�
 ### 4.1 2026-10 재검토 이후 착수 순서 (권고)
 
 1. ✅ **A-6 + A-9 (lock 갱신 + httpx2)** — 완료 2026-10-05(v0.8). streamlit 핀은 B-7 결정 전까지 1.58 동결.
-2. **B-7 1단계 (8502 실사용 확인 + 4종 기능 거취 결정)** — 운영자 판단 필요. 결정 후 `/pdca plan dashboard-8502-sunset`.
+2. ✅ **B-7 dashboard-8502-sunset** — 완료 2026-10-05(v0.9). 운영자 결정: 미사용 → UI+챗 API+툴 전부 제거, 관리 조작은 curl 레시피(api_integration_guide §6).
 3. **B-9 (전역 동시 실행 가드)** — 소, 사고 재발 방지. B-7과 무관하게 즉시 가능.
 4. B-8 → C-5 순. B-6·C-2~C-4는 조건 대기 유지.
 
@@ -153,7 +153,7 @@ Server_API(FastAPI + SQLite + Streamlit + manager/봇) 프로젝트의 2026 하�
 | M5 품질 램프 | A-5 C901 R8 ✅(2026-07-16, 조기 완료) · A-6 의존성 추적 점검은 잔여 | ~~2026-Q4~~ A-6만 잔여 |
 | ✅ 분기 재검토 | 이 문서 갱신 (완료 체크, 우선순위 재조정, C-트랙 착수 판단) — **수행 2026-10-05 (v0.7)** | ~~10월 초~~ |
 | ✅ M6 의존성 갱신 | A-6 httpx2 + A-9 lock 분기 갱신 (streamlit 핀 동결) — **완료 2026-10-05**, 운용 PC 반영은 update.bat + 매니저 재시작(ctk 6.0 육안 확인 동반) | ~~2026-10~~ |
-| M7 8502 sunset | B-7 — 1단계 실사용 확인·기능 거취 결정 → plan/design → 폐지. 선행: Dashboard 측 수용 화면 확정 | 2026-Q4 (결정 후) |
+| ✅ M7 8502 sunset | B-7 — **완료 2026-10-05** (실사용 0 확인 → 설계 → UI·챗 API·툴 패키지 제거, 레이어별 커밋 6개). 운용 PC 반영은 update.bat + 매니저 재시작 | ~~2026-Q4~~ |
 | M8 소형 묶음 2 | B-9 전역 가드 + B-8 collector-type 일반화 | 2026-Q4 |
 | 분기 재검토 2 | B-1 인증 재판단(2027-01), C-트랙 조건 점검 | 2027-01 초 |
 
@@ -169,3 +169,4 @@ Server_API(FastAPI + SQLite + Streamlit + manager/봇) 프로젝트의 2026 하�
 | 0.6 | 2026-07-16 | A-5 C901 R8 완료(zcode 위임, 12c3e44). 동 사이클에서 대시보드 UI 통일(1b34123)·매니저 GUI 개선(49262b5, manager_theme.py 신설) — feature/ui-refactor-zcode 브랜치. 잔여: A-6, B-6, 트랙 C, 10월 재검토 |
 | 0.7 | 2026-10-05 | **10월 분기 재검토**. 현황 갱신(테스트 768, 7/16 이후 커밋 26개 — tombstone·backup opt·UI 검토·manager-collector-ui·attendance collector). A-6 착수 조건 충족(httpx2 GA)·A-9 lock 갱신 신설. Dashboard 경계 리뷰(8/21) 반영: B-7 8502 sunset 신설(1순위 개발 후보), C-1은 Dashboard 허브로 외부 충족 판정. 8/24 동시 기동 사고 → B-9 전역 가드 신설. B-8 collector-type 일반화 신설. B-1 현상 유지 연장 권고(2027-01 재판단). 착수 순서 §4.1 |
 | 0.8 | 2026-10-05 | **M6 완료(A-6 httpx2 + A-9 lock 갱신)**, chore/deps-2026-10. 4중 검증(768 tests·매니저 ctk 6.0 위젯 스모크·uvicorn/streamlit 실기동·fresh venv lock 설치). lock 생성 절차를 `scripts/freeze_lock.py` + `constraints.txt`로 고정(포털 의존성 혼입 차단, streamlit 1.58 동결). 다음 = B-7 1단계(운영자 결정) · B-9 |
+| 0.9 | 2026-10-05 | **M7 완료(B-7 dashboard-8502-sunset)**, feat/dashboard-8502-sunset. 운영자 결정(8502 미사용)으로 UI+Gemini 챗 API+툴 패키지 제거: 코드 −10.6k줄, 테스트 768→486, lock 83→37핀, cov 93%, 의존성에서 streamlit·plotly·altair·pandas·google-genai 소멸. 구현 중 발견: `pip freeze` 포털 의존성 혼입(A-9에서 해결), MATERIALS_API_KEY는 봇 키라 유지. 다음 = B-9 전역 동시 실행 가드 → B-8 |
