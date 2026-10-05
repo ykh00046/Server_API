@@ -43,7 +43,7 @@ def client():
 # ----------------------------------------------------------
 # Seeded production DB fixture (coverage-lift, 2026-06-17)
 # ----------------------------------------------------------
-# Many AI tools (api/tools/*) and routers query the live DB via
+# Routers query the live DB via
 # DBRouter.get_connection, which reads the module-level DB_FILE bound in
 # several `shared` submodules. This fixture builds a small temp
 # production_records DB (2026 dates -> live-only routing, archive skipped)
@@ -72,7 +72,6 @@ _ARCHIVE_MODULES = (
     "shared._db_connection",
     "shared.cache",
     "shared",
-    "api.tools.items",
     "api.routers.system",
     "api.routers.records",
 )

@@ -71,13 +71,6 @@ RATE_LIMIT_API = 60       # requests per minute (general API)
 RATE_LIMIT_WINDOW = 60    # seconds
 
 # ==========================================================
-# SSE Streaming Configuration
-# ==========================================================
-STREAM_HEARTBEAT_SEC = float(os.getenv("STREAM_HEARTBEAT_SEC", 10.0))
-STREAM_TIMEOUT_SEC = float(os.getenv("STREAM_TIMEOUT_SEC", 120.0))
-STREAM_BUFFER_FLUSH_MS = float(os.getenv("STREAM_BUFFER_FLUSH_MS", 50.0))
-
-# ==========================================================
 # CORS
 # ==========================================================
 _DEFAULT_CORS_ORIGINS = (
@@ -88,11 +81,6 @@ _DEFAULT_CORS_ORIGINS = (
 CORS_ORIGINS: list[str] = [
     o.strip() for o in os.getenv("CORS_ORIGINS", _DEFAULT_CORS_ORIGINS).split(",") if o.strip()
 ]
-
-# ==========================================================
-# Custom Query Safety (security-and-test-improvement)
-# ==========================================================
-CUSTOM_QUERY_TIMEOUT_SEC = float(os.getenv("CUSTOM_QUERY_TIMEOUT_SEC", 10.0))
 
 # ==========================================================
 # API Authentication (auth-audit-v1) — opt-in, default OFF

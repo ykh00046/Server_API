@@ -1,8 +1,7 @@
 """Safe ATTACH helper for the archive SQLite DB.
 
 Extracted from shared/database.py (structure-cleanup, 2026-05-27) so the
-attach pattern lives in one small file shared by both DBRouter and the
-ad-hoc custom-query tool path. The public symbol `attach_archive_safe`
+attach pattern lives in one small file used by DBRouter. The public symbol `attach_archive_safe`
 is re-exported from `shared.database` for backwards compatibility.
 """
 from __future__ import annotations
@@ -23,8 +22,7 @@ def attach_archive_safe(
 ):
     """ATTACH archive DB safely (whitelist + bind-first + ro mode).
 
-    Used by both ``DBRouter.get_connection()`` and
-    ``api/tools.execute_custom_query`` to keep the path-validation + ATTACH
+    Used by ``DBRouter.get_connection()`` to keep the path-validation + ATTACH
     pattern in one place.
 
     Args:
