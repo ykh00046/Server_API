@@ -48,10 +48,15 @@ pip install -r requirements.lock.txt
 최신 버전으로 의존성을 올릴 때(top-level 선언 기준 설치 후 lock 재생성):
 
 ```powershell
-pip install -r requirements.txt -r requirements-dev.txt
-pip freeze > requirements.lock.txt
+pip install -U --upgrade-strategy eager -r requirements.txt -r requirements-dev.txt -c constraints.txt
+python scripts/freeze_lock.py > requirements.lock.txt
 # requirements*.txt 와 lock 을 같은 커밋으로
 ```
+
+- `constraints.txt`는 의도적으로 묶어 두는 핀(현재 `streamlit==1.58.0`)을 담는다. 로드맵 A-9 참조.
+- `scripts/freeze_lock.py`는 `pip freeze`를 requirements 폐쇄(closure)로 걸러 준다. 같은 venv에
+  `webcloring-pdf/requirements.txt`(selenium 등 포털 전용)를 설치해 둔 경우 맨 `pip freeze`는 그것까지
+  lock에 섞어 넣으므로 쓰지 않는다.
 
 ### 4. 환경 변수 설정
 `.env` 파일 생성(전체 항목은 `.env.example` 참조):

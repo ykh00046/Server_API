@@ -2,3 +2,5 @@
 ruff>=0.15
 pytest>=7.0
 pytest-cov>=4.0
+# starlette 1.x TestClient backend (roadmap A-6, 2026-10). App code stays on httpx 0.28 - the two packages coexist.
+httpx2>=2.13

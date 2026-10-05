@@ -1,0 +1,3 @@
+# Pins held on purpose during dependency refresh (pip install ... -c constraints.txt).
+# streamlit: native-theme helpers are built on 1.58 - revisit with roadmap B-7 (8502 sunset).
+streamlit==1.58.0
