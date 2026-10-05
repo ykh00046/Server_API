@@ -82,8 +82,8 @@ Server_API(FastAPI + SQLite + Streamlit + manager/봇) 프로젝트의 2026 하�
 | A-3 | ✅ pytest-timeout 도입 여부 — **미도입 결정** 2026-07-07: 마커는 pyproject에 이미 등록·문서화("no-op unless installed"), 해당 테스트 hang은 자식 sleep(120s)으로 bounded. 단일 테스트를 위한 의존성 추가는 비용>이득 | `@pytest.mark.timeout(30)`이 no-op | 소 | ~~lock 갱신 편승~~ 결정 완료 |
 | A-4 | ✅ test_session_store sleep→clock 주입 — 완료 2026-07-07 (`_session_store._clock` 시임 + FakeClock, sleep 전부 제거) | Windows time.time() 해상도(~15.6ms)보다 짧은 sleep(0.001) — 잠재 flaky | 소 | ~~여유 시~~ 완료 |
 | A-5 | ✅ 품질 램프 R8: C901 전면 게이트 확대 — 완료 2026-07-16 (12c3e44: 위반 7건 헬퍼 추출로 해소, select에 C901 편입 + mccabe max-complexity=10) | 현재 3개 파일만 잠금. R3→R7 관례대로 "위반 0 파일부터 점진 잠금" | 중 | ~~분기 1회 램프 슬롯~~ 완료 |
-| A-6 | **Starlette/httpx2 마이그레이션 — 착수 조건 충족(2026-10-05)** | `StarletteDeprecationWarning: install httpx2`. httpx2 2.13.1 GA·starlette 1.3.1→1.7.0 확인. TestClient 경로(테스트 768개 전부)와 서비스 코드의 httpx 직접 사용처를 분리 점검해야 함 | 중 | **A-9와 같은 사이클에서 즉시** |
-| A-9 | **lock 분기 갱신(신설)** — fastapi 0.137→0.142·streamlit 1.58→1.65·google-genai 2.8→2.28·selenium 4.44→4.50·uvicorn·ruff 0.16 | lock 2026-06-19 이후 3.5개월 미갱신. ⚠️ streamlit은 네이티브 테마 헬퍼가 1.58 제약 위에 서 있음(`project_ui_native_theme`) — 8502 sunset(B-7) 결정에 따라 streamlit 핀은 동결 가능. ⚠️ selenium 핀↔Chrome floor 함정(`project_ops_pc_migration_202606`)은 봇 서브모듈 쪽 | 소~중 | 즉시(A-6 동반). 절차는 `project_ci_env_standardization` |
+| A-6 | ✅ **Starlette/httpx2 마이그레이션 — 완료 2026-10-05** | starlette 1.x `testclient`는 `import httpx2 as httpx`를 먼저 시도하고 없을 때만 `httpx`로 폴백하며 경고. 앱 코드(notifications dispatcher·dashboard 클라이언트, MockTransport 주입)는 httpx 0.28 그대로 두고 **dev 의존성에 httpx2만 추가** — 두 패키지는 공존. 경고 0 확인 | ~~중~~ 소 | ~~A-9와 같은 사이클에서 즉시~~ 완료 |
+| A-9 | ✅ **lock 분기 갱신 — 완료 2026-10-05** (fastapi 0.142.2·starlette 1.7.0·uvicorn 0.54·google-genai 2.28·pandas 3.0.6·numpy 2.5.3·plotly 7.1·altair 6.3·customtkinter 6.0·ruff 0.16.10·pytest 9.1.1) | 검증: 768 tests·ruff 그린, 매니저 위젯 스모크(ctk 6.0, 라이트/다크 토글), uvicorn+streamlit 실기동 healthz 200, **fresh venv에 lock 설치 후 전체 테스트**. ⚠️ `pip freeze`가 venv의 포털 전용 의존성(selenium 등)을 섞어 넣는 문제 발견 → `scripts/freeze_lock.py`(requirements 폐쇄 필터)+`constraints.txt`(streamlit==1.58.0 동결) 신설, README §3 갱신. ⚠️ customtkinter 6.0 동작 변화(버튼 release 시 발화·엔트리 포커스 해제·드롭다운 재클릭 닫힘)는 운용 PC 매니저에서 육안 확인 필요 | 소~중 | ~~즉시~~ 완료. 다음 갱신 2027-01 재검토 때 |
 | A-7 | chat↔stream 중복 로직 통합 (폴백 체인·툴콜 추출·상태코드 파싱) | 검토 M-5. **의도적 보류**: 리팩터 리스크 > 즉시 이득. 단, 폴백 정책을 다음에 수정할 때는 통합을 선행할 것 | 중 | 폴백/툴콜 로직에 기능 변경이 생길 때 |
 | A-8 | ruff format 도입 | R7 때 blame 보존 사유로 보류. 재평가만 분기 1회 | — | 대규모 리네이밍/이동이 어차피 발생할 때 |
 
@@ -128,7 +128,7 @@ Server_API(FastAPI + SQLite + Streamlit + manager/봇) 프로젝트의 2026 하�
 
 ### 4.1 2026-10 재검토 이후 착수 순서 (권고)
 
-1. **A-6 + A-9 (lock 갱신 + httpx2)** — 소, 코드 기능 변경 없음, 게이트 그린 유지가 완료 조건. streamlit 핀은 B-7 결정 전까지 1.58 동결.
+1. ✅ **A-6 + A-9 (lock 갱신 + httpx2)** — 완료 2026-10-05(v0.8). streamlit 핀은 B-7 결정 전까지 1.58 동결.
 2. **B-7 1단계 (8502 실사용 확인 + 4종 기능 거취 결정)** — 운영자 판단 필요. 결정 후 `/pdca plan dashboard-8502-sunset`.
 3. **B-9 (전역 동시 실행 가드)** — 소, 사고 재발 방지. B-7과 무관하게 즉시 가능.
 4. B-8 → C-5 순. B-6·C-2~C-4는 조건 대기 유지.
@@ -152,7 +152,7 @@ Server_API(FastAPI + SQLite + Streamlit + manager/봇) 프로젝트의 2026 하�
 | ✅ M4 소형 정리 묶음 | B-3(878396b keyset 페이징) + B-5(80ed3d9 상태코드 409/503/500) + B-4(0daf2a5 체크리스트) — **완료 2026-07-08** | ~~2026-Q3 내~~ |
 | M5 품질 램프 | A-5 C901 R8 ✅(2026-07-16, 조기 완료) · A-6 의존성 추적 점검은 잔여 | ~~2026-Q4~~ A-6만 잔여 |
 | ✅ 분기 재검토 | 이 문서 갱신 (완료 체크, 우선순위 재조정, C-트랙 착수 판단) — **수행 2026-10-05 (v0.7)** | ~~10월 초~~ |
-| M6 의존성 갱신 | A-6 httpx2 + A-9 lock 분기 갱신 (streamlit 핀 동결) | 2026-10 |
+| ✅ M6 의존성 갱신 | A-6 httpx2 + A-9 lock 분기 갱신 (streamlit 핀 동결) — **완료 2026-10-05**, 운용 PC 반영은 update.bat + 매니저 재시작(ctk 6.0 육안 확인 동반) | ~~2026-10~~ |
 | M7 8502 sunset | B-7 — 1단계 실사용 확인·기능 거취 결정 → plan/design → 폐지. 선행: Dashboard 측 수용 화면 확정 | 2026-Q4 (결정 후) |
 | M8 소형 묶음 2 | B-9 전역 가드 + B-8 collector-type 일반화 | 2026-Q4 |
 | 분기 재검토 2 | B-1 인증 재판단(2027-01), C-트랙 조건 점검 | 2027-01 초 |
@@ -168,3 +168,4 @@ Server_API(FastAPI + SQLite + Streamlit + manager/봇) 프로젝트의 2026 하�
 | 0.5 | 2026-07-08 | M4 완료(B-3/B-5/B-4). 잔여: M5 품질 램프(Q4), B-6·트랙 C는 조건 충족 대기, 10월 분기 재검토 |
 | 0.6 | 2026-07-16 | A-5 C901 R8 완료(zcode 위임, 12c3e44). 동 사이클에서 대시보드 UI 통일(1b34123)·매니저 GUI 개선(49262b5, manager_theme.py 신설) — feature/ui-refactor-zcode 브랜치. 잔여: A-6, B-6, 트랙 C, 10월 재검토 |
 | 0.7 | 2026-10-05 | **10월 분기 재검토**. 현황 갱신(테스트 768, 7/16 이후 커밋 26개 — tombstone·backup opt·UI 검토·manager-collector-ui·attendance collector). A-6 착수 조건 충족(httpx2 GA)·A-9 lock 갱신 신설. Dashboard 경계 리뷰(8/21) 반영: B-7 8502 sunset 신설(1순위 개발 후보), C-1은 Dashboard 허브로 외부 충족 판정. 8/24 동시 기동 사고 → B-9 전역 가드 신설. B-8 collector-type 일반화 신설. B-1 현상 유지 연장 권고(2027-01 재판단). 착수 순서 §4.1 |
+| 0.8 | 2026-10-05 | **M6 완료(A-6 httpx2 + A-9 lock 갱신)**, chore/deps-2026-10. 4중 검증(768 tests·매니저 ctk 6.0 위젯 스모크·uvicorn/streamlit 실기동·fresh venv lock 설치). lock 생성 절차를 `scripts/freeze_lock.py` + `constraints.txt`로 고정(포털 의존성 혼입 차단, streamlit 1.58 동결). 다음 = B-7 1단계(운영자 결정) · B-9 |
