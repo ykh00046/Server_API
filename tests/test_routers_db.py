@@ -12,7 +12,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.main import app
-from api.routers import system as system_router
 from api.routers.records import RecordsFilters, _build_records_filters
 
 
@@ -278,72 +277,3 @@ class TestSystemRouter:
         assert "disk_free_gb" in body
         assert body["disk_free_gb"] > 0
         assert body["cache"]["size"] == 0
-
-    def test_healthz_ai_no_key(self, live_db, monkeypatch):
-        # Force the no-API-key branch deterministically (no network ping).
-        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-        monkeypatch.setattr(
-            system_router,
-            "_ai_health_cache",
-            {"status": "unknown", "last_check": 0, "message": "Not checked yet"},
-        )
-        c = TestClient(app)
-        r1 = c.get("/healthz/ai")
-        assert r1.status_code == 200
-        b1 = r1.json()
-        assert b1["status"] == "error"
-        assert b1["cached"] is False
-        # Second call should now hit the cached branch
-        r2 = c.get("/healthz/ai")
-        assert r2.status_code == 200
-        assert r2.json()["cached"] is True
-
-    def _fresh_cache(self, monkeypatch):
-        monkeypatch.setattr(
-            system_router,
-            "_ai_health_cache",
-            {"status": "unknown", "last_check": 0, "message": "Not checked yet"},
-        )
-        monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
-
-    def test_healthz_ai_ok_ping(self, live_db, monkeypatch):
-        # Mock the genai client so the success ping path runs (no network).
-        from google import genai
-
-        self._fresh_cache(monkeypatch)
-
-        class _Models:
-            def list(self):
-                return iter([object(), object(), object()])
-
-        class _Client:
-            models = _Models()
-
-        monkeypatch.setattr(genai, "Client", lambda api_key: _Client())
-        c = TestClient(app)
-        r = c.get("/healthz/ai")
-        assert r.status_code == 200
-        body = r.json()
-        assert body["status"] == "ok"
-        assert "3 models" in body["message"]
-
-    def test_healthz_ai_generic_error(self, live_db, monkeypatch):
-        # models.list() raising a non-genai error hits the broad except branch.
-        from google import genai
-
-        self._fresh_cache(monkeypatch)
-
-        class _Models:
-            def list(self):
-                raise RuntimeError("boom")
-
-        class _Client:
-            models = _Models()
-
-        monkeypatch.setattr(genai, "Client", lambda api_key: _Client())
-        c = TestClient(app)
-        r = c.get("/healthz/ai")
-        assert r.status_code == 200
-        body = r.json()
-        assert body["status"] == "error"
-        assert "boom" in body["message"]

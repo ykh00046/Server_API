@@ -118,41 +118,6 @@ class TestValidateLength:
         assert "item_code" in exc_info.value.detail
 
 
-class TestInputConstraintsIntegration:
-    """입력 제약 조건 통합 테스트 (FastAPI Query 파라미터)"""
-
-    def test_session_id_max_length_in_chat_request(self):
-        """ChatRequest session_id 최대 100자"""
-        from api.chat import ChatRequest
-
-        # 유효한 길이
-        req = ChatRequest(query="test", session_id="a" * 100)
-        assert len(req.session_id) == 100
-
-        # 초과 시 Pydantic 에러
-        with pytest.raises(Exception):  # ValidationError
-            ChatRequest(query="test", session_id="a" * 101)
-
-    def test_query_max_length_in_chat_request(self):
-        """ChatRequest query 최대 2000자"""
-        from api.chat import ChatRequest
-
-        # 유효한 길이
-        req = ChatRequest(query="a" * 2000)
-        assert len(req.query) == 2000
-
-        # 초과 시 Pydantic 에러
-        with pytest.raises(Exception):  # ValidationError
-            ChatRequest(query="a" * 2001)
-
-    def test_chat_query_empty_blocked(self):
-        """ChatRequest query 빈 문자열 거부 (min_length=1)"""
-        from api.chat import ChatRequest
-
-        with pytest.raises(Exception):  # ValidationError
-            ChatRequest(query="")
-
-
 class TestDateRangeEdgeCases:
     """날짜 범위 엣지 케이스 테스트"""
 

@@ -43,7 +43,7 @@ def client():
 # ----------------------------------------------------------
 # Seeded production DB fixture (coverage-lift, 2026-06-17)
 # ----------------------------------------------------------
-# Many AI tools (api/tools/*) and routers query the live DB via
+# Routers query the live DB via
 # DBRouter.get_connection, which reads the module-level DB_FILE bound in
 # several `shared` submodules. This fixture builds a small temp
 # production_records DB (2026 dates -> live-only routing, archive skipped)
@@ -72,7 +72,6 @@ _ARCHIVE_MODULES = (
     "shared._db_connection",
     "shared.cache",
     "shared",
-    "api.tools.items",
     "api.routers.system",
     "api.routers.records",
 )
@@ -215,12 +214,9 @@ def _drop_thread_local_conns() -> None:
 @pytest.fixture(autouse=True)
 def _reset_rate_limiters():
     """Clear in-memory rate limiter state between tests."""
-    from api.chat import chat_rate_limiter
     from shared import api_rate_limiter
     with contextlib.suppress(AttributeError):
         api_rate_limiter._requests.clear()  # type: ignore[attr-defined]
-    with contextlib.suppress(AttributeError):
-        chat_rate_limiter._requests.clear()  # type: ignore[attr-defined]
     yield
 
 

@@ -70,7 +70,6 @@ from manager_theme import (
 from shared import (
     API_PORT,
     BASE_DIR,
-    DASHBOARD_PORT,
 )
 from shared.process_utils import kill_process_tree
 from tools.db_watcher import DBWatcher
@@ -446,17 +445,15 @@ class ServerManager(ctk.CTk):
         self.ui_log_queue: queue.Queue = queue.Queue()
         self.watcher = None
 
-        # --- Layout (3-column: Services | Services | Automation) ---
-        self.grid_columnconfigure(0, weight=2)  # Dashboard
-        self.grid_columnconfigure(1, weight=2)  # API
-        self.grid_columnconfigure(2, weight=1)  # Portal + DB Auto
+        # --- Layout (2-column: Services | Automation) ---
+        self.grid_columnconfigure(0, weight=2)  # API
+        self.grid_columnconfigure(1, weight=1)  # Portal + DB Auto
         self.grid_rowconfigure(0, weight=0)     # Header
         self.grid_rowconfigure(1, weight=1)     # Row 1
         self.grid_rowconfigure(2, weight=1)     # Row 2
 
         # --- Sections ---
         self._init_header()
-        self._init_web_panel()
         self._init_api_panel()
         self._init_portal_panel()
         self._init_db_panel()
@@ -486,7 +483,7 @@ class ServerManager(ctk.CTk):
 
     def _init_header(self):
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
-        header_frame.grid(row=0, column=0, columnspan=3, sticky="ew", padx=PAD_OUTER, pady=(20, 10))
+        header_frame.grid(row=0, column=0, columnspan=2, sticky="ew", padx=PAD_OUTER, pady=(20, 10))
 
         # ── 왼쪽: 타이틀 + 서비스 상태 뱃지 ──
         left = ctk.CTkFrame(header_frame, fg_color="transparent")
@@ -499,7 +496,7 @@ class ServerManager(ctk.CTk):
             font=ctk_font(FONT_TITLE),
         ).pack(anchor="w")
 
-        # 서비스 상태 요약 뱃지 행 (웹/API/포털/DB 워처) — 주기 갱신(_refresh_status)
+        # 서비스 상태 요약 뱃지 행 (API/포털/DB 워처) — 주기 갱신(_refresh_status)
         self.status_badges: dict[str, ctk.CTkLabel] = {}
         badge_row = ctk.CTkFrame(left, fg_color="transparent")
         badge_row.pack(anchor="w", pady=(4, 0))
@@ -535,9 +532,8 @@ class ServerManager(ctk.CTk):
         ip_badge.pack(side="right", padx=(0, GAP_CONTROL))
 
     def _build_status_badges(self, parent):
-        """서비스 상태 뱃지(웹/API/포털/DB 워처) 생성 — 주기 갱신 대상."""
+        """서비스 상태 뱃지(API/포털/DB 워처) 생성 — 주기 갱신 대상."""
         self._badge_specs = [
-            (f"web:{DASHBOARD_PORT}", "웹"),
             (f"api:{API_PORT}", "API"),
             ("portal", "포털"),
             ("dbwatcher", "DB"),
@@ -558,13 +554,11 @@ class ServerManager(ctk.CTk):
         ctk.set_appearance_mode(mode.lower())
 
     def start_all(self):
-        """웹 + API 일괄 시작 (확인 다이얼로그 없이 즉시)."""
-        self.start_web()
+        """API 시작 (확인 다이얼로그 없이 즉시)."""
         self.start_api()
 
     def stop_all(self):
-        """웹 + API 일괄 중지 (확인 다이얼로그 없이 즉시)."""
-        self.stop_web()
+        """API 중지 (확인 다이얼로그 없이 즉시)."""
         self.stop_api()
 
     def _is_panel_running(self, panel) -> bool:
@@ -573,7 +567,6 @@ class ServerManager(ctk.CTk):
     def _refresh_status(self):
         """헤더 서비스 상태 뱃지를 현재 실행 상태로 갱신 (주기 호출)."""
         specs = [
-            (f"web:{DASHBOARD_PORT}", self._is_panel_running(self.web_panel)),
             (f"api:{API_PORT}", self._is_panel_running(self.api_panel)),
             ("portal", self._is_panel_running(self.portal_panel)),
             ("dbwatcher", bool(self.watcher and self.watcher.is_alive())),
@@ -589,25 +582,6 @@ class ServerManager(ctk.CTk):
             )
         self.after(STATUS_REFRESH_MS, self._refresh_status)
 
-    def _init_web_panel(self):
-        """Initialize Dashboard panel using ServicePanel base class."""
-        config = ServicePanelConfig(
-            title="Dashboard",
-            start_command=self.start_web,
-            stop_command=self.stop_web,
-            extra_buttons=[
-                ("Open", btn_ghost(), lambda: webbrowser.open(f"http://{self.local_ip}:{DASHBOARD_PORT}"))
-            ]
-        )
-        self.web_panel = ServicePanel(
-            self,
-            config,
-            grid_args={
-                "row": 1, "column": 0, "rowspan": 2, "sticky": "nsew",
-                "padx": (PAD_OUTER, 10), "pady": 10,
-            }
-        )
-
     def _init_api_panel(self):
         """Initialize API Gateway panel using ServicePanel base class."""
         config = ServicePanelConfig(
@@ -622,8 +596,8 @@ class ServerManager(ctk.CTk):
             self,
             config,
             grid_args={
-                "row": 1, "column": 1, "rowspan": 2, "sticky": "nsew",
-                "padx": 10, "pady": 10,
+                "row": 1, "column": 0, "rowspan": 2, "sticky": "nsew",
+                "padx": (PAD_OUTER, 10), "pady": 10,
             }
         )
 
@@ -642,7 +616,7 @@ class ServerManager(ctk.CTk):
             self,
             config,
             grid_args={
-                "row": 1, "column": 2, "sticky": "nsew",
+                "row": 1, "column": 1, "sticky": "nsew",
                 "padx": (10, PAD_OUTER), "pady": (10, 5),
             }
         )
@@ -650,7 +624,7 @@ class ServerManager(ctk.CTk):
     def _init_db_panel(self):
         """Initialize DB Automation panel (compact layout for 3rd column)."""
         self.db_frame = ctk.CTkFrame(self, corner_radius=RADIUS_PANEL, fg_color=BG_CARD)
-        self.db_frame.grid(row=2, column=2, sticky="nsew", padx=(10, PAD_OUTER), pady=(5, 10))
+        self.db_frame.grid(row=2, column=1, sticky="nsew", padx=(10, PAD_OUTER), pady=(5, 10))
         self.db_frame.grid_rowconfigure(1, weight=1)
         self.db_frame.grid_columnconfigure(0, weight=1)
 
@@ -784,31 +758,6 @@ class ServerManager(ctk.CTk):
         _register_process(proc)
         threading.Thread(target=self._stream_output, args=(proc, panel), daemon=True).start()
         return proc
-
-    def start_web(self):
-        if self.web_panel.process and self.web_panel.process.poll() is None:
-            return
-        if _is_port_in_use(DASHBOARD_PORT):
-            messagebox.showerror("Error", f"Port {DASHBOARD_PORT} is in use.")
-            return
-
-        self.web_panel.set_running(f"Running ({DASHBOARD_PORT})")
-        self.web_panel.append_log(">>> Starting Dashboard...", "INFO")
-
-        cmd = [
-            PY, "-m", "streamlit", "run", str(BASE_DIR / "dashboard" / "app.py"),
-            "--server.address", "0.0.0.0", "--server.port", str(DASHBOARD_PORT),
-            "--server.headless", "true",
-        ]
-        self.web_panel.process = self._start_process(cmd, self.web_panel)
-
-    def stop_web(self):
-        if self.web_panel.process:
-            _unregister_process(self.web_panel.process)
-            kill_process_tree(self.web_panel.process.pid)
-        self.web_panel.process = None
-        self.web_panel.set_stopped()
-        self.web_panel.append_log(">>> Stopped.", "WARN")
 
     def start_api(self):
         if self.api_panel.process and self.api_panel.process.poll() is None:
@@ -1034,7 +983,6 @@ class ServerManager(ctk.CTk):
         """Cleanup and exit (called from tray thread)."""
         if self.watcher:
             self.watcher.stop()
-        self.stop_web()
         self.stop_api()
         self.stop_portal()
         self.destroy()

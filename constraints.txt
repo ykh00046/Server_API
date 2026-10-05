@@ -1,3 +1,3 @@
 # Pins held on purpose during dependency refresh (pip install ... -c constraints.txt).
-# streamlit: native-theme helpers are built on 1.58 - revisit with roadmap B-7 (8502 sunset).
-streamlit==1.58.0
+# Intentionally empty: the Streamlit 1.58 pin was dropped when the Streamlit UI was
+# removed (2026-10-05, roadmap B-7). Add a pin here only when a package must be held back.

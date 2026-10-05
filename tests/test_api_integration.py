@@ -1,13 +1,9 @@
 # tests/test_api_integration.py
 """FastAPI TestClient-based integration tests.
 
-Covers the public REST surface plus the /chat/ endpoint with a mocked
-Gemini client so no external API calls are made.
+Covers the public REST surface (health, records, summary, rate limiting,
+metrics) through the real middleware stack.
 """
-
-import pytest
-
-from api import chat as chat_mod
 
 
 # ----------------------------------------------------------
@@ -25,18 +21,6 @@ def test_healthz(client):
     body = r.json()
     assert body["status"] in ("ok", "degraded")
     assert "database" in body
-
-
-def test_healthz_ai_shape(client):
-    r = client.get("/healthz/ai")
-    assert r.status_code == 200
-    body = r.json()
-    assert "status" in body
-    # FR-01: sessions block must always be present
-    assert "sessions" in body
-    sessions = body["sessions"]
-    assert {"count", "ttl_sec", "max_per_ip", "max_total"} <= set(sessions.keys())
-    assert isinstance(sessions["count"], int)
 
 
 # ----------------------------------------------------------
@@ -65,56 +49,6 @@ def test_summary_monthly_total(client):
 
 
 # ----------------------------------------------------------
-# Chat endpoint (Gemini mocked)
-# ----------------------------------------------------------
-class _FakeResponse:
-    def __init__(self, text="mocked reply"):
-        self.text = text
-        self.candidates = []
-        self.automatic_function_calling_history = []
-        self.usage_metadata = None
-
-
-class _FakeModels:
-    def generate_content(self, *args, **kwargs):
-        return _FakeResponse()
-
-
-class _FakeClient:
-    models = _FakeModels()
-
-
-@pytest.fixture
-def fake_gemini(monkeypatch):
-    monkeypatch.setattr(chat_mod, "_get_client", lambda: _FakeClient())
-    yield
-
-
-def test_chat_single_turn(client, fake_gemini):
-    r = client.post("/chat/", json={"query": "hello"})
-    assert r.status_code == 200
-    body = r.json()
-    assert body["answer"] == "mocked reply"
-    assert body["status"] == "success"
-
-
-def test_chat_multi_turn_same_ip(client, fake_gemini):
-    chat_mod._sessions.clear()
-    r1 = client.post("/chat/", json={"query": "first", "session_id": "s-abc"})
-    assert r1.status_code == 200
-    r2 = client.post("/chat/", json={"query": "second", "session_id": "s-abc"})
-    assert r2.status_code == 200
-    # History should have accumulated 4 entries (2 user + 2 model)
-    assert len(chat_mod._sessions["s-abc"]["history"]) == 4
-
-
-def test_chat_rejects_empty_key(client, monkeypatch):
-    monkeypatch.setattr(chat_mod, "_get_client", lambda: None)
-    r = client.post("/chat/", json={"query": "hi"})
-    assert r.status_code == 500
-
-
-# ----------------------------------------------------------
 # security-followup-observability: FR-02 additional cases
 # ----------------------------------------------------------
 def test_records_by_item_code(client):
@@ -139,21 +73,6 @@ def test_records_invalid_cursor_is_graceful(client):
     """Invalid cursor falls back to unpaginated query (no 500)."""
     r = client.get("/records", params={"cursor": "@@not-a-cursor@@", "limit": 3})
     assert r.status_code == 200
-
-
-def test_chat_rate_limit_boundary(client, fake_gemini, monkeypatch):
-    """21st call in a minute must 429 with code=RATE_LIMITED."""
-    from api.chat import chat_rate_limiter
-    monkeypatch.setattr(chat_rate_limiter, "max_requests", 3)
-    chat_rate_limiter._requests.clear()
-    chat_mod._sessions.clear()
-    for _ in range(3):
-        r = client.post("/chat/", json={"query": "hi"})
-        assert r.status_code == 200
-    r = client.post("/chat/", json={"query": "over"})
-    assert r.status_code == 429
-    detail = r.json()["detail"]
-    assert detail["code"] == "RATE_LIMITED"
 
 
 def test_public_paths_skip_rate_limit(client, monkeypatch):

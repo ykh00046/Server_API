@@ -39,22 +39,13 @@ ARCHIVE_CUTOFF_DATE = f"{ARCHIVE_CUTOFF_YEAR}-01-01"
 # ==========================================================
 # Server Ports (can be overridden via .env)
 # ==========================================================
-DASHBOARD_PORT = int(os.getenv("DASHBOARD_PORT", 8502))
 API_PORT = int(os.getenv("API_PORT", 8000))
-API_BASE_URL = os.getenv("API_BASE_URL", f"http://localhost:{API_PORT}")
 
 # ==========================================================
 # Database Connection
 # ==========================================================
 DB_TIMEOUT = 10.0  # seconds
 SLOW_QUERY_THRESHOLD_MS = 500  # Log WARNING for queries exceeding this
-
-# ==========================================================
-# AI / Gemini
-# ==========================================================
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash-lite")
-GEMINI_FALLBACK_ENABLED = os.getenv("GEMINI_FALLBACK_ENABLED", "true").lower() == "true"
 
 # ==========================================================
 # Logging
@@ -76,24 +67,8 @@ DATE_FORMAT = "%Y-%m-%d"
 # ==========================================================
 # Rate Limiting Configuration
 # ==========================================================
-# Chat endpoint is more restrictive due to AI API costs
-RATE_LIMIT_CHAT = 20      # requests per minute
 RATE_LIMIT_API = 60       # requests per minute (general API)
 RATE_LIMIT_WINDOW = 60    # seconds
-
-# ==========================================================
-# Chat Session Store (security-and-test-improvement)
-# ==========================================================
-CHAT_SESSION_TTL_SEC = int(os.getenv("CHAT_SESSION_TTL_SEC", 1800))
-CHAT_SESSION_MAX_PER_IP = int(os.getenv("CHAT_SESSION_MAX_PER_IP", 20))
-CHAT_SESSION_MAX_TOTAL = int(os.getenv("CHAT_SESSION_MAX_TOTAL", 1000))
-
-# ==========================================================
-# SSE Streaming Configuration
-# ==========================================================
-STREAM_HEARTBEAT_SEC = float(os.getenv("STREAM_HEARTBEAT_SEC", 10.0))
-STREAM_TIMEOUT_SEC = float(os.getenv("STREAM_TIMEOUT_SEC", 120.0))
-STREAM_BUFFER_FLUSH_MS = float(os.getenv("STREAM_BUFFER_FLUSH_MS", 50.0))
 
 # ==========================================================
 # CORS
@@ -101,18 +76,11 @@ STREAM_BUFFER_FLUSH_MS = float(os.getenv("STREAM_BUFFER_FLUSH_MS", 50.0))
 _DEFAULT_CORS_ORIGINS = (
     "http://localhost:3000,"
     "http://localhost:5173,"
-    "http://localhost:8502,"
-    "http://192.168.200.107:8502,"
     "http://192.168.200.107:3000"
 )
 CORS_ORIGINS: list[str] = [
     o.strip() for o in os.getenv("CORS_ORIGINS", _DEFAULT_CORS_ORIGINS).split(",") if o.strip()
 ]
-
-# ==========================================================
-# Custom Query Safety (security-and-test-improvement)
-# ==========================================================
-CUSTOM_QUERY_TIMEOUT_SEC = float(os.getenv("CUSTOM_QUERY_TIMEOUT_SEC", 10.0))
 
 # ==========================================================
 # API Authentication (auth-audit-v1) — opt-in, default OFF

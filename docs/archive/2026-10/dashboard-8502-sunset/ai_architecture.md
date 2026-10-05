@@ -1,3 +1,7 @@
+> **[보관됨 2026-10-05]** 이 문서는 아카이브 문서다. Gemini 챗 API(`/chat`, `/chat/stream`, `/healthz/ai`)가
+> dashboard-8502-sunset 사이클(로드맵 B-7)에서 제거되어 더 이상 현행 사양이 아니다.
+> 챗봇 기능은 Dashboard-Raw_material 프로젝트로 대체되었다.
+
 # AI Chat System Architecture & Specification
 
 ## 1. 개요

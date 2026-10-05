@@ -60,12 +60,8 @@ max-complexity = 10
 # pytest.raises(Exception) (B017), and long JSON-fixture lines (E501) are
 # often intentional. Real bugs (F821/F841/F811) stay enforced.
 "tests/**" = ["F401", "BLE001", "B017", "E501"]
-# E501 exempt: these files' long lines are Korean prompt/UI string content
+# E501 exempt: this file's long lines are Korean UI string content
 # (not code) where wrapping degrades readability. See R7 plan.
-"api/chat.py" = ["E501"]
-"dashboard/components/ai_section.py" = ["E501"]
-"dashboard/components/webhook_admin/views.py" = ["E501"]
-"dashboard/components/presets.py" = ["E501"]
 "portal_settings_dialog.py" = ["E501"]
 
 # ==========================================================
@@ -75,33 +71,14 @@ max-complexity = 10
 # rate-limit 60s timing). Apply the floor in CI only.
 # ==========================================================
 [tool.coverage.run]
-# coverage-source-expansion (2026-06-15): measure api + shared + the tested
-# pure dashboard helper (_parsing.py). Render/UI code (app.py, views, render
-# components) needs a Streamlit runtime to exercise and is deliberately NOT
-# measured — only the extracted, unit-tested logic. `source` lists dirs +
-# the single helper file. (This intentionally lifts the earlier
-# "source unchanged" invariant from ci-and-env-standardization.)
-source = ["api", "shared", "dashboard"]
+# Measure the core backend only (api + shared). The Streamlit dashboard and
+# its source/omit entries were removed with roadmap B-7 (2026-10-05);
+# screens live in Dashboard-Raw_material.
+source = ["api", "shared"]
 branch = true
-# Only the extracted, unit-tested pure helper (_parsing.py) is measured in
-# dashboard/. Render/UI code needs a Streamlit runtime to exercise and is
-# excluded by listing it here (whitelist-via-omit: everything in dashboard
-# except _parsing.py). To measure a new dashboard file, remove its entry from
-# this omit list so coverage tracks only code that tests exercise.
 omit = [
     "*/__pycache__/*",
     "tests/*",
-    "dashboard/app.py",
-    "dashboard/data.py",
-    "dashboard/views/*",
-    "dashboard/components/__init__.py",
-    "dashboard/components/ai_section.py",
-    "dashboard/components/charts.py",
-    "dashboard/components/layout.py",
-    "dashboard/components/loading.py",
-    "dashboard/components/notifications.py",
-    "dashboard/components/presets.py",
-    "dashboard/components/webhook_admin/*",
 ]
 
 [tool.coverage.report]

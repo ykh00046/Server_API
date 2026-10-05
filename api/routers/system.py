@@ -9,8 +9,6 @@ from __future__ import annotations
 import datetime as dt
 import os
 import sqlite3
-import threading
-import time
 
 from fastapi import APIRouter, Response
 
@@ -24,23 +22,10 @@ from shared import (
 )
 from shared.metrics import performance_monitor
 
-from .. import _session_store as _sstore
 from ..notifications.metrics import render_prometheus
 
 logger = get_logger(__name__)
 router = APIRouter()
-
-
-# ==========================================================
-# AI Health Check Cache - Thread-safe
-# ==========================================================
-_ai_health_cache = {
-    "status": "unknown",
-    "last_check": 0,
-    "message": "Not checked yet"
-}
-_ai_health_cache_lock = threading.Lock()
-AI_HEALTH_CACHE_TTL = 600  # 10 minutes
 
 
 @router.get("/")
@@ -80,7 +65,6 @@ def metrics_prometheus() -> Response:
 def health_check():
     """
     API health check endpoint (lightweight).
-    AI check uses cached status - call /healthz/ai for fresh check.
     """
     status = {
         "status": "ok",
@@ -106,17 +90,6 @@ def health_check():
     else:
         status["archive_db"] = "not_found"
 
-    # AI API check (cached, lightweight)
-    api_key_exists = bool(os.getenv("GEMINI_API_KEY"))
-    status["ai_api"] = {
-        "key_configured": api_key_exists,
-        "cached_status": _ai_health_cache["status"],
-        "last_check_age_sec": (
-            int(time.time() - _ai_health_cache["last_check"])
-            if _ai_health_cache["last_check"] > 0 else None
-        ),
-    }
-
     # v7: API Cache stats
     status["cache"] = get_cache_stats()
 
@@ -137,109 +110,3 @@ def health_check():
         logger.debug("disk space check failed: %s", e)
 
     return status
-
-
-@router.get("/healthz/ai")
-async def ai_health_check():
-    """
-    AI API health check with actual ping (cached for 10 minutes).
-    Use this sparingly to avoid quota consumption.
-    """
-    with _ai_health_cache_lock:
-        cache_age = time.time() - _ai_health_cache["last_check"]
-        if cache_age < AI_HEALTH_CACHE_TTL and _ai_health_cache["status"] != "unknown":
-            return {
-                "status": _ai_health_cache["status"],
-                "message": _ai_health_cache["message"],
-                "cached": True,
-                "cache_age_sec": int(cache_age),
-                "cache_ttl_sec": AI_HEALTH_CACHE_TTL,
-                "sessions": _sstore.stats(),
-            }
-
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        with _ai_health_cache_lock:
-            _ai_health_cache.update({
-                "status": "error",
-                "last_check": time.time(),
-                "message": "API key not configured"
-            })
-        return {
-            "status": "error",
-            "message": "GEMINI_API_KEY not configured",
-            "cached": False,
-            "sessions": _sstore.stats(),
-        }
-
-    try:
-        from google import genai
-        from google.genai.errors import ClientError, ServerError
-
-        client = genai.Client(api_key=api_key)
-
-        models = client.models.list()
-        model_count = sum(1 for _ in models)
-
-        with _ai_health_cache_lock:
-            _ai_health_cache.update({
-                "status": "ok",
-                "last_check": time.time(),
-                "message": f"Connected, {model_count} models available"
-            })
-
-        return {
-            "status": "ok",
-            "message": _ai_health_cache["message"],
-            "cached": False,
-            "sessions": _sstore.stats(),
-        }
-
-    except ClientError as e:
-        error_msg = f"Client error: {e}"
-        status = "error"
-        if "429" in str(e):
-            error_msg = "Rate limited (quota may be exhausted)"
-            status = "rate_limited"
-
-        with _ai_health_cache_lock:
-            _ai_health_cache.update({
-                "status": status,
-                "last_check": time.time(),
-                "message": error_msg
-            })
-
-        return {
-            "status": status,
-            "message": error_msg,
-            "cached": False,
-            "sessions": _sstore.stats(),
-        }
-
-    except ServerError as e:
-        with _ai_health_cache_lock:
-            _ai_health_cache.update({
-                "status": "degraded",
-                "last_check": time.time(),
-                "message": f"Server error: {e}"
-            })
-        return {
-            "status": "degraded",
-            "message": str(e),
-            "cached": False,
-            "sessions": _sstore.stats(),
-        }
-
-    except Exception as e:  # noqa: BLE001 — health 캐시는 어떤 외부 호출 오류에서도 degraded/error 상태를 기록해야 한다
-        with _ai_health_cache_lock:
-            _ai_health_cache.update({
-                "status": "error",
-                "last_check": time.time(),
-                "message": str(e)
-            })
-        return {
-            "status": "error",
-            "message": str(e),
-            "cached": False,
-            "sessions": _sstore.stats(),
-        }

@@ -10,10 +10,10 @@
 ### 2.1 서버 구성
 | 서버 | 포트 (기본) | env override | 역할 | 기술 스택 |
 |------|-----------|--------------|------|-----------|
-| Dashboard Server | 8502 | `DASHBOARD_PORT` | 데이터 시각화, 조회 UI | Streamlit |
-| API Server | 8000 | `API_PORT` | AI 채팅, REST API | FastAPI |
+| API Server | 8000 | `API_PORT` | REST API, webhook, 이상탐지, 자재/바인더 데이터셋 | FastAPI |
 
-> SoT: `shared/config.py:DASHBOARD_PORT` / `API_PORT` (operations_manual.md와 통일).
+> SoT: `shared/config.py:API_PORT` (operations_manual.md와 통일).
+> 화면은 Dashboard-Raw_material(8503)이 서빙한다 — 자체 Streamlit 대시보드(8502)·Gemini 챗 API는 2026-10 폐지됨.
 
 ### 2.2 데이터베이스
 | DB | 파일 | 용도 |
@@ -26,16 +26,13 @@
 ## 3. 아키텍처 다이어그램
 
 ```
-┌─────────────────┐     ┌─────────────────┐
-│  Dashboard      │     │  API Server     │
-│  (Streamlit)    │     │  (FastAPI)      │
-│  :8502          │     │  :8000          │
-└────────┬────────┘     └────────┬────────┘
-         │                       │
-         │  ┌────────────────────┤
-         │  │ 채팅 요청만        │
-         │  │ POST /chat/        │
-         ▼  ▼                    ▼
+┌──────────────────────────┐   HTTP    ┌─────────────────┐   ┌──────────────┐
+│ Dashboard-Raw_material   │ ────────▶ │  API Server     │ ◀─│ Manager GUI  │
+│ (별도 프로젝트, :8503)   │           │  (FastAPI)      │   │ (API/Portal) │
+└──────────────────────────┘           │  :8000          │   └──────────────┘
+                                       └────────┬────────┘
+                                                │
+                                                ▼
 ┌─────────────────────────────────────────┐
 │           shared/database.py            │
 │              (DBRouter)                 │
@@ -53,42 +50,10 @@
 
 ## 4. 분리 운영 설계 원칙
 
-### 4.1 현재 구조: 독립 접근 방식
-- **Dashboard**: `shared/DBRouter`를 통해 DB 직접 접근
-- **API Server**: 동일하게 `shared/DBRouter` 사용
-- **채팅 기능만** Dashboard → API Server 호출
-
-### 4.2 분리 운영 이유
-
-#### 장애 격리 (Fault Isolation)
-```
-API 서버 장애 발생 시:
-  ✅ 대시보드 조회/차트 → 정상 작동
-  ❌ AI 채팅 기능만 → 작동 중단
-```
-API 서버 장애가 전체 시스템 장애로 확산되지 않음.
-
-#### 독립 배포 (Independent Deployment)
-- API 서버 업데이트 시 대시보드 재시작 불필요
-- 각 서버를 개별적으로 스케일링 가능
-
-#### 성능 최적화
-- 대시보드: DB 직접 접근으로 네트워크 레이턴시 제거
-- 복잡한 시각화 쿼리를 API 계층 없이 처리
-
-### 4.3 API 경유 방식과의 비교
-
-| 항목 | 현재 (직접 접근) | API 경유 |
-|------|------------------|----------|
-| 장애 격리 | ✅ 우수 | ❌ 단일 장애점 |
-| 유지보수 | △ 로직 분산 | ✅ 로직 집중 |
-| 성능 | ✅ 빠름 | △ 네트워크 오버헤드 |
-| 확장성 | △ DB 커넥션 분산 | ✅ 중앙 관리 |
-
-### 4.4 현재 구조 채택 근거
-1. **소규모 운영 환경**: 1인 또는 소규모 팀 운영에 적합
-2. **안정성 우선**: 부분 장애 시에도 핵심 조회 기능 유지
-3. **단순성**: 불필요한 네트워크 홉 제거
+> 2026-10 이전에는 자체 Streamlit 대시보드가 `shared/DBRouter`로 DB에 직접 접근하고 채팅만 API를 호출하는
+> "독립 접근" 구조였다. dashboard-8502-sunset으로 대시보드가 폐지되어 이 절의 분리 근거(장애 격리·독립 배포·직접 접근 성능)는
+> 더 이상 적용되지 않는다. 현재는 **API 서버가 유일한 서버**이고, 화면(Dashboard-Raw_material)은 API를 경유해 조회한다.
+> 이전 설계 근거는 git 이력(v1.6 이하)을 참조한다.
 
 ---
 
@@ -96,84 +61,42 @@ API 서버 장애가 전체 시스템 장애로 확산되지 않음.
 
 ### 5.1 서버 시작 순서
 ```bash
-# 1. API 서버 (채팅 기능 필요 시)
+# API 서버 (운용 PC는 매니저가 기동)
 python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
-
-# 2. Dashboard 서버
-streamlit run dashboard/app.py --server.port 8502
 ```
 
 ### 5.2 서버 의존성
-| 시나리오 | Dashboard | API | 결과 |
-|----------|-----------|-----|------|
-| 전체 기능 | ✅ | ✅ | 모든 기능 정상 |
-| 조회만 | ✅ | ❌ | 조회/차트 정상, 채팅 불가 |
-| API만 | ❌ | ✅ | REST API만 사용 가능 |
+화면(Dashboard-Raw_material)은 API 서버에 의존한다. API 중단 시 화면의 Server_API 연동 기능(상태·문서 조회·수동 실행)이 함께 멈춘다.
 
 ### 5.3 공통 모듈
-`shared/` 디렉토리의 모듈은 양쪽 서버에서 공유:
+`shared/` 디렉토리의 모듈은 API 서버·매니저·`tools/`에서 공유:
 - `database.py`: DBRouter, 연결 관리, ATTACH helper (`attach_archive_safe`)
 - `__init__.py`: 공통 상수 (DB 경로, 컷오프 날짜 등)
 - `process_utils.py`: `kill_process_tree` — psutil 기반 프로세스 트리 종료 (manager.py / atexit 사용, 2026-04-24)
 - `validators.py`: 날짜 파싱, LIKE escape, ARCHIVE_DB whitelist 검증
-- `cache.py` / `metrics.py` / `rate_limiter.py` / `logging_config.py` / `ui/`: 운영 유틸 및 테마
+- `cache.py` / `metrics.py` / `rate_limiter.py` / `logging_config.py`: 운영 유틸
 
 ### 5.4 API 서버 보안 설계
 
 #### 읽기 전용 아키텍처
-API 서버는 **조회 기능만** 제공하며, 데이터 수정 기능이 없음:
+생산 DB(Live/Archive)에 대해 API 서버는 **조회 기능만** 제공하며, 데이터 수정 기능이 없음:
 
 | 구분 | 내용 |
 |------|------|
-| 엔드포인트 | GET (조회), POST /chat (채팅) |
+| 엔드포인트 | 생산 데이터는 GET (조회) 전용. 쓰기 엔드포인트(자재/바인더 백업·삭제, webhook 관리)는 별도 DB(`materials.db`, notifications)만 다룸 |
 | DB 연결 | `read_only=True` (SQLite `mode=ro`) |
 | 쓰기 시도 시 | `sqlite3.OperationalError: attempt to write a readonly database` |
 
-#### AI 채팅의 데이터 수정 위험 없음
-`execute_custom_query` 도구(Text-to-SQL)가 있어도 안전한 이유:
-
-1. **DB 레벨 차단**: SQLite 읽기 전용 모드로 DROP, DELETE, UPDATE, INSERT 자체가 불가능
-2. **애플리케이션 검증**: SELECT 외 쿼리 사전 차단
-3. **타임아웃**: 3초 초과 쿼리 자동 종료
-4. **결과 제한**: LIMIT 1000 자동 적용
-
-```
-사용자 악의적 질문: "모든 데이터 삭제해줘"
-    ↓
-AI가 DELETE 쿼리 생성 시도
-    ↓
-1차: 애플리케이션에서 차단 (SELECT 아님)
-2차: 통과해도 SQLite에서 차단 (ro 모드)
-    ↓
-결과: 수정 불가능
-```
-
 #### 데이터 조회량 제한 정책
-
-API 사용자와 AI 채팅은 서로 다른 제한 정책 적용:
 
 | 사용처 | 기본값 | 최대값 | 전체 조회 |
 |--------|--------|--------|-----------|
 | API (`/records`) | 1,000건 | 5,000건 | ✅ 커서 페이지네이션 |
-| AI 채팅 (`execute_custom_query`) | 1,000건 | 1,000건 (고정) | ❌ 불가 |
 
 **API 사용자:**
 - `limit` 파라미터로 최대 5,000건까지 조절 가능
 - 커서 기반 페이지네이션으로 전체 데이터 순차 조회 가능
 - 대량 데이터 처리에 적합
-
-**AI 채팅:**
-- 1,000건 고정 제한 (조절 불가)
-- 대량 데이터 요청 시 집계/요약으로 응답 유도
-- 제한 이유:
-  - AI 응답 토큰 폭발 방지
-  - 3초 타임아웃 내 처리 보장
-  - 출력 토큰 비용 관리
-
-**대량 데이터 요청 시 AI 응답 가이드:**
-- 일자별 상세 → 월별 집계로 대체
-- 전체 목록 → 상위 N개로 제한
-- 상세 필요 시 → "대시보드에서 확인하세요" 안내
 
 #### 효율적인 데이터 조회 패턴 (권장)
 
@@ -222,7 +145,7 @@ records = requests.get(f"{API}/records", params={
 
 ### 규모 확장 시 전환 검토
 팀 규모가 커지거나 마이크로서비스 전환 시:
-- 대시보드도 API 경유 방식으로 통일 검토
+- (화면의 API 경유 통일은 2026-10 대시보드 폐지로 완료)
 - API Gateway 도입으로 인증/로깅 중앙화
 - 캐싱 레이어 추가 (Redis 등)
 
@@ -231,75 +154,8 @@ records = requests.get(f"{API}/records", params={
 - DB 직접 접근의 성능 이점이 중요한 경우
 - 장애 격리가 유지보수 편의보다 우선인 경우
 
-### AI 도구 확장 프로세스
-
-#### 현재 도구 구성 (7개)
-
-`api/_tool_dispatch.py:PRODUCTION_TOOLS`가 단일 진실 출처. 외부 사용자용 가이드는 `api_guide.md` §6 참고.
-
-| 도구 | 용도 |
-|------|------|
-| `search_production_items` | 제품 코드 검색 (LIKE 기반, archive 옵션) |
-| `get_production_summary` | 기간별 생산량 집계 (총량/건수/평균) |
-| `get_monthly_trend` | 월별 추이 |
-| `get_top_items` | 상위 N개 품목 (기본 5) |
-| `compare_periods` | 두 기간 비교 (병렬 조회 + 증감률) |
-| `get_item_history` | 품목 최근 생산 이력 (Archive+Live 합산) |
-| `execute_custom_query` | 복잡한 조건 (Text-to-SQL, 다층 안전 검증) |
-
-#### 도구 추가 의사결정 프로세스
-
-```
-1. 로그 수집
-   - NO TOOLS USED 경고 모니터링
-   - execute_custom_query 사용 패턴 분석
-        ↓
-2. 패턴 분석
-   - 자주 반복되는 쿼리 유형 식별
-   - 예: lot_number 필터 30% 이상 사용
-        ↓
-3. 전용 도구 추출 여부 결정
-   - 빈도 높음 + 패턴 명확 → 전용 도구 개발
-   - 빈도 낮음 or 패턴 다양 → execute_custom_query로 유지
-        ↓
-4. 구현 및 테스트
-   - api/tools.py에 함수 추가
-   - api/chat.py 시스템 프롬프트 업데이트
-   - ai_architecture.md 도구 명세 추가
-```
-
-#### 도구 추가 기준
-| 조건 | 권장 액션 |
-|------|-----------|
-| 동일 패턴 반복 사용 (>20%) | 전용 도구 개발 |
-| AI SQL 작성 실수 빈발 | 전용 도구로 안정화 |
-| 일회성/다양한 조건 | execute_custom_query 유지 |
-
-#### 원칙
-- **과잉 개발 금지**: 로그 근거 없이 예측으로 도구 추가하지 않음
-- **점진적 확장**: 운영 데이터 기반으로 필요시에만 추가
-- **단순성 유지**: 도구 수 최소화로 AI 선택 혼란 방지
-
-#### 토큰 효율성 고려
-
-도구 설계 시 토큰 사용량도 고려해야 함:
-
-| 항목 | 전용 도구 | Text-to-SQL |
-|------|-----------|-------------|
-| AI 응답 토큰 | ✅ 적음 (~20) | 많음 (~50+) |
-| 도구 스키마 | 도구 수 × 스키마 크기 | 하나만 (길지만 고정) |
-| 도구 많아지면 | ❌ 스키마 토큰 급증 | ✅ 영향 없음 |
-
-**토큰 효율 최적점:**
-```
-전용 도구 5~7개 + execute_custom_query 1개
-```
-
-- 자주 쓰는 패턴 → 전용 도구 (응답 토큰 절약)
-- 비정형 질문 → execute_custom_query (스키마 토큰 절약)
-- 도구 10개 초과 시 → 스키마 토큰이 응답 절약분 상쇄
-
-**현재 구성 (7개)**: 권장 상한(5~7) 안에 위치 — 토큰 효율 측면에서 적절한 수준
+> AI 도구 확장 프로세스(챗 도구 구성·추가 기준·토큰 효율)는 Gemini 챗 API 폐지(2026-10)와 함께
+> [`docs/archive/2026-10/dashboard-8502-sunset/ai_architecture.md`](../archive/2026-10/dashboard-8502-sunset/ai_architecture.md)로 보관했다.
 
 ---
 
@@ -314,3 +170,4 @@ records = requests.get(f"{API}/records", params={
 | 2026-01-23 | 1.4 | 데이터 조회량 제한 정책 (API vs AI 채팅 차이, 대량 데이터 처리) 추가 |
 | 2026-01-23 | 1.5 | 효율적인 데이터 조회 패턴 (집계 + 상세 조합 전략) 추가 |
 | 2026-04-23 | 1.6 | docs-sync 사이클 — Dashboard 포트 8501→8502 통일, AI 도구 5→7개(compare_periods, get_item_history 추가) 반영 |
+| 2026-10-05 | 1.7 | dashboard-8502-sunset — 자체 Streamlit 대시보드·Gemini 챗 API 폐지 반영(구성표·다이어그램·운영 지침), AI 챗 관련 절 제거 |

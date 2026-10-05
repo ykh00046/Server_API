@@ -437,7 +437,6 @@ def test_openapi_preserves_existing_paths_and_adds_notifications(client):
     expected_existing = {
         "/",
         "/healthz",
-        "/healthz/ai",
         "/metrics/performance",
         "/metrics/cache",
         "/records",
@@ -445,7 +444,6 @@ def test_openapi_preserves_existing_paths_and_adds_notifications(client):
         "/items",
         "/summary/monthly_total",
         "/summary/by_item",
-        "/chat/",
     }
     missing = expected_existing - paths
     assert not missing, f"pre-existing paths disappeared: {missing}"

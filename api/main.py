@@ -16,7 +16,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from shared import (
     api_rate_limiter,
     authenticate,
-    chat_rate_limiter,
     get_logger,
     is_public_path,
     load_auth_settings,
@@ -32,7 +31,6 @@ from shared.config import (
 )
 from shared.logging_config import get_request_id, set_request_id
 
-from . import chat
 from ._audit import record_auth_event
 
 # Backward-compatible re-exports — tests/test_input_validation.py imports
@@ -89,9 +87,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Domain routers (api-router-split, 2026-05-22) — chat first to preserve
-# include order from the pre-split layout.
-app.include_router(chat.router)
+# Domain routers (api-router-split, 2026-05-22)
 app.include_router(system.router)
 app.include_router(records.router)
 app.include_router(summary.router)
@@ -178,13 +174,6 @@ async def add_request_id_and_rate_limit(request, call_next):
         response.headers["X-Request-ID"] = request_id
         return response
 
-    # Apply rate limiting to API endpoints (except /chat which has its own limiter)
-    if request.url.path.startswith("/chat"):
-        # Chat has its own rate limiter in the endpoint
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = request_id
-        return response
-
     # General API rate limiting — read-only requests (GET/HEAD/OPTIONS) get a
     # much higher budget: intranet dashboards legitimately burst dozens of GETs
     # per refresh (production + materials + binder + pagination), and the
@@ -220,11 +209,8 @@ async def add_request_id_and_rate_limit(request, call_next):
     should_cleanup = next(_request_counter) % _CLEANUP_INTERVAL == 0
 
     if should_cleanup:
-        # chat 리미터도 함께 정리 — /chat 경로는 이 미들웨어를 우회하므로
-        # 여기서 정리하지 않으면 IP별 deque가 무한히 쌓인다.
         removed = (
             api_rate_limiter.cleanup()
-            + chat_rate_limiter.cleanup()
             + read_rate_limiter.cleanup()
         )
         if removed > 0:

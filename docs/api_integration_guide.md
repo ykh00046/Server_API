@@ -11,7 +11,7 @@
 3. [API 엔드포인트](#3-api-엔드포인트)
 4. [코드 예제](#4-코드-예제)
 5. [페이지네이션](#5-페이지네이션)
-6. [AI 채팅 API](#6-ai-채팅-api)
+6. [관리 조작 curl 레시피 (8502 폐지 후)](#6-관리-조작-curl-레시피-8502-폐지-후)
 7. [에러 처리](#7-에러-처리)
 8. [모범 사례](#8-모범-사례)
 9. [Rate Limiting](#9-rate-limiting-new)
@@ -29,7 +29,7 @@ Production Data Hub API는 생산 데이터를 조회하고 분석하기 위한 
 - 생산 레코드 조회 및 검색
 - 제품 목록 조회
 - 월별/제품별 집계 데이터
-- AI 기반 자연어 쿼리 (Gemini)
+- 관리 조작 API (webhook·이상탐지·문서 삭제/복원 — [6장](#6-관리-조작-curl-레시피-8502-폐지-후))
 
 ### 1.2 기본 정보
 
@@ -124,20 +124,6 @@ API 상태 확인
     "items": 15,
     "max_size": 200
   }
-}
-```
-
----
-
-#### `GET /healthz/ai`
-AI API 연결 상태 확인 (10분 캐싱)
-
-**응답:**
-```json
-{
-  "status": "healthy",
-  "provider": "gemini",
-  "model": "gemini-2.0-flash"
 }
 ```
 
@@ -395,73 +381,6 @@ curl "http://localhost:8001/summary/monthly_by_item?item_code=B0061"
 
 ---
 
-### 3.5 AI 채팅
-
-#### `POST /chat/`
-자연어로 데이터 질의
-
-**Rate Limit:** 20 requests/min per IP
-
-**요청 본문:**
-```json
-{
-  "query": "2026년 1월에 가장 많이 생산된 제품은?",
-  "session_id": "optional-session-id"  // 멀티턴 대화용 (선택)
-}
-```
-
-**파라미터:**
-
-| 파라미터 | 타입 | 필수 | 설명 |
-|----------|------|------|------|
-| `query` | string | O | 질문 내용 (최대 2000자) |
-| `session_id` | string | X | 세션 ID (멀티턴 대화, 최대 100자) |
-
-**응답:**
-```json
-{
-  "answer": "2026년 1월에 가장 많이 생산된 제품은 B0061 (제품A)로 총 12,500개입니다.",
-  "status": "success",
-  "request_id": "abc123def456",  // 추적용 ID (NEW)
-  "tools_used": ["search_production_items", "get_top_items"]
-}
-```
-
-**멀티턴 대화 (NEW):**
-```bash
-# 첫 번째 질문
-curl -X POST "http://localhost:8001/chat/" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "B0061 제품의 이번 달 생산량은?", "session_id": "my-session"}'
-
-# 후속 질문 (같은 session_id 사용)
-curl -X POST "http://localhost:8001/chat/" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "그럼 지난달은?", "session_id": "my-session"}'
-```
-
-**세션 관리:**
-- 세션 TTL: 30분
-- 최대 턴 수: 10턴
-- TTL 초과 시 새 세션으로 자동 재시작
-
-**Rate Limit 초과 시:**
-```json
-// HTTP 429 Too Many Requests
-{
-  "detail": "Rate limit exceeded. Try again in 30 seconds."
-}
-```
-
-**예제:**
-```bash
-curl -X POST "http://localhost:8001/chat/" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "이번 달 총 생산량은?"}'
-```
-
----
-
 ## 4. 코드 예제
 
 ### 4.1 Python
@@ -560,10 +479,6 @@ class ProductionHubClient:
             params["item_code"] = item_code
         return self._get("/summary/monthly_by_item", params)
 
-    def chat(self, query: str) -> dict:
-        """AI 채팅"""
-        return self._post("/chat/", {"query": query})
-
     def iter_all_records(
         self,
         item_code: Optional[str] = None,
@@ -603,10 +518,6 @@ if __name__ == "__main__":
     # 제품 목록
     items = client.get_items()
     print(f"등록된 제품: {len(items)}개")
-
-    # AI 채팅
-    response = client.chat("이번 달 가장 많이 생산된 제품은?")
-    print(f"AI 응답: {response['answer']}")
 
     # 전체 레코드 순회
     for record in client.iter_all_records(date_from="2026-01-01"):
@@ -658,12 +569,6 @@ interface ProductionRecord {
   item_name: string;
   good_quantity: number;
   source: 'live' | 'archive';
-}
-
-interface ChatResponse {
-  answer: string;
-  status: 'success' | 'error';
-  tools_used: string[];
 }
 
 class ProductionHubClient {
@@ -724,10 +629,6 @@ class ProductionHubClient {
     return this.get('/summary/monthly_total', params as Record<string, string>);
   }
 
-  async chat(query: string): Promise<ChatResponse> {
-    return this.post('/chat/', { query });
-  }
-
   async *iterAllRecords(params?: {
     item_code?: string;
     date_from?: string;
@@ -766,10 +667,6 @@ async function main() {
   // 레코드 조회
   const records = await client.getRecords({ limit: 10 });
   console.log(`조회된 레코드: ${records.count}건`);
-
-  // AI 채팅
-  const response = await client.chat('이번 달 총 생산량은?');
-  console.log(`AI 응답: ${response.answer}`);
 
   // 전체 레코드 순회
   for await (const record of client.iterAllRecords({ date_from: '2026-01-01' })) {
@@ -823,13 +720,6 @@ public class ProductionHubClient : IDisposable
         return await _httpClient.GetFromJsonAsync<RecordResponse>(url);
     }
 
-    public async Task<ChatResponse> ChatAsync(string query)
-    {
-        var response = await _httpClient.PostAsJsonAsync("/chat/", new { query });
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<ChatResponse>();
-    }
-
     public void Dispose() => _httpClient.Dispose();
 }
 
@@ -847,11 +737,6 @@ public record ProductionRecord(
     string ItemName,
     int GoodQuantity,
     string Source);
-
-public record ChatResponse(
-    string Answer,
-    string Status,
-    List<string> ToolsUsed);
 
 // 사용 예제
 var client = new ProductionHubClient();
@@ -912,42 +797,106 @@ records = fetch_all_records(client, date_from="2026-01-01", date_to="2026-01-31"
 
 ---
 
-## 6. AI 채팅 API
+## 6. 관리 조작 curl 레시피 (8502 폐지 후)
 
-### 6.1 사용 가능한 질의 유형
+Server_API 자체 대시보드(8502)가 2026-10에 폐지되면서, 그 화면에서 하던 관리 조작은 API를 직접 호출한다.
+조회·Excel·수동 실행 화면은 Dashboard-Raw_material(8503) `/data-hub`가 담당한다.
 
-AI 채팅은 다음과 같은 자연어 질의를 지원합니다:
+> **인증:** `API_AUTH_ENABLED=true`인 서버에서는 모든 관리 호출에 `-H "X-API-Key: $KEY"`
+> (또는 `-H "Authorization: Bearer $TOKEN"`)가 필요하다. 비활성(기본)이면 헤더를 생략해도 된다.
 
-| 질의 유형 | 예시 |
-|----------|------|
-| 생산량 조회 | "이번 달 총 생산량은?" |
-| 제품 검색 | "물이 들어간 제품 목록 알려줘" |
-| 순위 조회 | "가장 많이 생산된 제품 TOP 5" |
-| 기간 비교 | "1월과 2월 생산량 비교해줘" |
-| 추이 분석 | "B0061 제품의 월별 생산 추이" |
-
-### 6.2 응답 구조
-
-```json
-{
-  "answer": "답변 내용",
-  "status": "success",      // "success" 또는 "error"
-  "tools_used": [           // 사용된 내부 도구 목록
-    "search_production_items",
-    "get_production_summary"
-  ]
-}
+```bash
+BASE=http://localhost:8000
+KEY=your-api-key          # API_AUTH_ENABLED=true 일 때만 필요
 ```
 
-### 6.3 에러 처리
+#### Webhook 관리 (`/notifications`)
 
-```python
-response = client.chat("질문")
+```bash
+# 이벤트 카탈로그 (구독 가능한 event_type 목록)
+curl -H "X-API-Key: $KEY" "$BASE/notifications/events"
 
-if response["status"] == "error":
-    print(f"에러: {response['answer']}")
-else:
-    print(f"답변: {response['answer']}")
+# 등록 — 응답의 secret은 이때 한 번만 노출된다 (HMAC 서명 검증용으로 보관)
+curl -X POST "$BASE/notifications/webhooks" \
+  -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
+  -d '{"url": "https://hooks.example.com/prod", "event_types": ["production.anomaly.volume_drop", "production.anomaly.stale_item"], "description": "이상탐지 알림", "active": true}'
+
+# 목록 / 단건 (active=true|false 필터 선택)
+curl -H "X-API-Key: $KEY" "$BASE/notifications/webhooks?active=true"
+curl -H "X-API-Key: $KEY" "$BASE/notifications/webhooks/1"
+
+# 수정 — 보낸 필드만 바뀐다 (event_types / description / active)
+curl -X PATCH "$BASE/notifications/webhooks/1" \
+  -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
+  -d '{"active": false}'
+
+# secret 회전 — 응답에 새 secret이 한 번만 포함된다
+curl -X PATCH "$BASE/notifications/webhooks/1" \
+  -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
+  -d '{"rotate_secret": true}'
+
+# 삭제
+curl -X DELETE -H "X-API-Key: $KEY" "$BASE/notifications/webhooks/1"
+
+# 테스트 핑 (구독 event_types·active 여부와 무관하게 이 webhook에만 즉시 발송)
+curl -X POST "$BASE/notifications/webhooks/1/test" \
+  -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
+  -d '{"payload": {"ok": true}}'
+
+# 전달 이력 (limit≤500, status 필터, before_id keyset 커서)
+curl -H "X-API-Key: $KEY" "$BASE/notifications/webhooks/1/deliveries?limit=50&status=dead"
+
+# 큐 상태
+curl -H "X-API-Key: $KEY" "$BASE/notifications/queue/stats"
+
+# 일괄 재시도 — statuses는 "dead"/"failure"만 허용. dry_run=true로 대상부터 확인
+curl -X POST "$BASE/notifications/deliveries/bulk-retry" \
+  -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
+  -d '{"statuses": ["dead", "failure"], "webhook_id": null, "limit": 500, "dry_run": true}'
+
+# 단건 재시도
+curl -X POST -H "X-API-Key: $KEY" "$BASE/notifications/deliveries/42/retry"
+```
+
+#### 이상탐지 what-if (`/anomaly`)
+
+| 호출 | 발행(webhook·쿨다운) | 용도 |
+|------|----------------------|------|
+| `GET /anomaly/scan` | **발행 안 함** (side-effect 0) | 미리보기 + what-if 임계 재판정 |
+| `POST /anomaly/scan` | 발행 (기본 `emit=true`) | 수동 발행 트리거. `?emit=false`면 미리보기만 (what-if 파라미터 없음) |
+
+```bash
+# 현재 임계치 확인
+curl -H "X-API-Key: $KEY" "$BASE/anomaly/rules"
+
+# what-if 미리보기 — GET 전용. 서버 설정·쿨다운 상태는 바뀌지 않는다
+# (drop_pct/spike_pct >0, stale_days ≥1, min_baseline_qty ≥0, baseline_days 1~365 — 준 값만 덮어씀)
+curl -H "X-API-Key: $KEY" "$BASE/anomaly/scan?drop_pct=30&spike_pct=80&stale_days=5"
+
+# 실제 발행 (운영 정기 발행은 tools/anomaly_watch.py 담당 — 이건 수동 트리거)
+curl -X POST -H "X-API-Key: $KEY" "$BASE/anomaly/scan"
+
+# 발행 이력 / 쿨다운 상태
+curl -H "X-API-Key: $KEY" "$BASE/anomaly/findings?days=30&limit=200"
+curl -H "X-API-Key: $KEY" "$BASE/anomaly/state"
+```
+
+#### 문서 삭제·복원 (`/{dataset}` — `materials`, `binder`)
+
+`{dataset}`은 `api/materials/datasets.py`에 등록된 prefix(`/materials`, `/binder`)다.
+
+```bash
+# 문서 삭제 (문서번호의 모든 품목 행). tombstone이 남아 봇 재전송에도 부활하지 않는다. 없으면 404
+curl -X DELETE -H "X-API-Key: $KEY" "$BASE/materials/20261005P001"
+
+# 삭제된 문서(tombstone) 목록 — 최근 삭제순
+curl -H "X-API-Key: $KEY" "$BASE/materials/tombstones"
+
+# 복원 — tombstone만 제거한다. 데이터 행은 다음 봇 백업(전체 Excel 재전송) 때 다시 upsert된다. 없으면 404
+curl -X POST -H "X-API-Key: $KEY" "$BASE/materials/20261005P001/restore"
+
+# 바인더 데이터셋도 같은 형태
+curl -H "X-API-Key: $KEY" "$BASE/binder/tombstones"
 ```
 
 ---
@@ -986,8 +935,6 @@ def safe_request(client, method, *args, **kwargs):
     try:
         if method == "get_records":
             return client.get_records(*args, **kwargs)
-        elif method == "chat":
-            return client.chat(*args, **kwargs)
     except Timeout:
         print("요청 시간 초과. 잠시 후 다시 시도하세요.")
         return None
@@ -1087,7 +1034,6 @@ def process_all_records():
 
 | 엔드포인트 | 제한 | 윈도우 |
 |-----------|------|--------|
-| `POST /chat/` | 20 requests | 1분 (IP 기준) |
 | 기타 모든 API | 60 requests | 1분 (IP 기준) |
 
 ### 9.2 응답 헤더
@@ -1119,12 +1065,12 @@ Retry-After: 30
 import requests
 import time
 
-def safe_chat(client, query, max_retries=3):
-    """Rate Limit을 고려한 안전한 채팅"""
+def safe_get(path, params=None, max_retries=3):
+    """Rate Limit을 고려한 안전한 조회"""
     for attempt in range(max_retries):
-        response = requests.post(
-            f"{BASE_URL}/chat/",
-            json={"query": query},
+        response = requests.get(
+            f"{BASE_URL}{path}",
+            params=params,
             timeout=30
         )
 
@@ -1155,7 +1101,6 @@ def safe_chat(client, query, max_retries=3):
 
 | 엔드포인트 | 제한 | 초과 시 응답 |
 |-----------|------|-------------|
-| `POST /chat/` | 20 req/min per IP | 429 Too Many Requests |
 | 기타 API | 60 req/min per IP | 429 Too Many Requests |
 
 **Rate Limit 초과 시 응답:**
@@ -1187,13 +1132,7 @@ def safe_chat(client, query, max_retries=3):
 보안상 읽기 전용으로 설계되었습니다.
 데이터 입력은 별도 시스템에서 처리됩니다.
 
-### Q6. AI 채팅이 응답하지 않아요
-
-1. `/healthz/ai`로 AI API 상태 확인
-2. 서버 로그에서 에러 확인
-3. Gemini API 키가 올바른지 확인
-
-### Q7. 대용량 데이터 내보내기는 어떻게 하나요?
+### Q6. 대용량 데이터 내보내기는 어떻게 하나요?
 
 ```python
 # 전체 데이터를 CSV로 내보내기
@@ -1216,14 +1155,12 @@ with open("export.csv", "w", newline="", encoding="utf-8") as f:
 |--------|-----------|------|------------|
 | GET | `/` | API 상태 | 60/min |
 | GET | `/healthz` | 상세 헬스 체크 | 제외 |
-| GET | `/healthz/ai` | AI API 상태 | 제외 |
 | GET | `/records` | 레코드 목록 (lot_number, min/max_quantity 필터 추가) | 60/min |
 | GET | `/records/{item_code}` | 특정 제품 레코드 | 60/min |
 | GET | `/items` | 제품 목록 | 60/min |
 | GET | `/summary/monthly_total` | 월별 총 생산량 | 60/min |
 | GET | `/summary/by_item` | 기간별 제품별 생산량 | 60/min |
 | GET | `/summary/monthly_by_item` | 월별 제품별 생산량 | 60/min |
-| POST | `/chat/` | AI 채팅 (멀티턴, request_id 추가) | **20/min** |
 
 ### v1.0.2 새로운 기능
 
@@ -1232,11 +1169,10 @@ with open("export.csv", "w", newline="", encoding="utf-8") as f:
 | Rate Limiting | IP 기반 요청 제한 (429 응답) |
 | 새 필터 | `lot_number`, `min_quantity`, `max_quantity` |
 | 입력 검증 | 날짜 범위, 문자열 길이 검증 |
-| Multi-turn Chat | `session_id`로 대화 맥락 유지 |
-| Request ID | 모든 채팅 응답에 추적용 ID 포함 |
+| Request ID | 모든 응답에 추적용 `X-Request-ID` 포함 |
 
 ---
 
-> **문서 버전:** 1.1
-> **최종 업데이트:** 2026-02-20
+> **문서 버전:** 1.2
+> **최종 업데이트:** 2026-10-05 (챗 API 폐지, 관리 조작 curl 레시피 추가)
 > **문의:** 시스템 관리자

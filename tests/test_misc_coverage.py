@@ -1,8 +1,7 @@
 # tests/test_misc_coverage.py
 """Focused unit tests for small utility modules.
 
-shared/path_setup.py, shared/metrics.py, shared/config.py helpers,
-api/_gemini_client.py.
+shared/path_setup.py, shared/metrics.py, shared/config.py helpers.
 """
 
 import sys
@@ -10,7 +9,6 @@ from pathlib import Path
 
 import pytest
 
-from api import _gemini_client as gc
 from shared import metrics as metrics_mod
 from shared.config import _env_bool
 from shared.metrics import PerformanceMonitor, TimedQuery
@@ -137,68 +135,6 @@ class TestMetrics:
         assert s["avg_rows"] == 3.0
         assert s["cache_hit_rate"] == 100.0
         pm.reset()
-
-
-# ==========================================================
-# _gemini_client
-# ==========================================================
-class TestGeminiClient:
-    def test_get_client_no_key(self, monkeypatch):
-        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-        gc.reset_for_tests()
-        assert gc.get_client() is None
-        # Cached path: second call returns the cached None without re-checking.
-        assert gc.get_client() is None
-        gc.reset_for_tests()
-
-    def test_get_client_success(self, monkeypatch):
-        sentinel = object()
-        monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
-        monkeypatch.setattr(gc.genai, "Client", lambda api_key: sentinel)
-        gc.reset_for_tests()
-        assert gc.get_client() is sentinel
-        gc.reset_for_tests()
-
-    def test_get_client_init_failure(self, monkeypatch):
-        def _boom(api_key):
-            raise ValueError("bad key")
-
-        monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
-        monkeypatch.setattr(gc.genai, "Client", _boom)
-        gc.reset_for_tests()
-        assert gc.get_client() is None
-        gc.reset_for_tests()
-
-    def test_is_fallbackable_non_genai_error(self):
-        assert gc.is_fallbackable(ValueError("nope")) is False
-
-    def test_is_fallbackable_status_429(self):
-        # .code carries the HTTP status; .status is the gRPC name (F-01).
-        e = gc.ClientError(429, {"error": {
-            "code": 429, "message": "quota", "status": "RESOURCE_EXHAUSTED"}})
-        assert gc.is_fallbackable(e) is True
-
-    def test_is_fallbackable_status_zero_message_match(self):
-        e = gc.ServerError.__new__(gc.ServerError)
-        e.args = ("503 Service Unavailable",)
-        assert gc.is_fallbackable(e) is True
-
-    def test_is_fallbackable_non_fallback_status(self):
-        e = gc.ClientError(400, {"error": {
-            "code": 400, "message": "bad", "status": "INVALID_ARGUMENT"}})
-        assert gc.is_fallbackable(e) is False
-
-    def test_extract_http_code_from_status_name(self):
-        """Malformed response with no .code still classifies via the status name."""
-        e = gc.ServerError.__new__(gc.ServerError)
-        e.status = "UNAVAILABLE"
-        e.args = ("upstream connect error",)
-        assert gc.extract_http_code(e) == 503
-
-    def test_extract_http_code_unknown(self):
-        e = gc.ClientError.__new__(gc.ClientError)
-        e.args = ("something odd",)
-        assert gc.extract_http_code(e) == 0
 
 
 if __name__ == "__main__":  # pragma: no cover

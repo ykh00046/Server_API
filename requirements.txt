@@ -1,21 +1,13 @@
-streamlit
 fastapi
 uvicorn
-pandas
-openpyxl
 customtkinter
 packaging
-google-genai
 python-dotenv
-plotly
-requests
 orjson
 cachetools
-altair
 pystray
 Pillow
 httpx
-streamlit-shadcn-ui
 
 # Process management (manager.py / shared.process_utils kill_process_tree)
 psutil
