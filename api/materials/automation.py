@@ -105,14 +105,19 @@ def trigger_automation(
             status_code=500,
         )
     with _trigger_lock:
-        reaped = runs.reap_stale_running(runs_table=runs_table)
+        # Guard is process-wide, not per dataset (roadmap-2026h2 B-9): the
+        # materials and binder bots share one Selenium portal session, and
+        # the 2026-08-24 incident was exactly a materials + binder double
+        # start that the per-table check let through.
+        reaped = runs.reap_stale_running_all()
         if reaped:
-            logger.warning(
-                "[materials] reaped %d stale running run(s) in %s",
-                reaped, runs_table,
+            logger.warning("[materials] reaped %d stale running run(s)", reaped)
+        active = runs.active_automation_dataset()
+        if active is not None:
+            raise TriggerError(
+                f"이미 실행 중인 자동화가 있습니다 ({active.title}). "
+                "크롤러는 포털 세션을 공유하므로 끝날 때까지 기다려 주세요."
             )
-        if runs.has_active_automation(runs_table=runs_table):
-            raise TriggerError("이미 실행 중인 자동화가 있습니다.")
         run_id = runs.start_run("automation", runs_table=runs_table)
     threading.Thread(
         target=_worker, args=(run_id, keyword, runs_table),

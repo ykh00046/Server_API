@@ -10,7 +10,7 @@ from __future__ import annotations
 import datetime as dt
 import sqlite3
 
-from .datasets import DEFAULT_DATASET
+from .datasets import DEFAULT_DATASET, Dataset, all_datasets
 from .schemas import MaterialRun
 from .store import _get_conn, _now_iso
 
@@ -120,6 +120,27 @@ def has_active_automation(runs_table: str = DEFAULT_DATASET.runs_table) -> bool:
         "LIMIT 1"
     ).fetchone()
     return row is not None
+
+
+def reap_stale_running_all(*, older_than_sec: float = STALE_RUNNING_SEC) -> int:
+    """`reap_stale_running` over every registered dataset. Returns total reaped."""
+    return sum(
+        reap_stale_running(ds.runs_table, older_than_sec=older_than_sec)
+        for ds in all_datasets()
+    )
+
+
+def active_automation_dataset() -> Dataset | None:
+    """The dataset whose automation is currently 'running', or None.
+
+    Process-wide guard (roadmap-2026h2 B-9): every dataset's bot run shares the
+    same Selenium portal session on the ops PC, so a materials run must block a
+    binder trigger and vice versa — not just a second run of the same dataset.
+    """
+    for ds in all_datasets():
+        if has_active_automation(ds.runs_table):
+            return ds
+    return None
 
 
 def get_run(
