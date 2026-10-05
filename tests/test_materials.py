@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 import shared.config as cfg
 from api.main import app
-from api.materials import automation, runs, store
+from api.materials import automation, datasets, runs, store
 from api.materials.schemas import MaterialRow
 
 
@@ -703,3 +703,41 @@ class TestTrigger:
         r = client.post("/materials/run")
         assert r.status_code == 409
         assert runs.get_run(rid).status == "running"
+
+    def test_cross_dataset_run_blocked(self, client, monkeypatch):
+        """B-9: 자재가 실행 중이면 바인더 트리거도 409 — 두 봇은 같은 포털
+        세션을 공유한다(2026-08-24 동시 기동 사고). 응답은 실행 중인 쪽을 말한다."""
+        monkeypatch.setattr(cfg, "MATERIALS_RUN_ENABLED", True)
+        runs.start_run("automation")  # materials
+        r = client.post("/binder/run")
+        assert r.status_code == 409
+        assert "Materials" in r.json()["detail"]
+        assert not runs.has_active_automation(datasets.get_dataset("binder").runs_table)
+
+    def test_cross_dataset_stale_reaped(self, client, monkeypatch, tmp_path):
+        """B-9: 다른 데이터셋의 고아 'running' 행도 트리거 시 함께 정리된다."""
+        bot = tmp_path / "bot"
+        bot.mkdir()
+        (bot / "main.py").write_text("# dummy")
+        monkeypatch.setattr(cfg, "MATERIALS_RUN_ENABLED", True)
+        monkeypatch.setattr(cfg, "MATERIALS_BOT_DIR", bot)
+        monkeypatch.setattr(automation.threading, "Thread", _InlineThread)
+        monkeypatch.setattr(automation, "_run_subprocess",
+                            lambda python, bot_dir, keyword=None: (0, "완료"))
+        binder_runs = datasets.get_dataset("binder").runs_table
+        stale_id = runs.start_run("automation", runs_table=binder_runs)
+        old = (
+            dt.datetime.now()
+            - dt.timedelta(seconds=runs.STALE_RUNNING_SEC + 60)
+        ).isoformat(timespec="seconds")
+        conn = store._get_conn()
+        conn.execute(
+            f"UPDATE {binder_runs} SET started_at = ? WHERE id = ?", (old, stale_id)
+        )
+        conn.commit()
+
+        r = client.post("/materials/run")
+        assert r.status_code == 200, r.text
+        reaped = runs.get_run(stale_id, runs_table=binder_runs)
+        assert reaped.status == "failed"
+        assert "stale" in (reaped.message or "")
