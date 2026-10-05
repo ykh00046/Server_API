@@ -58,6 +58,17 @@ Dashboard-Raw_material 소유"로 고정했다. 2026-08-21 Dashboard `/data-hub`
 
 `api/_http_helpers.py`(_normalize_date 등)는 챗 전용이 아님 — 유지.
 
+**구현 중 확장(2026-10-05, 실측으로 드러난 챗 전용 잔재 — 같은 레이어로 처리):**
+
+| 대상 | 근거 | 처리 |
+|---|---|---|
+| `api/_tool_dispatch.py`, `tests/test_tool_schemas.py`, `tools/check_models.py` | Gemini 툴 레지스트리·스키마 테스트(`google.genai` import)·모델 목록 CLI. 소비처 챗뿐 | 삭제 |
+| `api/tools/` 패키지(_common/custom/items/summary, 864 LOC) + `tests/test_ai_tools_db.py`(26)·`tests/test_sql_validation.py`(전부 api.tools 대상) + `test_db_connection_lifecycle.py`의 `compare_periods` 케이스 + `conftest.py` 75행 모듈 목록 | Gemini function-calling 전용 툴. 프로덕션 소비처 0 | 삭제 |
+| `shared/config.py` `STREAM_HEARTBEAT_SEC`/`STREAM_TIMEOUT_SEC`/`STREAM_BUFFER_FLUSH_MS` | 챗 SSE 전용, 소비처 0 | 삭제 |
+| `shared/config.py` `_DEFAULT_CORS_ORIGINS`의 8502 origin 2개, `manager_theme.py` docstring, `설치방법.txt`, `requirements-smoke.txt`·`tools/smoke_api.sh`의 google-genai | grep 게이트 | 정리 |
+| `.env.example` `MATERIALS_API_KEY=` | **유지(복원)** — 봇 `api_backup_config.py`가 `os.getenv('MATERIALS_API_KEY')`로 읽고, 매니저가 `shared.config`의 `load_dotenv(루트 .env)`로 환경을 채운 뒤 봇을 서브프로세스로 띄우므로 상속됨. 옛 주석("대시보드→API 호출")이 틀렸던 것 → 봇 백업 키로 주석 정정 |
+| lock에서 `httptools`/`websockets`/`watchfiles`/`tzdata` 탈락 | `uvicorn`(extras 없음)·pandas 폐쇄 밖. 운용은 `--reload`·websocket 미사용 | 수용 |
+
 ### 3. 문서
 
 | 문서 | 처리 |

@@ -26,7 +26,7 @@
 
 ```
 [Manager GUI]  →  API Server (port 8000)
-               →  Dashboard  (port 8502)
+               →  Portal 봇  (webcloring-pdf)
                →  DB Watcher (백그라운드)
 
 [DB 파일]
@@ -35,7 +35,7 @@
   database/backups/                 자동 백업 디렉토리
 
 [로그]
-  logs/app.log       API + Chat 로그  (최대 10MB × 5개)
+  logs/app.log       API 로그  (최대 10MB × 5개)
   logs/watcher.log   Watcher 로그
 ```
 
@@ -44,7 +44,8 @@
 | 서비스 | 기본 포트 | 환경변수 |
 |--------|---------|---------|
 | API Server | 8000 | `API_PORT` |
-| Dashboard | 8502 | `DASHBOARD_PORT` |
+
+> 화면은 Dashboard-Raw_material(8503)이 서빙한다. Server_API 자체 Streamlit 대시보드(8502)는 2026-10 폐지됨.
 
 ---
 
@@ -57,7 +58,7 @@
 python manager.py
 ```
 
-- GUI에서 API / Dashboard / Watcher 버튼으로 개별 제어
+- GUI에서 API / Portal / Watcher 버튼으로 개별 제어
 - 시스템 트레이에서 최소화 후 백그라운드 운영 가능
 
 ### 방법 2: 개별 터미널 실행
@@ -68,9 +69,6 @@ python manager.py
 
 # API 서버
 python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
-
-# Dashboard (별도 터미널)
-python -m streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port 8502
 
 # DB Watcher 데몬 (별도 터미널)
 python tools/watcher.py --daemon --interval 3600
@@ -92,7 +90,7 @@ python tools/watcher.py --daemon --interval 3600
 ### Manager 종료 동작 (manager-orphan-prevention-v1, 2026-04-24)
 
 **정상 종료 경로**:
-- **Tray → "완전 종료"**: `shared.process_utils.kill_process_tree`로 API / Dashboard / Portal 자식 프로세스 트리 전체 정리
+- **Tray → "완전 종료"**: `shared.process_utils.kill_process_tree`로 API / Portal 자식 프로세스 트리 전체 정리
   - psutil로 descendants를 **사전 스냅샷** → graceful `terminate()` → `wait_procs` → 강제 `kill()` → 최후 `taskkill /F /T` fallback
 - **콘솔 `Ctrl+C`** (직접 `python manager.py` 실행 시): `signal.SIGINT` 핸들러가 main Tk thread에 `_cleanup_and_exit` schedule
 - **창 X 버튼**: tray로 숨김 (원 디자인). tray 초기화 실패 시 `messagebox.askyesno`로 종료 확인 dialog fallback
@@ -101,7 +99,6 @@ python tools/watcher.py --daemon --interval 3600
 ```bash
 # 종료 후 5초 뒤 포트가 free 인지 검증
 netstat -ano | findstr ":8000"
-netstat -ano | findstr ":8502"
 ```
 
 **강제 종료 (작업 관리자) 시 주의**:
@@ -109,7 +106,7 @@ manager를 작업 관리자로 강제 종료하면 `atexit` 훅이 실행되지 
 다음 실행 전에 잔존 프로세스를 정리하세요:
 ```bash
 # PID 확인
-Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'uvicorn|streamlit' } | Select-Object ProcessId, CommandLine
+Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'uvicorn' } | Select-Object ProcessId, CommandLine
 
 # 개별 종료
 taskkill /F /T /PID <PID>
@@ -126,9 +123,6 @@ taskkill /F /T /PID <PID>
 ```bash
 # 서버 상태 (DB 연결, 캐시 현황, 디스크)
 curl http://localhost:8000/healthz
-
-# AI API 상태 (10분 캐시)
-curl http://localhost:8000/healthz/ai
 ```
 
 **정상 응답 예시**
@@ -138,7 +132,6 @@ curl http://localhost:8000/healthz/ai
   "database": "connected",
   "db_size_mb": 4.07,
   "archive_db": "available",
-  "ai_api": { "key_configured": true, "cached_status": "ok" },
   "cache": { "size": 12, "maxsize": 200 },
   "disk_free_gb": 45.2
 }
@@ -159,7 +152,7 @@ curl http://localhost:8000/healthz/ai
 
 | 파일 | 내용 | 보관 정책 |
 |------|------|----------|
-| `logs/app.log` | API 요청, AI Chat, Slow Query | 10MB × 5개 롤링 |
+| `logs/app.log` | API 요청, Slow Query | 10MB × 5개 롤링 |
 | `logs/watcher.log` | DB 변경 감지, 인덱스 복구, ANALYZE | 무제한 (수동 관리) |
 
 ### 유용한 로그 패턴
@@ -170,9 +163,6 @@ grep "ERROR\|WARN" logs/app.log | tail -50
 
 # Slow Query 확인 (500ms 초과)
 grep "SLOW QUERY" logs/app.log
-
-# AI 토큰 사용량 추이
-grep "Token Usage" logs/app.log | tail -100
 
 # 특정 제품 쿼리 추적
 grep "BW0021" logs/app.log | tail -30
@@ -385,36 +375,9 @@ python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
 
 ---
 
-### 7.3 AI Chat 오류
+### 7.3 API 응답 느림
 
-**증상**: Chat 응답에 `"status": "error"`
-
-**원인별 대응**
-
-| 에러 메시지 | 원인 | 대응 |
-|------------|------|------|
-| "API Key not configured" | `.env` 파일 없음 | `.env`에 `GEMINI_API_KEY` 추가 |
-| "일일 한도 초과" | 무료 API 쿼터 소진 | 다음 날까지 대기 또는 유료 전환 |
-| "AI 서비스 일시 불안정" | Gemini 서버 장애 | 재시도 (자동 3회 내장) |
-| "Rate limit exceeded" | IP당 분당 20회 초과 | `Retry-After` 헤더 시간 대기 |
-
-**API 키 확인**
-```bash
-python -c "
-import os
-from dotenv import load_dotenv
-load_dotenv()
-key = os.getenv('GEMINI_API_KEY', '')
-print('키 설정됨:', bool(key))
-print('키 앞 10자:', key[:10] + '...' if key else '없음')
-"
-```
-
----
-
-### 7.4 Dashboard 로딩 느림
-
-**증상**: 페이지 로딩에 5초 이상 소요
+**증상**: 조회 응답(또는 Dashboard-Raw_material 화면 로딩)에 5초 이상 소요
 
 **체크리스트**
 1. `GET /healthz`에서 `cache.size` 확인 — 0이면 캐시 미적재 상태
@@ -444,7 +407,7 @@ curl http://localhost:8000/metrics/cache
 
 ---
 
-### 7.5 인덱스 누락
+### 7.4 인덱스 누락
 
 **증상**: 특정 쿼리가 비정상적으로 느림 (SLOW QUERY 로그 급증)
 
@@ -458,7 +421,7 @@ grep "Healed\|Creating missing" logs/watcher.log | tail -10
 
 ---
 
-### 7.6 디스크 공간 부족
+### 7.5 디스크 공간 부족
 
 **증상**: `/healthz`에서 `disk_free_gb` 5 미만
 
@@ -503,7 +466,7 @@ conn.close()
 ### 전환 절차
 
 #### Step 1. 서비스 중지
-Manager GUI에서 API / Dashboard 중지
+Manager GUI에서 API / Portal 중지
 
 #### Step 2. 현재 DB 백업 (전환 전 최종 백업)
 
@@ -641,8 +604,10 @@ del database\archive_2025_old.db
 
 ```env
 API_PORT=8001
-DASHBOARD_PORT=8503
 ```
+
+> **2026-10 폐지 잔존 키 정리:** 운용 PC `.env`에 남은 `GEMINI_API_KEY`, `DASHBOARD_PORT`, `DASHBOARD_API_KEY`,
+> `CHAT_SESSION_*`는 더 이상 읽히지 않는 무해한 잔존이다. 다음 방문 때 해당 줄을 삭제하고 매니저를 재시작한다.
 
 ### Slow Query 임계값 변경
 
@@ -662,7 +627,6 @@ _api_cache = TTLCache(maxsize=200, ttl=300)  # TTL: 초 단위
 
 `shared/config.py`:
 ```python
-RATE_LIMIT_CHAT = 20   # Chat 분당 요청 수
 RATE_LIMIT_API = 60    # 일반 API 분당 요청 수
 ```
 
@@ -691,8 +655,6 @@ python tools/watcher.py --daemon --interval 1800
 ```
 □ SLOW QUERY 로그 확인 및 분석
     grep "SLOW QUERY" logs/app.log
-□ AI 토큰 사용량 추이 확인
-    grep "Token Usage" logs/app.log | tail -50
 □ 백업 파일 생성 확인
     dir database\backups\ | tail -10
 □ Watcher ANALYZE 실행 확인
@@ -762,14 +724,14 @@ python scripts/perf_smoke.py --url http://localhost:8000 --path /healthz --n 100
 
 INTEROJO 포털 자재요청을 webcloring-pdf 봇이 스크랩 → Excel → **Server_API
 (`/materials/backup`)** 로 백업한다(구 Google Sheets 대체). 운용 PC는 GUI 없이
-24시간 켜두므로, 모니터링·이력·수동 실행은 **대시보드**로 처리한다.
+24시간 켜두므로, 모니터링·이력·수동 실행은 **Dashboard-Raw_material `/data-hub`**(8503)로 처리한다.
 
 ### 11.1 구성
 
 ```
 [webcloring-pdf 봇]  --(자동화 종료 시 POST)-->  [API /materials/backup]  -->  materials.db
         │                                              │
-   main.py --auto/--schedule                     [Dashboard "자재요청"]  (목록/이력/다운로드/지금 실행)
+   main.py --auto/--schedule                     [Dashboard-Raw_material /data-hub]  (목록/이력/Excel/수동 실행)
 ```
 
 - 데이터 저장: `database/materials.db` (운영 DB와 분리). 문서번호(doc_number) 기준 upsert.
@@ -777,26 +739,23 @@ INTEROJO 포털 자재요청을 webcloring-pdf 봇이 스크랩 → Excel → **
 
 ### 11.2 시작 / 중지 / 업데이트 (매니저)
 
-루트 배치 스크립트로 운용한다. 매니저가 API·대시보드·포털을 한 곳에서 관리.
+루트 배치 스크립트로 운용한다. 매니저가 API·포털을 한 곳에서 관리.
 
 | 스크립트 | 동작 |
 |---|---|
-| `manager.bat` | 매니저 실행(트레이, 콘솔 없음). API·대시보드·포털 자식 관리 |
-| `stop.bat` | API(8000)·대시보드(8502) 포트 점유 프로세스 종료 |
+| `manager.bat` | 매니저 실행(트레이, 콘솔 없음). API·포털 자식 관리 |
+| `stop.bat` | API(8000) 포트 점유 프로세스 종료 |
 | `update.bat` | 이 레포 프로세스 정지 → `git pull` + 서브모듈 + deps (끝나면 `manager.bat`) |
 | `install.bat` | (최초 1회) 의존성 설치 |
 
-API/대시보드만 수동으로 띄울 때는 아래 두 명령과 동일하다:
+API만 수동으로 띄울 때는 아래 명령과 동일하다:
 
 ```bash
 python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
-python -m streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port 8502
 ```
 
-대시보드 좌측 **자재요청** 페이지:
-- 상단: 마지막 실행 상태 카드, **"지금 실행"**/**"새로고침"** 버튼, **실행 이력** 펼치기
-- 본문: 자재요청 목록(기존 Excel과 동일한 한글 헤더·순서) + **CSV / Excel 다운로드**
-- 필터: 요청부서, 문서번호 날짜 범위
+화면(상태·문서 조회/Excel·수동 실행)은 Dashboard-Raw_material(8503) `/data-hub`가 담당한다.
+문서 삭제/복원 등 관리 조작은 [API 통합 가이드 6장 curl 레시피](../api_integration_guide.md#6-관리-조작-curl-레시피-8502-폐지-후) 참조.
 
 ### 11.3 봇 실행 방법
 
@@ -804,10 +763,10 @@ python -m streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port 
 |---|---|---|
 | 1회 수동(콘솔) | `python main.py --auto` | 스크랩→Excel→백업 1회 (헤드리스) |
 | 예약 | `python main.py --schedule` | 매일 지정 시간 (`AUTO_ENABLED=true` 필요) |
-| 대시보드 트리거 | "지금 실행" 버튼 | 같은 PC에서 API가 `main.py --auto` 백그라운드 기동 |
+| 화면 트리거 | Dashboard-Raw_material `/data-hub` 수동 실행 (`POST /materials/run`) | 같은 PC에서 API가 `main.py --auto` 백그라운드 기동 |
 | GUI | `python main.py` (인자 없음) | 봇 GUI (운용 PC에서는 비권장) |
 
-### 11.4 대시보드 "지금 실행" 활성화 (선택)
+### 11.4 수동 실행(`POST /materials/run`) 활성화 (선택)
 
 웹에서 봇 프로세스를 띄우는 기능이라 **기본 비활성**. 켜려면 API 서버 환경에:
 
@@ -820,7 +779,7 @@ MATERIALS_RUN_ENABLED=true
 ```
 
 - 봇 쪽 `src/config/api_backup_settings.json` 에 `base_url`(예: `http://localhost:8000`) + `enabled=true` 가 설정돼 있어야 봇이 실제로 백업을 POST 한다(봇 GUI "API 백업" 창 또는 파일 직접 편집).
-- `MATERIALS_RUN_ENABLED` 가 false 면 "지금 실행"은 409(비활성)로 안전하게 거부된다. **목록·이력·다운로드는 설정과 무관하게 항상 동작**.
+- `MATERIALS_RUN_ENABLED` 가 false 면 수동 실행(`POST /materials/run`)은 409(비활성)로 안전하게 거부된다. **목록·이력·다운로드는 설정과 무관하게 항상 동작**.
 
 ### 11.5 확인 / 점검
 
@@ -832,14 +791,14 @@ curl http://localhost:8000/materials/runs?limit=10
 curl "http://localhost:8000/materials?date_from=2026-06-01"
 ```
 
-- "실행했는지"는 `GET /materials/runs` 또는 대시보드 상태 카드로 확인(kind=backup/automation, status=success/failed).
+- "실행했는지"는 `GET /materials/runs` 또는 Dashboard-Raw_material `/data-hub` 상태로 확인(kind=backup/automation, status=success/failed).
 - 봇 측 마지막 백업 시각·성공/실패 수: `src/config/api_backup_settings.json`, 실패 로그: `src/logs/backup_failures.log`.
 
 ### 11.6 장애 대응
 
 | 증상 | 확인 | 조치 |
 |---|---|---|
-| 대시보드 목록 비어있음 | 봇이 백업을 보냈는가(`/materials/runs`) | 봇 `--auto` 실행, `api_backup_settings.json` base_url/enabled 확인 |
-| "지금 실행" 409(비활성) | `MATERIALS_RUN_ENABLED` | API 서버 env 에 true 설정 후 재기동 |
-| "지금 실행" 후 status=failed | run 의 `message`/exit_code, 봇 `automation.log` | `MATERIALS_BOT_PYTHON`(봇 deps 포함 venv) 지정, Chrome/Selenium 환경 확인 |
+| `/data-hub` 목록 비어있음 | 봇이 백업을 보냈는가(`/materials/runs`) | 봇 `--auto` 실행, `api_backup_settings.json` base_url/enabled 확인 |
+| 수동 실행 409(비활성) | `MATERIALS_RUN_ENABLED` | API 서버 env 에 true 설정 후 재기동 |
+| 수동 실행 후 status=failed | run 의 `message`/exit_code, 봇 `automation.log` | `MATERIALS_BOT_PYTHON`(봇 deps 포함 venv) 지정, Chrome/Selenium 환경 확인 |
 | "이미 실행 중" 409 | 이전 자동화 미완료 | 완료 대기 또는 봇 프로세스 종료 후 재시도 |

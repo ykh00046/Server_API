@@ -2,15 +2,16 @@
 
 ![CI](https://github.com/ykh00046/Server_API/actions/workflows/ci.yml/badge.svg)
 
-생산 데이터 분석 및 AI 챗봇 시스템
+생산 데이터 분석 API 서버
 
 ## 주요 기능
 
-- **Dashboard**: Streamlit 기반 데이터 시각화 (다크/라이트 모드, KPI 카드, 일/주/월별 집계)
 - **API Server**: FastAPI REST API (GZip 압축, 캐싱, Rate Limiting, Cursor Pagination)
-- **AI Chat**: Google Gemini 기반 자연어 쿼리 (멀티턴 대화, 7개 도구)
 - **DB Watcher**: DB 변경 감지 → 인덱스 자동 복구 → 24시간마다 ANALYZE
 - **Manager**: 통합 서버 관리 GUI (시스템 트레이 지원)
+
+> 화면(현황·문서 조회/Excel·수동 실행·챗봇)은 별도 프로젝트 **Dashboard-Raw_material**(8503, `/data-hub`)이 서빙한다.
+> Server_API 자체 Streamlit 대시보드(8502)와 Gemini 챗 API는 2026-10 폐지됨(dashboard-8502-sunset).
 
 ---
 
@@ -25,7 +26,7 @@ cd Server_API
 > `webcloring-pdf/`(INTEROJO 포털 자동화)는 별도 submodule이다. 함께 받으려면
 > `git clone --recurse-submodules <repo-url>` 또는 클론 후
 > `git submodule update --init`. 분리 절차/현황은 [SEPARATION.md](SEPARATION.md) 참조.
-> (메인 API/대시보드는 submodule 없이도 동작한다.)
+> (메인 API는 submodule 없이도 동작한다.)
 
 ### 2. 가상환경 생성 및 활성화
 
@@ -53,7 +54,7 @@ python scripts/freeze_lock.py > requirements.lock.txt
 # requirements*.txt 와 lock 을 같은 커밋으로
 ```
 
-- `constraints.txt`는 의도적으로 묶어 두는 핀(현재 `streamlit==1.58.0`)을 담는다. 로드맵 A-9 참조.
+- `constraints.txt`는 의도적으로 묶어 두는 핀을 담는다(2026-10 UI 폐지로 현재 활성 핀 없음). 로드맵 A-9 참조.
 - `scripts/freeze_lock.py`는 `pip freeze`를 requirements 폐쇄(closure)로 걸러 준다. 같은 venv에
   `webcloring-pdf/requirements.txt`(selenium 등 포털 전용)를 설치해 둔 경우 맨 `pip freeze`는 그것까지
   lock에 섞어 넣으므로 쓰지 않는다.
@@ -61,11 +62,9 @@ python scripts/freeze_lock.py > requirements.lock.txt
 ### 4. 환경 변수 설정
 `.env` 파일 생성(전체 항목은 `.env.example` 참조):
 ```env
-GEMINI_API_KEY=your_gemini_api_key_here
-DASHBOARD_PORT=8502
 API_PORT=8000
 
-# 자재 백업 수동 실행(materials-run-v1) — 대시보드 "지금 실행" 버튼.
+# 자재 백업 수동 실행(materials-run-v1) — `POST /materials/run` (Dashboard-Raw_material 수동 실행).
 # 기본 false(웹에서 봇 프로세스 기동은 opt-in). true일 때만 동작.
 MATERIALS_RUN_ENABLED=false
 # (선택) 봇 디렉토리/파이썬 경로 — 미설정 시 repo의 webcloring-pdf + 현재 파이썬.
@@ -79,26 +78,23 @@ MATERIALS_RUN_ENABLED=false
 
 ### 방법 1: 매니저 (운용 PC 권장)
 
-트레이 통합 관리 GUI. API·대시보드·포털(봇)을 한 곳에서 제어. **더블클릭만으로** 기동:
+트레이 통합 관리 GUI. API·포털(봇)을 한 곳에서 제어. **더블클릭만으로** 기동:
 
 | 스크립트 | 동작 |
 |---|---|
-| `manager.bat` | 매니저 실행(트레이). API·대시보드·포털을 자식으로 관리. (콘솔 없음) |
-| `stop.bat` | API(8000)·대시보드(8502) 포트 점유 프로세스 종료 |
+| `manager.bat` | 매니저 실행(트레이). API·포털을 자식으로 관리. (콘솔 없음) |
+| `stop.bat` | API(8000) 포트 점유 프로세스 종료 |
 | `update.bat` | 이 레포 프로세스 정지 → `git pull` + 서브모듈 + deps. 끝나면 `manager.bat`로 실행 |
 | `install.bat` | (최초 1회) 의존성 설치 |
 
-- 접속: 대시보드 http://localhost:8502 (좌측 **자재요청 / 액상바인더출고**), API 문서 http://localhost:8000/docs
+- 접속: API 문서 http://localhost:8000/docs. 화면(자재요청/액상바인더출고 조회)은 Dashboard-Raw_material `/data-hub`.
 - **포털 봇 설정·검색 프로필(시간대별 멀티 키워드)·수동 실행**은 매니저 **⚙️ Settings** / **Portal 패널**에서. (봇 단독 GUI는 제거됨 — CLI는 `main.py --schedule`/`--auto`)
-- 자재·바인더 데이터는 봇이 종료 시 `POST /materials/backup`·`/binder/backup`으로 전송(문서번호 upsert). 대시보드에서 목록·실행 이력·CSV/Excel 다운로드. 상세는 [운영 매뉴얼 §11](docs/specs/operations_manual.md).
+- 자재·바인더 데이터는 봇이 종료 시 `POST /materials/backup`·`/binder/backup`으로 전송(문서번호 upsert). 목록·실행 이력·Excel 다운로드는 Dashboard-Raw_material `/data-hub`에서. 상세는 [운영 매뉴얼 §11](docs/specs/operations_manual.md).
 
 ### 방법 2: 개별 실행 (수동/디버그)
 ```bash
 # API 서버
 python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
-
-# Dashboard
-python -m streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port 8502
 
 # DB Watcher (단발 실행 / 데몬 모드 1시간 간격)
 python tools/watcher.py --daemon --interval 3600
@@ -110,10 +106,8 @@ python tools/watcher.py --daemon --interval 3600
 
 | 서비스 | URL | 설명 |
 |--------|-----|------|
-| Dashboard | http://localhost:8502 | 데이터 시각화 |
 | API Docs | http://localhost:8000/docs | Swagger UI |
 | Health Check | http://localhost:8000/healthz | 서버 상태 |
-| AI Health | http://localhost:8000/healthz/ai | AI API 상태 |
 
 ---
 
@@ -122,7 +116,6 @@ python tools/watcher.py --daemon --interval 3600
 ### Rate Limiting
 | 엔드포인트 | 제한 | 응답 헤더 |
 |-----------|------|----------|
-| `POST /chat/` | 20 req/min | `Retry-After` |
 | 기타 | 60 req/min | `X-RateLimit-Remaining` |
 
 ### REST API
@@ -135,14 +128,12 @@ python tools/watcher.py --daemon --interval 3600
 | GET | `/summary/monthly_total` | 월별 총생산량 집계 |
 | GET | `/summary/by_item` | 제품별 집계 |
 | GET | `/summary/monthly_by_item` | 제품별 월별 집계 |
-| POST | `/chat/` | AI 자연어 쿼리 |
 | POST | `/materials/backup` | 자재요청 백업 수신 (문서번호 upsert, webcloring-pdf 봇 → 서버) |
 | GET | `/materials` | 자재요청 목록 (문서번호 날짜 기준, 요청부서·날짜 필터) |
 | GET | `/materials/{doc_number}` | 자재요청 단건 조회 |
 | POST | `/materials/run` | 봇 자동화 수동 실행 (opt-in, `MATERIALS_RUN_ENABLED`) |
 | GET | `/materials/runs` | 백업/실행 이력 |
 | GET | `/healthz` | 서버 상태 확인 |
-| GET | `/healthz/ai` | AI API 상태 확인 |
 | GET | `/metrics` | Prometheus 호환 webhook 운영 메트릭 (인증 활성화 시 보호) |
 
 ### 주요 쿼리 파라미터 (`/records`)
@@ -159,32 +150,6 @@ python tools/watcher.py --daemon --interval 3600
 | `limit` | int | 반환 건수 (기본 1000, 최대 5000) |
 | `cursor` | string | Cursor Pagination 토큰 |
 | `offset` | int | 오프셋 기반 페이지네이션 (하위 호환용, 비권장) |
-
-### AI Chat
-
-```bash
-# 단발 질문
-curl -X POST http://localhost:8000/chat/ \
-  -H "Content-Type: application/json" \
-  -d '{"query": "이번 달 BW0021 총 생산량은?"}'
-
-# 멀티턴 대화 (session_id로 맥락 유지)
-curl -X POST http://localhost:8000/chat/ \
-  -H "Content-Type: application/json" \
-  -d '{"query": "그럼 저번 달이랑 비교하면?", "session_id": "my-session-01"}'
-```
-
-### AI 도구 (7개)
-
-| 도구 | 트리거 예시 |
-|------|-----------|
-| `search_production_items` | "P물 제품 코드가 뭐야?" |
-| `get_production_summary` | "BW0021 이번 달 생산량" |
-| `get_monthly_trend` | "최근 6개월 월별 추이" |
-| `get_top_items` | "올해 상위 5개 제품" |
-| `compare_periods` | "이번 달 vs 저번 달 비교" |
-| `get_item_history` | "BW0021 최근 10건 이력" |
-| `execute_custom_query` | "로트번호 LT2026으로 시작하는 항목" |
 
 `GET /records` 응답에는 `next_cursor`, `has_more`, `count`가 포함된다. 대량 조회는 `offset`보다 `cursor` 기반 페이지네이션을 권장한다.
 
@@ -223,19 +188,11 @@ database/
 Server_API/
 ├── api/
 │   ├── main.py              # FastAPI 앱 조립 (미들웨어: auth+audit, request_id+rate_limit, CORS, GZip)
-│   ├── chat.py              # AI Chat (멀티턴, 재시도, Rate Limit)
-│   ├── _chat_stream.py      # /chat/stream SSE 스트리밍
-│   ├── _session_store.py    # 멀티턴 세션 저장소
 │   ├── _audit.py            # 접근 감사 로그
-│   ├── routers/             # records / summary / system / notifications / materials
-│   ├── tools/               # AI 도구 7개 (items / summary / custom)
+│   ├── routers/             # records / summary / system / notifications / materials / anomaly
+│   ├── tools/               # 조회 도구 함수 (items / summary / custom)
 │   ├── notifications/       # Webhook 비동기 디스패치 (큐+backoff worker)
 │   └── materials/           # 자재요청 수신 (store/runs/automation, materials.db, 문서번호 upsert)
-├── dashboard/
-│   ├── app.py               # Streamlit 진입점 (st.navigation, 사이드바 필터)
-│   ├── views/               # 페이지 (overview/trends/batches/products/webhooks/materials)
-│   │                        #   ※ "pages/"가 아님 — 콜드 딥링크 v1 라우팅 회피 (nav-routing-fix-v1)
-│   └── components/          # kpi_cards / charts / ai_section / _parsing / layout / presets ...
 ├── shared/
 │   ├── config.py            # 설정 상수 (.env override)
 │   ├── auth.py              # opt-in 인증 (API-Key/Bearer, 상수시간 비교, PUBLIC_PATHS SSOT)
@@ -245,7 +202,6 @@ Server_API/
 │   ├── db_maintenance.py    # REQUIRED_INDEXES(6종) 복구, ANALYZE, 안정화 대기
 │   ├── process_utils.py     # kill_process_tree (manager 프로세스 관리)
 │   ├── validators.py        # 입력 검증
-│   ├── ui/                  # theme.py(네이티브 테마 헬퍼), responsive.py
 │   └── logging_config.py    # Slow Query 로깅, request_id
 ├── tools/
 │   ├── watcher.py           # DB 변경 감시 + 인덱스 복구 + ANALYZE (standalone)
@@ -279,7 +235,7 @@ pytest tests/ -v        # 30개 파일, 517 테스트
 | `lint` | `ruff check .` — 게이트 규칙(F/BLE001/I/UP/B/SIM/E501)은 `pyproject.toml`이 SSOT |
 | `test` | `pytest --cov --cov-fail-under=88` — coverage floor는 CI 전용(로컬 pytest는 floor 없음) |
 
-- 측정 범위: `api` + `shared` + `dashboard/components/_parsing.py`, `kpi_cards.py`(테스트된 순수 로직만; 렌더/IO는 제외). 현재 약 90%.
+- 측정 범위: `api` + `shared`. 구현 후 실측치는 CI 로그 참조.
 - 의존성은 `requirements.lock.txt`로 설치된다(재현성). 의존성 변경 시 §3의 lock 재생성 절차를 따른다.
 - 게이트 램프 이력(R3→R7)은 `docs/archive/2026-06/` 참조.
 
@@ -303,9 +259,9 @@ SMOKE_INSTALL=1 tools/smoke_api.sh
 SMOKE_INSTALL=1 SMOKE_RUN_HEALTH=1 tools/smoke_api.sh
 ```
 
-`requirements.txt` 전체 설치는 Streamlit/GUI 의존성까지 포함하므로, API 최소 검증만 필요할 때는 `requirements-smoke.txt` 경로를 우선 사용한다.
+`requirements.txt` 전체 설치는 GUI(매니저) 의존성까지 포함하므로, API 최소 검증만 필요할 때는 `requirements-smoke.txt` 경로를 우선 사용한다.
 
-> 테스트는 30개 파일/517 케이스로 SQL 안전성·Rate Limiter·입력 검증·캐시·DB 라우팅·인증/감사·SSE 스트리밍·webhook·AI 도구(DB 백엔드)·집계 라우터·DB 유지보수(인덱스/ANALYZE/VACUUM)·UI 테마 헬퍼·자재 백업(upsert·문서번호 날짜·실행 트리거)·대시보드 파서/KPI 등을 커버한다. (전체 목록은 `tests/` 참조)
+> 테스트는 30개 파일/517 케이스로 SQL 안전성·Rate Limiter·입력 검증·캐시·DB 라우팅·인증/감사·webhook·조회 도구(DB 백엔드)·집계 라우터·DB 유지보수(인덱스/ANALYZE/VACUUM)·자재 백업(upsert·문서번호 날짜·실행 트리거) 등을 커버한다. (전체 목록은 `tests/` 참조)
 
 ---
 
@@ -328,6 +284,7 @@ python tools/backup_db.py --cleanup
 
 | 버전 | 날짜 | 변경사항 |
 |------|------|----------|
+| v11 | 2026-10 | 자체 Streamlit 대시보드(8502)·Gemini 챗 API(`/chat*`, `/healthz/ai`) 폐지 — 화면은 Dashboard-Raw_material(8503)로 일원화, 관리 조작은 API curl 레시피([API 통합 가이드](docs/api_integration_guide.md)) |
 | v10 | 2026-06 | 자재 백업 Google Sheets → Server_API 전환(`/materials`, 문서번호 upsert), 대시보드 "자재요청" 페이지(엑셀 레이아웃 리스트 + CSV/Excel 다운로드 + 실행 상태/이력 + "지금 실행" 트리거, opt-in), 커버리지 측정 확장(floor 88) |
 | v9 | 2026-06 | CI 파이프라인(GitHub Actions) + py3.12 정본 venv + lock 고정, 대시보드 블루/슬레이트 네이티브 테마, 콜드 딥링크 라우팅 픽스, flaky 제거(RateLimiter clock 주입), 커버리지 측정 확장(floor 72), ruff 게이트 B/SIM/E501 램프, webcloring-pdf submodule 분리 |
 | v8 | 2026-02-26 | AI 도구 2개 추가 (compare_periods, get_item_history), DB ANALYZE 자동화 |
