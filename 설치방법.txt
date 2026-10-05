@@ -15,10 +15,9 @@
    pip install -r requirements.txt
 
 3. 포트 설정 (선택)
-   - 기본 포트: Dashboard=8501, API=8000
+   - 기본 포트: API=8000
    - 포트 충돌 시 .env 파일 수정:
 
-   DASHBOARD_PORT=8502
    API_PORT=8001
 
 4. 서버 실행

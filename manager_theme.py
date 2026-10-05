@@ -1,6 +1,6 @@
 """manager_theme — CustomTkinter 테마 상수 (manager.py + portal_settings_dialog.py 공유).
 
-대시보드(.streamlit/config.toml)와 동일한 블루/슬레이트 팔레트를 쓴다:
+블루/슬레이트 팔레트를 쓴다:
   primary #2563eb, 슬레이트 중립(#f8fafc/#e2e8f0/#0f172a 계열),
   성공 #0d9488, 경고 #f59e0b, 오류 #dc2626.
 

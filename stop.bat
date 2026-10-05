@@ -2,11 +2,11 @@
 chcp 65001 > nul
 title Production Hub - Stop
 
-REM Headless stop: kill processes listening on API(8000) / Dashboard(8502).
+REM Headless stop: kill processes listening on API(8000).
 
-echo Stopping Production Hub - API 8000 / Dashboard 8502 ...
+echo Stopping Production Hub - API 8000 ...
 set "FOUND="
-for %%P in (8000 8502) do (
+for %%P in (8000) do (
     for /f "tokens=5" %%A in ('netstat -ano ^| findstr ":%%P " ^| findstr LISTENING') do (
         taskkill /PID %%A /F >nul 2>&1 && (
             echo   port %%P PID %%A stopped
@@ -14,5 +14,5 @@ for %%P in (8000 8502) do (
         )
     )
 )
-if not defined FOUND echo   nothing listening on 8000/8502
+if not defined FOUND echo   nothing listening on 8000
 echo Done.

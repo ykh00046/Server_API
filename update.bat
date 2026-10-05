@@ -4,7 +4,7 @@ cd /d "%~dp0"
 title Production Hub - Update
 set "ROOT=%~dp0"
 
-REM Stop THIS repo's processes (manager + API/Dashboard/Portal), pull latest,
+REM Stop THIS repo's processes (manager + API/Portal), pull latest,
 REM sync deps. Then start with manager.bat. Gitignored files (.env,
 REM *_settings.json, database/) are preserved. Other projects are not touched.
 
