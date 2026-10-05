@@ -215,12 +215,9 @@ def _drop_thread_local_conns() -> None:
 @pytest.fixture(autouse=True)
 def _reset_rate_limiters():
     """Clear in-memory rate limiter state between tests."""
-    from api.chat import chat_rate_limiter
     from shared import api_rate_limiter
     with contextlib.suppress(AttributeError):
         api_rate_limiter._requests.clear()  # type: ignore[attr-defined]
-    with contextlib.suppress(AttributeError):
-        chat_rate_limiter._requests.clear()  # type: ignore[attr-defined]
     yield
 
 

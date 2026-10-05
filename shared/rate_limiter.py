@@ -210,9 +210,6 @@ class RateLimiter:
 # ==========================================================
 # Global Rate Limiter Instances
 # ==========================================================
-# Chat endpoint: 20 requests per minute (more restrictive)
-chat_rate_limiter = RateLimiter(max_requests=20, window_seconds=60)
-
 # General API (writes / non-GET): 60 requests per minute
 api_rate_limiter = RateLimiter(max_requests=60, window_seconds=60)
 

@@ -281,13 +281,3 @@ class TestCustomQueryParams:
         )
         assert result.get("code") != "INVALID_PARAMS"
 
-
-class TestSystemPromptBindGuide:
-    """System prompt rule 9 placeholder/params 가이드 포함 여부"""
-
-    def test_prompt_mentions_placeholder_and_params(self):
-        from api.chat import _build_system_instruction
-
-        prompt = _build_system_instruction()
-        assert "?" in prompt, "placeholder guide missing"
-        assert "params" in prompt, "params keyword missing from guide"
