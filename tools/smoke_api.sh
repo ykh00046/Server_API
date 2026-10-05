@@ -34,7 +34,6 @@ required = [
     "uvicorn",
     "orjson",
     "cachetools",
-    "google.genai",
     "dotenv",
     "requests",
     "pydantic",

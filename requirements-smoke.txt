@@ -3,7 +3,6 @@ fastapi
 uvicorn
 orjson
 cachetools
-google-genai
 python-dotenv
 requests
 pydantic
