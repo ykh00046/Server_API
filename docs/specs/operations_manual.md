@@ -779,7 +779,7 @@ MATERIALS_RUN_ENABLED=true
 ```
 
 - 봇 쪽 `src/config/api_backup_settings.json` 에 `base_url`(예: `http://localhost:8000`) + `enabled=true` 가 설정돼 있어야 봇이 실제로 백업을 POST 한다(봇 GUI "API 백업" 창 또는 파일 직접 편집).
-- `MATERIALS_RUN_ENABLED` 가 false 면 수동 실행(`POST /materials/run`)은 409(비활성)로 안전하게 거부된다. **목록·이력·다운로드는 설정과 무관하게 항상 동작**.
+- `MATERIALS_RUN_ENABLED` 가 false 면 수동 실행(`POST /materials/run`)은 503(비활성)으로 안전하게 거부된다. **목록·이력·다운로드는 설정과 무관하게 항상 동작**.
 
 ### 11.5 확인 / 점검
 
@@ -799,6 +799,6 @@ curl "http://localhost:8000/materials?date_from=2026-06-01"
 | 증상 | 확인 | 조치 |
 |---|---|---|
 | `/data-hub` 목록 비어있음 | 봇이 백업을 보냈는가(`/materials/runs`) | 봇 `--auto` 실행, `api_backup_settings.json` base_url/enabled 확인 |
-| 수동 실행 409(비활성) | `MATERIALS_RUN_ENABLED` | API 서버 env 에 true 설정 후 재기동 |
+| 수동 실행 503(비활성) | `MATERIALS_RUN_ENABLED` | API 서버 env 에 true 설정 후 재기동 |
 | 수동 실행 후 status=failed | run 의 `message`/exit_code, 봇 `automation.log` | `MATERIALS_BOT_PYTHON`(봇 deps 포함 venv) 지정, Chrome/Selenium 환경 확인 |
-| "이미 실행 중" 409 | 이전 자동화 미완료 | 완료 대기 또는 봇 프로세스 종료 후 재시도 |
+| "이미 실행 중 (Materials/Binder)" 409 | 이전 자동화 미완료 — **자재·바인더 어느 쪽이든** 실행 중이면 다른 쪽도 거부(2026-10 B-9, 포털 세션 공유) | 완료 대기 또는 봇 프로세스 종료 후 재시도. 6h 넘은 고아 running은 다음 트리거 때 자동 정리 |
