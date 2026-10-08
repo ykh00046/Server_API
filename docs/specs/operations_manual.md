@@ -748,6 +748,16 @@ INTEROJO 포털 자재요청을 webcloring-pdf 봇이 스크랩 → Excel → **
 | `update.bat` | 이 레포 프로세스 정지 → `git pull` + 서브모듈 + deps (끝나면 `manager.bat`) |
 | `install.bat` | (최초 1회) 의존성 설치 |
 
+> **봇 설정 파일과 update.bat (2026-10-08):** 봇의 살아 있는 설정 `webcloring-pdf\src\config\config.json`은
+> 더 이상 git 추적 파일이 아니다(추적 템플릿은 `config.example.json`, 첫 실행 때 자동 복사). 그 전에는
+> 매니저가 수집 작업을 그 파일에 쓰는 바람에 운용 PC에서 늘 '수정됨'이었고, `git submodule update`가
+> 체크아웃을 조용히 거부해 **매니저만 새 버전, 봇은 옛 버전**인 상태가 생겼다(증상: 설정 화면에는
+> "자동 검색 창 N=60"이 보이는데 실행 로그는 "스마트 필터링 모드"). 이제 update.bat이 ① 수정된
+> config.json을 복사해 두고 ② 추적 파일을 되돌린 뒤 ③ 서브모듈을 갱신하고 ④ 복사본을 (이제 비추적인)
+> config.json으로 되돌린다. 서브모듈 갱신이 실패하면 `[ERROR]`로 멈춘다 — 그때는
+> `git -C webcloring-pdf status`로 원인을 보고 다시 돌린다. 갱신이 됐는지는
+> `git -C webcloring-pdf log --oneline -1`이 최신 커밋인지로 확인한다.
+
 API만 수동으로 띄울 때는 아래 명령과 동일하다:
 
 ```bash

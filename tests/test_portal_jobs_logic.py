@@ -159,6 +159,30 @@ class TestResolveBadge:
 
 
 # ==========================================================
+# ensure_bot_config — live config self-heal (2026-10-08)
+# ==========================================================
+class TestEnsureBotConfig:
+    def test_copies_template_when_live_missing(self, tmp_path):
+        example = tmp_path / "config.example.json"
+        example.write_text('{"search": {"jobs": []}}', encoding="utf-8")
+        live = tmp_path / "config.json"
+        assert jobs_logic.ensure_bot_config(live) == live
+        assert live.read_text(encoding="utf-8") == '{"search": {"jobs": []}}'
+
+    def test_keeps_existing_live(self, tmp_path):
+        (tmp_path / "config.example.json").write_text('{"a": 1}', encoding="utf-8")
+        live = tmp_path / "config.json"
+        live.write_text('{"a": 2}', encoding="utf-8")
+        jobs_logic.ensure_bot_config(live)
+        assert live.read_text(encoding="utf-8") == '{"a": 2}'
+
+    def test_no_template_leaves_nothing_behind(self, tmp_path):
+        live = tmp_path / "config.json"
+        jobs_logic.ensure_bot_config(live)
+        assert not live.exists()
+
+
+# ==========================================================
 # merge_job_form — §4 collectors 규칙
 # ==========================================================
 class TestMergeCollectors:

@@ -19,6 +19,7 @@ import customtkinter as ctk
 import pystray
 from PIL import Image, ImageDraw
 
+import portal_jobs_logic as jobs_logic
 from portal_settings_dialog import PortalSettingsDialog
 
 # Add current directory to path for shared module import
@@ -812,7 +813,9 @@ class ServerManager(ctk.CTk):
 
         파일이 없거나 파싱 실패 시 None (호출자가 다음 폴백으로 진행).
         """
-        cfg_path = BASE_DIR / "webcloring-pdf" / "src" / "config" / "config.json"
+        cfg_path = jobs_logic.ensure_bot_config(
+            BASE_DIR / "webcloring-pdf" / "src" / "config" / "config.json"
+        )
         if not cfg_path.exists():
             return None
         try:
