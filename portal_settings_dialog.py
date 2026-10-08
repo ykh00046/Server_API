@@ -101,7 +101,9 @@ class PortalSettingsDialog(ctk.CTkToplevel):
 
         # 수집 작업(키워드 단위 대칭 모델)은 봇 config.json에 저장된다.
         # env_path = webcloring-pdf/.env → config.json = webcloring-pdf/src/config/config.json
-        self.config_path = self.env_path.parent / "src" / "config" / "config.json"
+        self.config_path = jobs_logic.ensure_bot_config(
+            self.env_path.parent / "src" / "config" / "config.json"
+        )
         self.jobs = self._read_jobs()
 
         # Build UI

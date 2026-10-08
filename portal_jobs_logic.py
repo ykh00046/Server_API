@@ -16,6 +16,8 @@ portal_settings_dialog.py 의 위젯 코드에서 분리된, 검증·정규화·
 from __future__ import annotations
 
 import re
+import shutil
+from pathlib import Path
 from typing import Any
 
 # 시각 검증 정규식 — portal_settings_dialog._add_job 의 구 의미를 그대로 가져옴.
@@ -32,6 +34,24 @@ _PATTERNS = ("materials", "binder")
 # ==========================================================
 # 작업 목록 정규화
 # ==========================================================
+def ensure_bot_config(config_path: Path) -> Path:
+    """봇 live config.json 이 없으면 추적 템플릿(config.example.json)에서 복사한다.
+
+    2026-10-08부터 봇은 config.json 을 추적하지 않는다(매니저가 수집 작업을 거기 써서
+    운영 PC 에서 늘 '수정됨' → submodule 체크아웃 거부 → 봇만 옛 버전에 머물던 사고).
+    봇 settings.py 도 같은 self-heal 을 하지만, 봇이 한 번도 돌기 전에 매니저가 먼저
+    설정 화면을 열 수 있으므로 매니저 쪽에서도 보장한다. 템플릿이 없으면 그대로 둔다.
+    """
+    config_path = Path(config_path)
+    if config_path.exists():
+        return config_path
+    example = config_path.with_name("config.example.json")
+    if example.exists():
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(example, config_path)
+    return config_path
+
+
 def normalize_jobs(raw: Any) -> list[dict]:
     """config 의 search.jobs 원소를 정규화한다.
 
