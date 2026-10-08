@@ -144,11 +144,17 @@ class TestResolveBadge:
         assert badge == "부서공개함"
         assert fallback is False
 
-    def test_attendance_badge(self):
-        """attendance-approvals-v1 — 모달에 없는 패턴도 폴백으로 보이면 안 된다."""
-        collectors = {"근태허가원": {"type": "attendance", "box": "dept_open"}}
-        badge, fallback = jobs_logic.resolve_badge(collectors, "근태허가원")
-        assert badge == "부서공개함·근태"
+    def test_unknown_type_badge_is_not_fallback(self):
+        """모달이 모르는 type(봇에 먼저 들어온 신규 수집기)은 폴백으로 보이면 안 된다.
+        type 이름을 그대로 배지에 싣는다. (첫 사례였던 근태허가원 수집기는 2026-10
+        봇에서 제거됐지만, 다음 신규 수집기도 같은 경로를 탄다.)"""
+        collectors = {"신규": {"type": "survey", "box": "dept_open"}}
+        badge, fallback = jobs_logic.resolve_badge(collectors, "신규")
+        assert badge == "부서공개함·survey"
+        assert fallback is False
+        collectors = {"신규": {"type": "survey", "box": "completed", "weekdays": True}}
+        badge, fallback = jobs_logic.resolve_badge(collectors, "신규")
+        assert badge == "완료문서함·survey·평일"
         assert fallback is False
 
 
@@ -182,25 +188,26 @@ class TestMergeCollectors:
         assert spec["box"] == "completed"
 
     def test_materials_pattern_preserves_unknown_collector_type(self):
-        """attendance-approvals-v1 — 모달이 모르는 패턴을 되돌리면 안 된다.
+        """모달이 모르는 type 을 되돌리면 안 된다.
 
-        매니저 모달에는 materials/binder 라디오뿐이라, 근태허가원 작업의 시각만
-        고치러 들어와 저장하면 pattern='materials' 로 온다. 이때 collectors 의
-        attendance 스펙을 완료문서함으로 덮어쓰면 수집기가 조용히 망가진다.
+        매니저 모달에는 materials/binder 라디오뿐이라, 봇에 먼저 들어온 신규
+        수집기 작업의 시각만 고치러 들어와 저장하면 pattern='materials' 로 온다.
+        이때 collectors 의 스펙을 완료문서함으로 덮어쓰면 수집기가 조용히 망가진다
+        (2026-09 근태허가원 수집기에서 실제로 날 뻔한 사고).
         """
         cfg = {"search": {"jobs": [], "collectors": {
-            "근태허가원": {"type": "attendance", "box": "dept_open",
-                            "drafter": "", "title": "근태허가원", "weekdays": False},
+            "신규": {"type": "survey", "box": "dept_open",
+                     "drafter": "", "title": "신규", "weekdays": False},
         }}}
         jobs_logic.merge_job_form(
-            cfg, keyword="근태허가원", times=["04:00"], enabled=True,
+            cfg, keyword="신규", times=["04:00"], enabled=True,
             pattern="materials", drafter="", title="", weekdays=False,
             dataset_route="/materials",
         )
-        spec = cfg["search"]["collectors"]["근태허가원"]
-        assert spec["type"] == "attendance"
+        spec = cfg["search"]["collectors"]["신규"]
+        assert spec["type"] == "survey"
         assert spec["box"] == "dept_open"
-        assert spec["title"] == "근태허가원"
+        assert spec["title"] == "신규"
         # 작업 시각은 정상 갱신된다.
         assert cfg["search"]["jobs"][0]["times"] == ["04:00"]
 
