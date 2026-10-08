@@ -132,21 +132,26 @@ class PortalSettingsDialog(ctk.CTkToplevel):
         # ── Search Section ── (키워드는 아래 '수집 작업'에서 작업별로 지정)
         self._section_label("🔍 검색 설정 (공통)")
 
-        self.ent_start_date = self._labeled_entry("시작 날짜 (YYYY.MM.DD)", self._get("SEARCH_START_DATE", "2025.01.01"))
-
+        # 검색 창 규칙(봇 _get_dynamic_start_date 와 동일 순서):
+        #   자동 검색 OFF → 아래 '시작 날짜'부터 (일회성 소급 수집용)
+        #   자동 검색 ON  → 완료일 기준 최근 N일 고정 창(SEARCH_WINDOW_DAYS, 기본 60).
+        #                   안 바뀐 문서는 목록 지문으로 열지 않으므로 창이 넓어도 느리지 않다.
         row = ctk.CTkFrame(self, fg_color="transparent")
         row.pack(fill="x", **pad)
-        self.sw_dynamic = ctk.CTkSwitch(row, text="스마트 필터링 (마지막 문서 날짜부터 자동)")
+        self.sw_dynamic = ctk.CTkSwitch(row, text="자동 검색 창 (완료일 기준 최근 N일)")
         self.sw_dynamic.pack(side="left", padx=(20, 0))
         if self._get("DYNAMIC_FILTERING", "True").lower() == "true":
             self.sw_dynamic.select()
+        ctk.CTkLabel(row, text="N =", font=ctk.CTkFont(size=13)).pack(side="left", padx=(16, 6))
+        self.ent_window_days = ctk.CTkEntry(row, width=60, placeholder_text="60")
+        self.ent_window_days.pack(side="left")
+        self.ent_window_days.insert(0, self._get("SEARCH_WINDOW_DAYS", "60"))
+        ctk.CTkLabel(row, text="일", font=ctk.CTkFont(size=13)).pack(side="left", padx=(4, 0))
 
-        row2 = ctk.CTkFrame(self, fg_color="transparent")
-        row2.pack(fill="x", **pad)
-        ctk.CTkLabel(row2, text="여분 검색 일수:", font=ctk.CTkFont(size=13)).pack(side="left", padx=(20, 10))
-        self.ent_days_back = ctk.CTkEntry(row2, width=60, placeholder_text="0")
-        self.ent_days_back.pack(side="left")
-        self.ent_days_back.insert(0, self._get("DAYS_BACK", "0"))
+        self.ent_start_date = self._labeled_entry(
+            "시작 날짜 (YYYY.MM.DD) — 자동 검색 창을 끄면 이 날짜부터 수집",
+            self._get("SEARCH_START_DATE", "2025.01.01"),
+        )
 
         # ── Collection Jobs Section (키워드 단위 대칭 작업) ──
         self._section_label("🗂️ 수집 작업 (키워드별)")
@@ -390,15 +395,20 @@ class PortalSettingsDialog(ctk.CTkToplevel):
                 messagebox.showwarning("경고", "시작 날짜 형식이 올바르지 않습니다. (YYYY.MM.DD)", parent=self)
                 self.ent_start_date.focus()
                 return
+        window_str = self.ent_window_days.get().strip() or "60"
+        if not window_str.isdigit() or int(window_str) < 1:
+            messagebox.showwarning("경고", "검색 창 일수는 1 이상의 정수여야 합니다.", parent=self)
+            self.ent_window_days.focus()
+            return
 
         # --- Collect and save ---
-        updated = dict(self.env_data)  # preserve existing keys
+        updated = dict(self.env_data)  # preserve existing keys (DAYS_BACK 등 레거시 포함)
 
         updated["PORTAL_USERNAME"] = username
         updated["PORTAL_PASSWORD"] = password  # plaintext — bot reads PORTAL_PASSWORD verbatim
         updated["SEARCH_START_DATE"] = date_str or "2025.01.01"
         updated["DYNAMIC_FILTERING"] = str(bool(self.sw_dynamic.get()))
-        updated["DAYS_BACK"] = self.ent_days_back.get().strip() or "0"
+        updated["SEARCH_WINDOW_DAYS"] = window_str
         updated["AUTO_ENABLED"] = str(bool(self.sw_auto.get()))
         updated["HEADLESS_MODE"] = str(bool(self.sw_headless.get()))
         # WEEKDAYS_ONLY(죽은 전역 설정)는 design §3.3 에서 제거 — 주중 제약은
