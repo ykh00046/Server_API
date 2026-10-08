@@ -98,7 +98,7 @@ Server_API(FastAPI + SQLite + Streamlit + manager/봇) 프로젝트의 2026 하�
 | B-5 | **materials-run 상태코드 세분화** | TriggerError를 사유별로 409(중복)/503(비활성)/500(설정오류) 분기 | 검토 M-6. 대시보드가 모든 실패를 "이미 실행 중"으로 오인 가능 | 소 |
 | B-6 | **anomaly-rules-v2 (품목별 규칙)** | 품목별 임계치 오버라이드(설정 파일 기반, UI 없이 시작) | v1 Out of Scope 항목. B-2로 관측이 생긴 뒤 오탐 데이터를 보고 결정. 2026-10 재검토: 오탐 신고 0건 → 계속 대기 | 중 |
 | B-7 | ✅ **dashboard-8502-sunset — 완료 2026-10-05** (설계 `docs/02-design/features/dashboard-8502-sunset.design.md`). 운영자 결정: 8502 미사용 → UI + Gemini 챗 API + 툴 패키지까지 제거. 커밋 6개(f6baa7b UI·5c28aaf 챗·f719b36 툴·15e288d deps·b1080fa 문서). 코드 −10.6k줄, 테스트 768→486, lock 83→37핀, cov 93%, openapi 39경로. 잔여 운영: update.bat+매니저 재시작, 운용 .env 잔존 키 수동 삭제(operations_manual §9) | 원안 범위: `dashboard/` 3,478 LOC + manager 런처(`manager.py` streamlit run) + `stop.bat` 8502 + streamlit 의존성. 전제: Dashboard `/data-hub`가 상태·문서 조회·수동 실행을 이미 서빙, `/production`이 생산실적 분석을 서빙. **8502만 가진 기능 4종의 거취를 먼저 결정**: ① webhook CRUD admin(Dashboard는 파괴적 조작을 의도적으로 제외 → manager GUI 또는 CLI로 이관 후보) ② anomaly findings·what-if 페이지 ③ 문서 삭제/tombstone 복원 UI ④ Gemini 챗(Dashboard 챗으로 일원화 후보). 1단계 = 운용 PC 8502 실사용 여부 확인(접속 로그/운영자 확인) | Dashboard 경계 리뷰 P1(최대 효과). 헌장상 "화면"은 Dashboard 소유. 사용자 창구 2개·LLM 창구 2개 유지 비용 제거. Dashboard 측 Streamlit sunset 플레이북(2026-05) 재사용 | 중~대 |
-| B-8 | **manager collector-type 확장 (신설)** | 매니저 작업 모달이 materials/binder 패턴만 인식 → attendance 같은 신규 collector는 읽기 전용 배지로만 표시(d33e8ae). 패턴 레지스트리를 봇 collectors 스키마에서 파생하도록 일반화 | 봇 collector 추가가 실제로 발생(9/22). 다음 collector 추가 때 또 "spec 보호" 땜질이 필요 | 소 |
+| B-8 | ✅ **manager collector-type 확장 — 2026-10-08 축소 종결** | 동기였던 근태허가원 수집기를 봇에서 제거(IRMS 자체 수집으로 고아화)하면서 "신규 type 전용 모달"의 필요가 사라짐. 남긴 것: `resolve_badge`가 모달이 모르는 type을 `{문서함}·{type}[·평일]`로 일반 표시하고 저장 시 보존(테스트 2건 일반화). 다음 collector가 생기면 그때 모달 확장 재판단 | ~~매니저 작업 모달이 materials/binder 패턴만 인식 → attendance 같은 신규 collector는 읽기 전용 배지로만 표시(d33e8ae). 패턴 레지스트리를 봇 collectors 스키마에서 파생하도록 일반화~~ | 봇 collector 추가가 실제로 발생(9/22). 다음 collector 추가 때 또 "spec 보호" 땜질이 필요 | 소 |
 | B-9 | ✅ **run 트리거 전역 동시 실행 가드 — 완료 2026-10-05** (`docs/02-design/features/run-trigger-global-guard-v1.design.md`). `runs.active_automation_dataset()`/`reap_stale_running_all()`로 교체, 409 메시지에 실행 중인 데이터셋 명시, 되돌려 실패 확인한 테스트 2건. 매니저 Run Now는 봇 직접 spawn이라 범위 밖(봇 측 락 부재는 C-5 과제) | ~~`automation.py` 가드를 데이터셋 단위 → 프로세스 전역(모든 runs 테이블 중 하나라도 `running`이면 409)으로 승격~~ | 2026-08-24 사고: 자재+바인더 동시 기동(포털 세션 공유). 현재는 Dashboard 프록시만 막고 있어 `/run` 직접 POST 경로는 무방비(매니저 Run Now가 같은 경로를 타는지는 착수 시 확인) | 소 |
 
 ### 3.3 트랙 C — 발전 방향 (구조 진화, 조건부)
@@ -154,7 +154,7 @@ Server_API(FastAPI + SQLite + Streamlit + manager/봇) 프로젝트의 2026 하�
 | ✅ 분기 재검토 | 이 문서 갱신 (완료 체크, 우선순위 재조정, C-트랙 착수 판단) — **수행 2026-10-05 (v0.7)** | ~~10월 초~~ |
 | ✅ M6 의존성 갱신 | A-6 httpx2 + A-9 lock 분기 갱신 (streamlit 핀 동결) — **완료 2026-10-05**, 운용 PC 반영은 update.bat + 매니저 재시작(ctk 6.0 육안 확인 동반) | ~~2026-10~~ |
 | ✅ M7 8502 sunset | B-7 — **완료 2026-10-05** (실사용 0 확인 → 설계 → UI·챗 API·툴 패키지 제거, 레이어별 커밋 6개). 운용 PC 반영은 update.bat + 매니저 재시작 | ~~2026-Q4~~ |
-| M8 소형 묶음 2 | ✅ B-9 전역 가드(2026-10-05) + B-8 collector-type 일반화(잔여) | 2026-Q4 |
+| ✅ M8 소형 묶음 2 | B-9 전역 가드(2026-10-05) + B-8(2026-10-08 축소 종결 — 근태 수집기 제거로 동기 소멸, 배지 일반화만) | ~~2026-Q4~~ |
 | 분기 재검토 2 | B-1 인증 재판단(2027-01), C-트랙 조건 점검 | 2027-01 초 |
 
 ## Version History
