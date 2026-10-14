@@ -812,3 +812,51 @@ curl "http://localhost:8000/materials?date_from=2026-06-01"
 | 수동 실행 503(비활성) | `MATERIALS_RUN_ENABLED` | API 서버 env 에 true 설정 후 재기동 |
 | 수동 실행 후 status=failed | run 의 `message`/exit_code, 봇 `automation.log` | `MATERIALS_BOT_PYTHON`(봇 deps 포함 venv) 지정, Chrome/Selenium 환경 확인 |
 | "이미 실행 중 (Materials/Binder)" 409 | 이전 자동화 미완료 — **자재·바인더 어느 쪽이든** 실행 중이면 다른 쪽도 거부(2026-10 B-9, 포털 세션 공유) | 완료 대기 또는 봇 프로세스 종료 후 재시도. 6h 넘은 고아 running은 다음 트리거 때 자동 정리 |
+
+### 11.7 수집 PDF 원격 열람 (네트워크 공유, 2026-10-14)
+
+봇이 저장한 결재 문서 PDF를 운용 PC에 가지 않고 내 PC에서 꺼내 보는 방법. 코드 변경 없이 Windows 파일 공유만 쓴다.
+
+- 원본 위치(운용 PC): `C:\Users\INTEROJO\Desktop\Server_API_new\webcloring-pdf\data\PDF` — `날짜\[키워드\]파일.pdf`
+- 공유 주소: `\192.168.11.238\PDF` (읽기 전용)
+- 접속 계정: 운용 PC 로컬 계정 `pdfreader` (읽기 전용 전용 계정). **비밀번호는 이 문서에 적지 않는다** — 담당자가 별도 보관.
+
+**왜 전용 계정인가:** 운용 PC 기본 계정 `interojo`는 비밀번호가 없어 Windows가 네트워크 로그인을 막는다(시스템 오류 1327).
+`interojo`에 비밀번호를 걸면 자동 로그인이 풀려 매니저·봇 자동 시작에 영향이 가므로, 공유용 계정을 따로 둔다.
+
+#### 운용 PC 설정 (1회, 완료됨)
+
+1. 폴더 공유: `PDF` 폴더 → 속성 → 공유 → 고급 공유 → "선택한 폴더 공유", 이름 `PDF`, 권한 `Everyone` = **읽기만**.
+   (암호 보호 공유가 켜져 있으므로 Everyone이어도 운용 PC 계정 로그인이 필요하다.) 확인: cmd `net share`에 `PDF` 행.
+2. 전용 계정 + 폴더 읽기 권한 (관리자 PowerShell):
+   ```powershell
+   $pw = ConvertTo-SecureString "<비밀번호>" -AsPlainText -Force
+   New-LocalUser -Name "pdfreader" -Password $pw -PasswordNeverExpires -AccountNeverExpires -Description "PDF share read-only"
+   icacls "C:\Users\INTEROJO\Desktop\Server_API_new\webcloring-pdf\data\PDF" /grant "pdfreader:(OI)(CI)RX"
+   ```
+
+#### 내 PC 연결 (PC마다 1회)
+
+**일반 권한 창**에서 한다. 관리자 PowerShell에서 연결한 드라이브·자격 증명은 일반 탐색기에 안 보인다(실제로 겪음).
+
+1. 비밀번호 저장: `cmdkey /add:192.168.11.238 /user:192.168.11.238\pdfreader /pass` (비밀번호 입력 프롬프트)
+2. 드라이브 연결: 탐색기 → 내 PC → … → **네트워크 드라이브 연결** → 드라이브 `P:`, 폴더 `\192.168.11.238\PDF`,
+   "로그인할 때 다시 연결" 체크. (또는 일반 cmd에서 `net use P: \192.168.11.238\PDF /persistent:yes`)
+3. 탐색기 "내 PC"에 `P:`가 보이면 끝. 이후 재부팅해도 자동 연결된다.
+
+#### 사용
+
+- **열어 보기**: P:에서 더블클릭 — 운용 PC 원본을 네트워크로 읽어 보여 줄 뿐 내 PC에 남지 않는다(운용 PC가 꺼져 있으면 못 연다).
+- **내려받기/압축**: 내 PC로 복사한 뒤 작업. P: 안에 압축 파일을 만들려 하면 거부 → "바탕화면에 만들기"로.
+- **삭제·이름 변경·이동·추가는 불가** (의도). 원본은 봇이 다시 만들지 않으므로 지워야 하면 운용 PC에서 직접.
+
+#### 문제 해결
+
+| 증상 | 원인 | 조치 |
+|---|---|---|
+| 시스템 오류 1327 | 비밀번호 없는 계정(`interojo`)으로 접속 | `pdfreader` 계정으로 접속 |
+| 시스템 오류 85 | 같은 창에 이미 P: 연결됨 | `net use P: /delete` 후 다시, 또는 탐색기 GUI로 연결 |
+| 연결은 성공인데 탐색기에 P: 없음 / 주소 입력해도 무반응 | 관리자 창에서 연결함 | 관리자 창에서 `net use P: /delete`, 일반 탐색기에서 다시 연결 |
+| 비밀번호를 다시 물음 | 저장된 자격 증명 없음/변경됨 | 제어판 → 자격 증명 관리자 → Windows 자격 증명에서 `192.168.11.238` 수정, 또는 `cmdkey` 재실행 |
+| 운용 PC 이전·경로 변경 후 안 보임 | 공유·권한은 폴더 경로에 묶임 | 새 경로로 1·2단계 다시 (계정은 그대로 재사용) |
+| `pdfreader` 비밀번호 분실 | — | 운용 PC 관리자 PowerShell: `Set-LocalUser -Name pdfreader -Password (Read-Host -AsSecureString)` 후 각 PC에서 `cmdkey` 재실행 |
