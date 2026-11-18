@@ -73,6 +73,7 @@ from shared import (
     BASE_DIR,
 )
 from shared.process_utils import kill_process_tree
+from shared.service_mode import is_role_running, is_service_mode
 from tools.db_watcher import DBWatcher
 
 # ==========================================================
@@ -445,6 +446,10 @@ class ServerManager(ctk.CTk):
         # 메인 스레드 전용이라 워커에서 append_log를 직접 부르면 안 된다.
         self.ui_log_queue: queue.Queue = queue.Queue()
         self.watcher = None
+        # 서비스 모드: 작업 스케줄러(deploy-ops)가 API/포털 스케줄러/DB 워처의 수명을 맡는다.
+        # 매니저는 상태만 보여 주고 직접 띄우지 않는다(포털 스케줄러 이중 실행 방지).
+        self.service_mode = is_service_mode(BASE_DIR)
+        self._service_status = {"portal": False, "watcher": False}
 
         # --- Layout (2-column: Services | Automation) ---
         self.grid_columnconfigure(0, weight=2)  # API
@@ -463,8 +468,11 @@ class ServerManager(ctk.CTk):
         self.after(100, self._process_log_queue)
         self.after(100, self._process_ui_log_queue)
 
-        # Auto-start Watcher
-        self.toggle_watcher()
+        # Auto-start Watcher (서비스 모드에서는 ProductionHubWatcher 작업이 맡는다)
+        if self.service_mode:
+            self._enter_service_mode()
+        else:
+            self.toggle_watcher()
 
         # 주기적 서비스 상태 뱃지 갱신
         self.after(STATUS_REFRESH_MS, self._refresh_status)
@@ -567,11 +575,18 @@ class ServerManager(ctk.CTk):
 
     def _refresh_status(self):
         """헤더 서비스 상태 뱃지를 현재 실행 상태로 갱신 (주기 호출)."""
-        specs = [
-            (f"api:{API_PORT}", self._is_panel_running(self.api_panel)),
-            ("portal", self._is_panel_running(self.portal_panel)),
-            ("dbwatcher", bool(self.watcher and self.watcher.is_alive())),
-        ]
+        if self.service_mode:
+            specs = [
+                (f"api:{API_PORT}", _is_port_in_use(API_PORT)),
+                ("portal", self._service_status["portal"]),
+                ("dbwatcher", self._service_status["watcher"]),
+            ]
+        else:
+            specs = [
+                (f"api:{API_PORT}", self._is_panel_running(self.api_panel)),
+                ("portal", self._is_panel_running(self.portal_panel)),
+                ("dbwatcher", bool(self.watcher and self.watcher.is_alive())),
+            ]
         for key, running in specs:
             badge = self.status_badges.get(key)
             if badge is None:
@@ -760,7 +775,47 @@ class ServerManager(ctk.CTk):
         threading.Thread(target=self._stream_output, args=(proc, panel), daemon=True).start()
         return proc
 
+    def _enter_service_mode(self):
+        """서비스 모드 안내 + 역할 상태 폴링 시작 (시작/중지는 작업 스케줄러 소관)."""
+        note = ">>> 서비스 모드: 작업 스케줄러가 실행합니다 (deploy-ops). 여기서는 상태만 봅니다."
+        self.api_panel.append_log(note, "INFO")
+        self.api_panel.append_log(
+            ">>> 로그: deploy-ops\\logs\\api.log · 재시작: schtasks /Run /TN ProductionHubApi",
+            "INFO",
+        )
+        self.portal_panel.append_log(note, "INFO")
+        self.portal_panel.append_log(
+            ">>> 로그: deploy-ops\\logs\\portal.log · Run Now는 그대로 쓸 수 있습니다.", "INFO"
+        )
+        self._append_db_log(
+            ">>> 서비스 모드: DB 워처는 ProductionHubWatcher 작업이 실행합니다.", "INFO"
+        )
+        self.lbl_watcher_status.configure(text="Service", text_color=STATUS_RUNNING)
+        threading.Thread(target=self._poll_service_roles, daemon=True).start()
+
+    def _poll_service_roles(self):
+        """pid 파일 기반 역할 생존 확인 — 프로세스 조회라 UI 스레드 밖에서 돈다."""
+        while True:
+            for role in ("portal", "watcher"):
+                try:
+                    self._service_status[role] = is_role_running(BASE_DIR, role)
+                except (OSError, RuntimeError, ValueError):
+                    self._service_status[role] = False
+            time.sleep(5)
+
+    def _refuse_in_service_mode(self, panel, task_name: str) -> bool:
+        if not self.service_mode:
+            return False
+        panel.append_log(
+            ">>> 서비스 모드: 시작/중지는 작업 스케줄러에서 합니다 "
+            f"(schtasks /Run|/End /TN {task_name}).",
+            "WARN",
+        )
+        return True
+
     def start_api(self):
+        if self._refuse_in_service_mode(self.api_panel, "ProductionHubApi"):
+            return
         if self.api_panel.process and self.api_panel.process.poll() is None:
             return
         if _is_port_in_use(API_PORT):
@@ -774,6 +829,8 @@ class ServerManager(ctk.CTk):
         self.api_panel.process = self._start_process(cmd, self.api_panel)
 
     def stop_api(self):
+        if self._refuse_in_service_mode(self.api_panel, "ProductionHubApi"):
+            return
         if self.api_panel.process:
             _unregister_process(self.api_panel.process)
             kill_process_tree(self.api_panel.process.pid)
@@ -782,6 +839,8 @@ class ServerManager(ctk.CTk):
         self.api_panel.append_log(">>> Stopped.", "WARN")
 
     def start_portal(self):
+        if self._refuse_in_service_mode(self.portal_panel, "ProductionHubPortal"):
+            return
         if self.portal_panel.process and self.portal_panel.process.poll() is None:
             return
 

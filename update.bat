@@ -8,6 +8,16 @@ REM Stop THIS repo's processes (manager + API/Portal), pull latest,
 REM sync deps. Then start with manager.bat. Gitignored files (.env,
 REM *_settings.json, database/) are preserved. Other projects are not touched.
 
+REM Service mode (deploy-ops\ops-install): Task Scheduler runs the services and
+REM ProductionHubUpdate pulls + restarts them every 10 minutes. This manual script
+REM would kill those services and leave them stopped, so it steps aside.
+if exist "%ROOT%deploy-ops\.service-mode" (
+    echo This PC runs in service mode. Updates are automatic ^(deploy-ops\update.log^).
+    echo To update right now run: deploy-ops\ops-update.bat
+    pause
+    exit /b 0
+)
+
 set "PY=.venv\Scripts\python.exe"
 if not exist "%PY%" set "PY=python"
 

@@ -32,6 +32,10 @@ docs/.pdca-snapshots/
 .coverage.*
 htmlcov/
 
+# Ops PC service deployment (deploy-ops): logs, update log, service-mode marker
+deploy-ops/update.log
+deploy-ops/.service-mode
+
 # Logs
 logs/
 .playwright-mcp/
