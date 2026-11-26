@@ -6,8 +6,9 @@ Features (Section 6.2):
 - Wait for mtime stabilization before backup (prevents corrupted backups)
 - Use sqlite3 backup API for safe copying
 - PRAGMA quick_check validation after backup
-- Retention policy: 30 daily backups for Live DB, 12 weekly for Archive DB,
-  30 for each app DB (materials, notifications, anomaly)
+- Retention policy (counted in files, not days): latest 30 backups for Live DB,
+  latest 12 for Archive DB, latest 30 for each app DB (materials,
+  notifications, anomaly). Run daily, that is 30 / 12 / 30 days.
 - App DBs that do not exist on this machine are skipped (not a failure)
 - Optional mirror: BACKUP_MIRROR_DIR (.env) or --mirror-dir copies each
   verified backup into a second directory (e.g. another disk), verifies the
@@ -55,8 +56,8 @@ from shared.db_maintenance import wait_for_stabilization
 BACKUP_DIR = DATABASE_DIR / "backups"
 
 # Retention policy
-LIVE_BACKUP_RETENTION = 30  # Keep last 30 daily backups
-ARCHIVE_BACKUP_RETENTION = 12  # Keep last 12 weekly backups
+LIVE_BACKUP_RETENTION = 30  # Keep the latest 30 backups (30 days when run daily)
+ARCHIVE_BACKUP_RETENTION = 12  # Keep the latest 12 backups (12 days when run daily)
 APP_BACKUP_RETENTION = 30  # Keep last 30 backups of each app DB
 
 # Mirror copies are written as ".<name>.partial" first, renamed when verified.

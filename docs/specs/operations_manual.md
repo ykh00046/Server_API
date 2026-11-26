@@ -193,6 +193,8 @@ echo. > logs\watcher.log
 | Live (`production_analysis.db`) | 최근 30개 | `production_YYYYMMDD_HHMMSS.db` |
 | Archive (`archive_2025.db`) | 최근 12개 | `archive_2025_YYYYMMDD_HHMMSS.db` |
 
+보관 개수는 날짜가 아니라 파일 개수다. 인자 없는 실행은 Archive도 매번 백업하므로, 아래처럼 매일 실행하면 Live는 30일치, Archive는 12일치가 남는다.
+
 백업 디렉토리: `database/backups/`
 
 ### 수동 백업 실행
