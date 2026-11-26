@@ -199,6 +199,148 @@ def test_main_failed_app_backup_counts_as_failure(env, monkeypatch):
     assert _run_main(monkeypatch) == 1
 
 
+def _snapshot(directory):
+    return {p.name: p.read_bytes() for p in sorted(directory.iterdir())}
+
+
+# ==========================================================
+# WAL-mode sources and sidecar files
+# ==========================================================
+@pytest.fixture
+def wal_source(env):
+    """A WAL-mode materials DB with an open writer; rows stay in the -wal."""
+    paths, _backup_dir = env
+    src = paths["MATERIALS_DB_FILE"]
+    writer = sqlite3.connect(str(src))
+    writer.execute("PRAGMA journal_mode=WAL")
+    writer.execute("PRAGMA wal_autocheckpoint=0")
+    writer.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)")
+    writer.executemany("INSERT INTO t (v) VALUES (?)", [(f"r{i}",) for i in range(200)])
+    writer.commit()
+    yield src, writer
+    writer.close()
+
+
+def test_wal_source_backup_is_single_complete_file(env, wal_source):
+    _paths, backup_dir = env
+    src, _writer = wal_source
+    # Precondition: the committed rows are only in the source's WAL.
+    assert (src.parent / (src.name + "-wal")).stat().st_size > 0
+
+    assert bd.run_backup(src, "materials", 30) is True
+
+    names = sorted(p.name for p in backup_dir.iterdir())
+    assert len(names) == 1 and names[0].startswith("materials_")
+    assert names[0].endswith(".db")
+    backup = backup_dir / names[0]
+    assert backup.read_bytes()[18:20] == b"\x01\x01"  # rollback, not WAL
+    assert bd.verify_backup(backup) is True
+    assert _read_values(backup) == [f"r{i}" for i in range(200)]
+    # Opening/verifying the finished backup leaves nothing beside it.
+    assert sorted(p.name for p in backup_dir.iterdir()) == names
+
+
+def test_backup_leaves_wal_source_unchanged(env, wal_source):
+    """The database file and its -wal are byte-identical afterwards and no
+    file is added or removed. The -shm is excluded from the byte compare:
+    any SQLite reader (also a read-only one) updates its read-mark slots in
+    that shared-memory index; it holds no database content."""
+    src, writer = wal_source
+
+    def _content(snap):
+        return {k: v for k, v in snap.items() if not k.endswith("-shm")}
+
+    before = _snapshot(src.parent)
+
+    assert bd.run_backup(src, "materials", 30) is True
+
+    after = _snapshot(src.parent)
+    assert sorted(after) == sorted(before)
+    assert _content(after) == _content(before)
+    assert writer.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+    assert [r[0] for r in writer.execute("SELECT v FROM t ORDER BY id")] == [
+        f"r{i}" for i in range(200)
+    ]
+
+
+def test_cleanup_removes_sidecars_of_deleted_backups(env):
+    _paths, backup_dir = env
+    backup_dir.mkdir()
+    old = backup_dir / "production_20260101_000000.db"
+    new = backup_dir / "production_20260102_000000.db"
+    for i, p in enumerate((old, new)):
+        p.write_bytes(b"db")
+        os.utime(p, (1_000_000 + i, 1_000_000 + i))
+    (backup_dir / (old.name + "-shm")).write_bytes(b"\0" * 32768)
+    (backup_dir / (old.name + "-wal")).write_bytes(b"")
+
+    bd.cleanup_old_backups("production", 1)
+
+    assert sorted(p.name for p in backup_dir.iterdir()) == [new.name]
+
+
+def test_cleanup_removes_stale_sidecars_and_touches_nothing_else(env):
+    _paths, backup_dir = env
+    backup_dir.mkdir()
+    kept = backup_dir / "production_20260101_000000.db"
+    kept.write_bytes(b"kept backup bytes")
+    kept_full_wal = backup_dir / "production_20260102_000000.db"
+    kept_full_wal.write_bytes(b"other kept backup")
+    stale = [
+        backup_dir / (kept.name + "-shm"),
+        backup_dir / (kept.name + "-wal"),  # empty
+        backup_dir / (kept_full_wal.name + "-shm"),
+        backup_dir / "production_20251231_000000.db-shm",  # orphan
+        backup_dir / "production_20251231_000000.db-wal",  # orphan
+    ]
+    for p in stale:
+        p.write_bytes(b"\0" * 32768 if p.name.endswith("-shm") else b"")
+    nonempty_wal = backup_dir / (kept_full_wal.name + "-wal")
+    nonempty_wal.write_bytes(b"x" * 100)
+    untouched = [
+        backup_dir / "materials_20260101_000000.db-shm",  # other prefix
+        backup_dir / "materials_20260101_000000.db-wal",
+        backup_dir / "archive_2025_20260101_000000.db-shm",
+        backup_dir / "production_manual.db-wal",  # not the tool's naming
+        backup_dir / "production_20260101_000000.db-journal",
+        backup_dir / "notes.txt",
+    ]
+    for p in untouched:
+        p.write_bytes(b"keep")
+    dbs_before = {p: p.read_bytes() for p in (kept, kept_full_wal)}
+
+    bd.cleanup_old_backups("production", 30)
+
+    assert not any(p.exists() for p in stale)
+    assert nonempty_wal.read_bytes() == b"x" * 100
+    assert all(p.read_bytes() == b"keep" for p in untouched)
+    assert {p: p.read_bytes() for p in dbs_before} == dbs_before
+
+
+def test_failed_verification_removes_backup_and_sidecars(env, monkeypatch):
+    """A WAL-mode copy is rejected before it is opened; it and any
+    sidecars are removed."""
+    paths, backup_dir = env
+    src = paths["ANOMALY_DB_FILE"]
+    conn = sqlite3.connect(str(src))
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)")
+    conn.commit()
+    conn.close()  # header stays WAL (bytes 18/19 == 2)
+
+    def _raw_copy_with_sidecars(source, backup_path):
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_path.write_bytes(source.read_bytes())
+        (backup_path.parent / (backup_path.name + "-wal")).write_bytes(b"")
+        (backup_path.parent / (backup_path.name + "-shm")).write_bytes(b"\0" * 32768)
+        return True
+
+    monkeypatch.setattr(bd, "backup_database", _raw_copy_with_sidecars)
+
+    assert bd.run_backup(src, "anomaly", 30) is False
+    assert list(backup_dir.iterdir()) == []
+
+
 def test_main_cleanup_covers_app_prefixes(env, monkeypatch):
     _paths, backup_dir = env
     monkeypatch.setattr(bd, "APP_BACKUP_RETENTION", 1)

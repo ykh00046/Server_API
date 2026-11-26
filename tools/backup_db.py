@@ -22,6 +22,7 @@ Can be scheduled via Windows Task Scheduler for automated daily backups.
 from __future__ import annotations
 
 import argparse
+import re
 import sqlite3
 import sys
 from datetime import datetime
@@ -81,6 +82,19 @@ def backup_database(source_path: Path, backup_path: Path) -> bool:
         # Use SQLite backup API
         source_conn.backup(backup_conn)
 
+        # The backup API copies page 1 verbatim, so a WAL-mode source yields a
+        # copy whose header says WAL. Any later open of that copy (even
+        # read-only verification) then creates -wal/-shm beside it, and a
+        # read-only connection cannot remove them on close. Switch the COPY
+        # (never the source) to rollback mode: SQLite checkpoints fully and
+        # only then rewrites the header, and refuses (returns "wal") if it
+        # cannot, so the result is one self-contained .db file.
+        mode = backup_conn.execute("PRAGMA journal_mode=DELETE").fetchone()
+        if not mode or str(mode[0]).lower() != "delete":
+            raise sqlite3.OperationalError(
+                f"could not set backup journal_mode=DELETE (got {mode})"
+            )
+
         log("INFO", f"Backup created: {backup_path}")
         return True
 
@@ -90,9 +104,7 @@ def backup_database(source_path: Path, backup_path: Path) -> bool:
         # (WinError 32), which left corrupt partial backups in retention.
         _close_quietly(backup_conn)
         backup_conn = None
-        if backup_path.exists():
-            with contextlib.suppress(OSError):
-                backup_path.unlink()
+        _remove_backup_files(backup_path)
         return False
 
     except OSError as e:
@@ -110,6 +122,34 @@ def _close_quietly(conn: sqlite3.Connection | None) -> None:
             conn.close()
 
 
+# SQLite sidecar files that an open of a WAL-mode file leaves next to it.
+SIDECAR_SUFFIXES = ("-wal", "-shm")
+
+
+def _sidecars(db_path: Path) -> list[Path]:
+    return [db_path.with_name(db_path.name + s) for s in SIDECAR_SUFFIXES]
+
+
+def _remove_backup_files(backup_path: Path) -> None:
+    """Delete a backup and its sidecars (best effort)."""
+    for p in (backup_path, *_sidecars(backup_path)):
+        if p.exists():
+            with contextlib.suppress(OSError):
+                p.unlink()
+
+
+def _is_wal_header(path: Path) -> bool:
+    """True if the SQLite header says WAL (bytes 18/19 == 2)."""
+    try:
+        with open(path, "rb") as f:
+            header = f.read(20)
+    except OSError:
+        return False
+    return len(header) == 20 and header[:16] == b"SQLite format 3\x00" and (
+        header[18] == 2 or header[19] == 2
+    )
+
+
 def verify_backup(backup_path: Path) -> bool:
     """
     Verify backup integrity using PRAGMA quick_check.
@@ -118,6 +158,12 @@ def verify_backup(backup_path: Path) -> bool:
     conn = None
     try:
         log("INFO", f"Verifying backup: {backup_path.name}")
+
+        # A backup must not depend on a -wal file. Reject a WAL-mode copy
+        # before opening it, so verification itself never creates sidecars.
+        if _is_wal_header(backup_path):
+            log("ERROR", f"Backup verification failed: {backup_path.name} is in WAL mode")
+            return False
 
         conn = sqlite3.connect(
             f"file:{backup_path}?mode=ro",
@@ -164,18 +210,59 @@ def cleanup_old_backups(prefix: str, retention: int):
             "INFO",
             f"Cleanup: {len(backups)} backups found, retention={retention}. No cleanup needed.",
         )
+    else:
+        # Remove old backups (and their sidecars once the .db itself is gone)
+        to_remove = backups[retention:]
+        for backup in to_remove:
+            try:
+                backup.unlink()
+                log("INFO", f"Removed old backup: {backup.name}")
+            except OSError as e:
+                log("WARN", f"Failed to remove {backup.name}: {e}")
+                continue
+            for side in _sidecars(backup):
+                _remove_sidecar(side)
+
+        log("INFO", f"Cleanup complete: removed {len(to_remove)} old backups")
+
+    _cleanup_stale_sidecars(prefix)
+
+
+def _remove_sidecar(path: Path) -> None:
+    if not path.exists():
         return
+    try:
+        path.unlink()
+        log("INFO", f"Removed stale sidecar: {path.name}")
+    except OSError as e:
+        log("WARN", f"Failed to remove {path.name}: {e}")
 
-    # Remove old backups
-    to_remove = backups[retention:]
-    for backup in to_remove:
-        try:
-            backup.unlink()
-            log("INFO", f"Removed old backup: {backup.name}")
-        except OSError as e:
-            log("WARN", f"Failed to remove {backup.name}: {e}")
 
-    log("INFO", f"Cleanup complete: removed {len(to_remove)} old backups")
+def _cleanup_stale_sidecars(prefix: str) -> None:
+    """Remove -wal/-shm files left beside this prefix's backups by earlier runs.
+
+    Only names of the form <prefix>_YYYYMMDD_HHMMSS.db-wal|-shm directly in
+    BACKUP_DIR are considered. The .db files are never touched here.
+    - Orphan (its .db is gone): removed.
+    - Beside an existing backup: -shm is removed (it is only an index);
+      -wal is removed only if it is empty. A non-empty -wal could hold data
+      of that backup, so it is kept and reported instead.
+    """
+    pattern = re.compile(rf"^{re.escape(prefix)}_\d{{8}}_\d{{6}}\.db(-wal|-shm)$")
+    for side in sorted(BACKUP_DIR.iterdir()):
+        m = pattern.match(side.name)
+        if not m or not side.is_file():
+            continue
+        db_path = side.with_name(side.name[: -len(m.group(1))])
+        if db_path.exists() and m.group(1) == "-wal":
+            try:
+                size = side.stat().st_size
+            except OSError:
+                continue
+            if size > 0:
+                log("WARN", f"Kept non-empty WAL beside backup: {side.name} ({size} bytes)")
+                continue
+        _remove_sidecar(side)
 
 
 def run_backup(db_path: Path, prefix: str, retention: int) -> bool:
@@ -203,8 +290,7 @@ def run_backup(db_path: Path, prefix: str, retention: int) -> bool:
     # 4. Verify backup
     if not verify_backup(backup_path):
         log("ERROR", "Backup verification failed. Removing corrupted backup.")
-        with contextlib.suppress(OSError):
-            backup_path.unlink()
+        _remove_backup_files(backup_path)
         return False
 
     # 5. Cleanup old backups
