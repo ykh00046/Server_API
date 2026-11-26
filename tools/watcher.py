@@ -161,34 +161,8 @@ def _check_archive_db(state: dict, summary: dict) -> tuple[float, int]:
     return archive_mtime, archive_size
 
 
-def _change_counter(db_path: Path) -> int | None:
-    """SQLite header file change counter (offset 24, 4 bytes big-endian).
-
-    Incremented once per committed write in rollback-journal mode. Returns None
-    for a WAL-mode file (header bytes 18/19 == 2), where the counter is not
-    bumped once per commit, or if the header cannot be read.
-    """
-    try:
-        with open(db_path, "rb") as f:
-            data = f.read(28)
-    except OSError:
-        return None
-    if len(data) != 28 or data[18] != 1 or data[19] != 1:
-        return None
-    return int.from_bytes(data[24:28], "big")
-
-
-def _run_periodic_analyze(
-    summary: dict, last_analyze_ts: float, file_states: dict | None = None,
-) -> float:
-    """ANALYZE를 1일 1회 실행. last_analyze_ts 갱신값을 반환한다.
-
-    file_states ({db_path: (mtime, size)}, 저장 예정 상태)가 주어지면 ANALYZE 자신의
-    쓰기를 반영해 갱신한다. 단 (1) ANALYZE 직전 파일 상태가 저장 예정 상태와 같고
-    (검사 뒤 외부 변경 없음) (2) ANALYZE 동안 파일 변경 카운터가 정확히 1 올랐을 때만
-    (ANALYZE 자신의 커밋 1건뿐) 갱신한다. 아니면 그대로 두어 다음 주기가 감지하게 한다.
-    WAL 모드 파일은 카운터로 판별할 수 없으므로 갱신하지 않는다(이전 동작 유지).
-    """
+def _run_periodic_analyze(summary: dict, last_analyze_ts: float) -> float:
+    """ANALYZE를 1일 1회 실행. last_analyze_ts 갱신값을 반환한다."""
     now = time.time()
     if now - last_analyze_ts < ANALYZE_INTERVAL:
         remaining_h = int((ANALYZE_INTERVAL - (now - last_analyze_ts)) / 3600)
@@ -199,16 +173,7 @@ def _run_periodic_analyze(
     analyze_results = []
     for db_path in [DB_FILE, ARCHIVE_DB_FILE]:
         if db_path.exists():
-            before = get_file_state(db_path)
-            counter_before = _change_counter(db_path)
             result = run_analyze(db_path)
-            if (
-                file_states is not None
-                and file_states.get(db_path) == before
-                and counter_before is not None
-                and _change_counter(db_path) == counter_before + 1
-            ):
-                file_states[db_path] = get_file_state(db_path)
             analyze_results.append(result)
             if result["success"]:
                 log("INFO", f"ANALYZE OK: {result['db']} ({result['duration_ms']}ms)")
@@ -243,11 +208,7 @@ def run_check() -> dict:
     archive_mtime, archive_size = _check_archive_db(state, summary)
 
     # ANALYZE: run once per day
-    # (file states are refreshed after ANALYZE so its own write is not seen as a change)
-    file_states = {DB_FILE: (live_mtime, live_size), ARCHIVE_DB_FILE: (archive_mtime, archive_size)}
-    last_analyze_ts = _run_periodic_analyze(summary, state.get("last_analyze_ts", 0), file_states)
-    live_mtime, live_size = file_states[DB_FILE]
-    archive_mtime, archive_size = file_states[ARCHIVE_DB_FILE]
+    last_analyze_ts = _run_periodic_analyze(summary, state.get("last_analyze_ts", 0))
 
     # Save updated state
     save_state({

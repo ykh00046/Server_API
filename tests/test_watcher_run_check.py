@@ -155,9 +155,18 @@ def test_state_is_refreshed_after_heal_so_next_cycle_sees_unchanged(wenv):
     assert wenv.stab_calls == []  # no stabilization wait when nothing changed
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "Known, accepted (low severity, not fixed): run_check captures file states in "
+        "_check_live_db/_check_archive_db (watcher.py:205,208) and only then runs ANALYZE "
+        "(211), which writes sqlite_stat1 into both files; the stale pre-ANALYZE states "
+        "are saved (214-220). The next cycle reports both DBs 'changed' (false positive) "
+        "and waits for stabilization again (real cost: 3 x 5 s per DB). "
+        "See docs/watcher-archive-retry-RESULT.md."
+    ),
+)
 def test_cycle_after_analyze_does_not_report_its_own_write_as_change(wenv):
-    """run_check refreshes the saved file states after ANALYZE (which writes
-    sqlite_stat1), so the watcher's own write is not reported as a change."""
     watcher_mod.run_check()  # first run: heal + ANALYZE
     wenv.stab_calls.clear()
 
@@ -166,101 +175,6 @@ def test_cycle_after_analyze_does_not_report_its_own_write_as_change(wenv):
     assert second["live"]["changed"] is False
     assert second["archive"]["changed"] is False
     assert wenv.stab_calls == []
-
-
-def test_change_counter_reads_rollback_header_only(wenv, tmp_path):
-    assert isinstance(watcher_mod._change_counter(wenv.live), int)
-    conn = sqlite3.connect(str(wenv.archive))
-    assert conn.execute("PRAGMA journal_mode=WAL").fetchone()[0] == "wal"
-    conn.close()
-    assert watcher_mod._change_counter(wenv.archive) is None  # WAL: not usable
-    short = tmp_path / "short.db"
-    short.write_bytes(b"SQLite format 3\x00")
-    assert watcher_mod._change_counter(short) is None
-    assert watcher_mod._change_counter(tmp_path / "absent.db") is None
-
-
-def test_wal_db_state_is_not_refreshed_after_analyze(wenv):
-    """WAL files cannot be checked with the change counter, so the post-ANALYZE
-    refresh is not applied (previous behaviour: never hide a change)."""
-    for path in (wenv.live, wenv.archive):
-        check_and_heal_indexes(path)
-        conn = sqlite3.connect(str(path))
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.close()
-    _write_state(wenv, last_analyze_ts=0)
-    pre = _read_state(wenv)
-
-    first = watcher_mod.run_check()
-
-    assert first["analyze"]["ran"] is True
-    saved = _read_state(wenv)
-    for key in ("live_mtime", "live_size", "archive_mtime", "archive_size"):
-        assert saved[key] == pre[key]
-
-
-def _external_write(path) -> None:
-    """Another process (ERP sync) appends a row large enough to change the size."""
-    conn = sqlite3.connect(str(path))
-    conn.execute(
-        "INSERT INTO production_records "
-        "(production_date, item_code, item_name, good_quantity, lot_number) "
-        "VALUES ('2026-03-02', 'BW0022', ?, 1, 'LT2')",
-        ("y" * 20000,),
-    )
-    conn.commit()
-    conn.close()
-
-
-@pytest.mark.parametrize("when", ["after_check", "during_analyze"])
-@pytest.mark.parametrize("which", ["live", "archive"])
-def test_external_change_in_cycle_is_still_detected_with_analyze(
-    wenv, monkeypatch, which, when,
-):
-    """An external write after the change check (before ANALYZE reads the file)
-    or while ANALYZE runs must not be absorbed by the post-ANALYZE state
-    refresh: the next cycle still sees it."""
-    watcher_mod.run_check()  # warm-up: both DBs healed, ANALYZE run, state saved
-    wenv.now = NOW + watcher_mod.ANALYZE_INTERVAL  # ANALYZE due again this cycle
-    target = getattr(wenv, which)
-    written = []
-
-    if when == "after_check":
-        real_check_archive = watcher_mod._check_archive_db
-
-        def check_archive_then_external_write(state, summary):
-            result = real_check_archive(state, summary)
-            _external_write(target)
-            written.append(get_file_state(target))
-            return result
-
-        monkeypatch.setattr(watcher_mod, "_check_archive_db", check_archive_then_external_write)
-    else:
-        real_analyze = watcher_mod.run_analyze
-
-        def analyze_with_concurrent_write(path):
-            result = real_analyze(path)
-            if path == target:
-                _external_write(target)  # lands before the post-ANALYZE state read
-                written.append(get_file_state(target))
-            return result
-
-        monkeypatch.setattr(watcher_mod, "run_analyze", analyze_with_concurrent_write)
-
-    first = watcher_mod.run_check()
-    assert first["analyze"]["ran"] is True
-    assert first[which]["changed"] is False
-    assert written
-    saved = _read_state(wenv)
-    assert (saved[f"{which}_mtime"], saved[f"{which}_size"]) != get_file_state(target)
-
-    wenv.stab_calls.clear()
-    second = watcher_mod.run_check()
-
-    assert second[which]["changed"] is True
-    assert wenv.stab_calls == [target]
-    other = "archive" if which == "live" else "live"
-    assert second[other]["changed"] is False  # its ANALYZE write was absorbed
 
 
 # ==========================================================
