@@ -161,7 +161,7 @@ python tools/watcher.py --daemon --interval 3600
 database/
 ├── production_analysis.db   # Live DB (당해 연도)
 ├── archive_2025.db          # Archive DB (전년도 이하)
-└── backups/                 # 자동 백업 (Live 최근 30개, Archive 최근 12개)
+└── backups/                 # tools/backup_db.py 백업 (Live 30개, Archive 12개, 앱 DB 각 30개)
 ```
 
 ### Archive / Live 자동 라우팅
@@ -268,7 +268,7 @@ SMOKE_INSTALL=1 SMOKE_RUN_HEALTH=1 tools/smoke_api.sh
 ## DB 백업
 
 ```bash
-# 수동 백업 (Live + Archive)
+# 수동 백업 (Live + Archive + materials/notifications/anomaly, 없는 앱 DB는 건너뜀)
 python tools/backup_db.py
 
 # Live만 백업
