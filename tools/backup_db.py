@@ -216,9 +216,13 @@ def cleanup_old_backups(prefix: str, retention: int, directory: Path | None = No
     if not directory.exists():
         return
 
-    # Find all backups matching prefix
+    # Find all backups matching prefix. Only this tool's own file names
+    # (<prefix>_YYYYMMDD_HHMMSS.db) count: a hand-made copy such as
+    # production_analysis.db in the same folder (likely in a mirror directory
+    # that already holds manual copies) must never be deleted by retention.
+    own_name = re.compile(rf"^{re.escape(prefix)}_\d{{8}}_\d{{6}}\.db$")
     backups = sorted(
-        directory.glob(f"{prefix}_*.db"),
+        (p for p in directory.glob(f"{prefix}_*.db") if own_name.match(p.name)),
         key=lambda p: p.stat().st_mtime,
         reverse=True  # Newest first
     )

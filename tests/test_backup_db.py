@@ -130,6 +130,36 @@ def test_cleanup_within_retention_keeps_everything(env):
     assert all(p.exists() for p in files)
 
 
+def test_cleanup_never_deletes_hand_made_copies_with_the_same_prefix(env, tmp_path):
+    """Retention counts only <prefix>_YYYYMMDD_HHMMSS.db. A manual copy such as
+    production_analysis.db (older than every backup) must survive, in the
+    backup directory and in a mirror directory alike."""
+    _paths, backup_dir = env
+    backup_dir.mkdir()
+    mirror = tmp_path / "mirror"
+    mirror.mkdir()
+    for directory in (backup_dir, mirror):
+        manual = [
+            directory / "production_analysis.db",
+            directory / "production_copy_before_upgrade.db",
+            directory / "production_20260101.db",
+        ]
+        for p in manual:
+            p.write_bytes(b"keep")
+            os.utime(p, (1, 1))
+        own = []
+        for i in range(4):
+            p = directory / f"production_2026010{i}_000000.db"
+            p.write_bytes(b"")
+            os.utime(p, (1_000_000 + i * 100, 1_000_000 + i * 100))
+            own.append(p)
+
+        bd.cleanup_old_backups("production", 2, directory=directory)
+
+        assert [p.exists() for p in own] == [False, False, True, True]
+        assert all(p.read_bytes() == b"keep" for p in manual)
+
+
 # ==========================================================
 # main()
 # ==========================================================
