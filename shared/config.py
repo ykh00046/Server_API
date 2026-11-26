@@ -199,3 +199,11 @@ ANOMALY_STATE_FILE = DATABASE_DIR / ".anomaly_state.json"
 # 로 기록해 대시보드 타임라인을 지원한다. 보존 일수 초과분은 발행 시 lazy 정리.
 ANOMALY_DB_FILE = DATABASE_DIR / "anomaly.db"
 ANOMALY_FINDINGS_RETENTION_DAYS = int(os.getenv("ANOMALY_FINDINGS_RETENTION_DAYS", 90))
+
+# ==========================================================
+# Backup mirror (tools/backup_db.py)
+# ==========================================================
+# Optional second directory (e.g. on another physical disk) that receives a
+# verified copy of every backup. Empty/unset = off. tools/backup_db.py
+# --mirror-dir overrides it.
+BACKUP_MIRROR_DIR = os.getenv("BACKUP_MIRROR_DIR", "").strip()

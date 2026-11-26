@@ -276,7 +276,12 @@ python tools/backup_db.py --live
 
 # 오래된 백업 정리만
 python tools/backup_db.py --cleanup
+
+# 다른 디스크에 한 부 더 (이번 실행만; .env 설정보다 우선)
+python tools/backup_db.py --mirror-dir E:\backup-mirror
 ```
+
+- 미러(선택): `.env`에 `BACKUP_MIRROR_DIR=<절대 경로>`를 넣으면 검증된 백업을 그 폴더에 같은 이름으로 한 부 더 복사한다. 복사본도 검증하고 같은 보존 개수로 정리하며(`--cleanup` 포함), 이 도구의 파일 이름 형식만 건드린다. 비워 두면 끈다. 복사에 실패하면 원래 백업은 남고, 요약 줄 끝에 `, N mirror failed`가 붙고 종료 코드가 1이 된다.
 
 ---
 

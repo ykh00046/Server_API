@@ -354,3 +354,189 @@ def test_main_cleanup_covers_app_prefixes(env, monkeypatch):
     assert _run_main(monkeypatch, "--cleanup") == 0
     assert not old.exists()
     assert new.exists()
+
+
+# ==========================================================
+# Mirror copy (BACKUP_MIRROR_DIR / --mirror-dir)
+# ==========================================================
+PREFIXES = ("production", "archive_2025", "materials", "notifications", "anomaly")
+
+
+def _summary_line(out):
+    lines = [line for line in out.splitlines() if "Backup Summary:" in line]
+    assert len(lines) == 1
+    return lines[0].split("[INFO] ", 1)[1]
+
+
+def _make_all(paths):
+    for p in paths.values():
+        _make_db(p)
+
+
+def test_mirror_off_behaves_as_before(env, monkeypatch, capsys, tmp_path):
+    paths, backup_dir = env
+    monkeypatch.setattr(bd, "BACKUP_MIRROR_DIR", "")
+    _make_all(paths)
+
+    assert _run_main(monkeypatch) == 0
+
+    out = capsys.readouterr().out
+    assert _summary_line(out) == "Backup Summary: 5 success, 0 failed, 0 skipped"
+    assert "Mirror" not in out and "mirror failed" not in out
+    assert sorted(p.name for p in tmp_path.iterdir() if p.name != "db") == ["backups"]
+    assert len(list(backup_dir.iterdir())) == 5
+
+
+def test_mirror_on_copies_each_verified_backup(env, monkeypatch, capsys, tmp_path):
+    paths, backup_dir = env
+    mirror = tmp_path / "second_disk" / "ops-backup"  # does not exist yet
+    monkeypatch.setattr(bd, "BACKUP_MIRROR_DIR", str(mirror))
+    _make_all(paths)
+    # One WAL-mode source with an open writer, rows only in its -wal.
+    paths["NOTIFICATIONS_DB_FILE"].unlink()
+    writer = sqlite3.connect(str(paths["NOTIFICATIONS_DB_FILE"]))
+    writer.execute("PRAGMA journal_mode=WAL")
+    writer.execute("PRAGMA wal_autocheckpoint=0")
+    writer.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)")
+    writer.execute("INSERT INTO t (v) VALUES ('in-wal')")
+    writer.commit()
+    try:
+        assert _run_main(monkeypatch) == 0
+    finally:
+        writer.close()
+
+    out = capsys.readouterr().out
+    assert _summary_line(out) == (
+        "Backup Summary: 5 success, 0 failed, 0 skipped, 0 mirror failed"
+    )
+    primary = sorted(p.name for p in backup_dir.iterdir())
+    mirrored = sorted(p.name for p in mirror.iterdir())
+    assert mirrored == primary  # same names, nothing else (no sidecars/temp)
+    assert len(mirrored) == 5
+    for name in mirrored:
+        assert (mirror / name).read_bytes() == (backup_dir / name).read_bytes()
+        assert bd.verify_backup(mirror / name) is True
+    note = next(n for n in mirrored if n.startswith("notifications_"))
+    assert _read_values(mirror / note) == ["in-wal"]
+    assert sorted(p.name for p in mirror.iterdir()) == mirrored  # still no sidecars
+
+
+def test_mirror_failure_keeps_primary_and_exits_nonzero(env, monkeypatch, capsys, tmp_path):
+    paths, backup_dir = env
+    blocker = tmp_path / "not_a_dir"
+    blocker.write_bytes(b"a file where the mirror directory should be")
+    monkeypatch.setattr(bd, "BACKUP_MIRROR_DIR", str(blocker / "ops-backup"))
+    _make_all(paths)
+
+    assert _run_main(monkeypatch) == 1
+
+    out = capsys.readouterr().out
+    assert _summary_line(out) == (
+        "Backup Summary: 5 success, 0 failed, 0 skipped, 5 mirror failed"
+    )
+    assert out.count("[ERROR] Mirror copy failed") == 5
+    for prefix in PREFIXES:
+        found = list(backup_dir.glob(f"{prefix}_*.db"))
+        assert len(found) == 1, prefix
+        assert bd.verify_backup(found[0]) is True
+
+
+def test_mirror_verify_failure_leaves_no_temp_file(env, monkeypatch, capsys, tmp_path):
+    paths, backup_dir = env
+    mirror = tmp_path / "mirror"
+    monkeypatch.setattr(bd, "BACKUP_MIRROR_DIR", str(mirror))
+    _make_db(paths["DB_FILE"])
+    real_verify = bd.verify_backup
+
+    def _fail_mirror_copy(path):
+        if path.name.endswith(bd.PARTIAL_SUFFIX):
+            # Leave sidecars as a bad copy might, then fail.
+            for s in ("-wal", "-shm"):
+                (path.parent / (path.name + s)).write_bytes(b"")
+            return False
+        return real_verify(path)
+
+    monkeypatch.setattr(bd, "verify_backup", _fail_mirror_copy)
+
+    assert _run_main(monkeypatch, "--live") == 1
+
+    out = capsys.readouterr().out
+    assert _summary_line(out) == (
+        "Backup Summary: 1 success, 0 failed, 0 skipped, 1 mirror failed"
+    )
+    assert list(mirror.iterdir()) == []
+    assert len(list(backup_dir.glob("production_*.db"))) == 1
+
+
+def _seed_mirror(mirror):
+    """Old production copies + files the mirror cleanup must not touch."""
+    mirror.mkdir(parents=True, exist_ok=True)
+    old = []
+    for i in range(3):
+        p = mirror / f"production_2026010{i}_000000.db"
+        p.write_bytes(b"old")
+        os.utime(p, (1_000_000 + i * 100, 1_000_000 + i * 100))
+        old.append(p)
+    (mirror / (old[0].name + "-shm")).write_bytes(b"")
+    stale_partial = mirror / ".production_20251231_000000.db.partial"
+    stale_partial.write_bytes(b"half")
+    untouched = [
+        mirror / "materials_20250101_000000.db",  # other prefix, older
+        mirror / "archive_2025_20250101_000000.db",
+        mirror / "production_manual_copy.bak",
+        mirror / "readme.txt",
+        mirror / "other.partial",
+    ]
+    for p in untouched:
+        p.write_bytes(b"keep")
+        os.utime(p, (1, 1))
+    return old, stale_partial, untouched
+
+
+def test_mirror_retention_only_touches_same_prefix(env, monkeypatch, tmp_path):
+    paths, _backup_dir = env
+    mirror = tmp_path / "mirror"
+    old, stale_partial, untouched = _seed_mirror(mirror)
+    monkeypatch.setattr(bd, "BACKUP_MIRROR_DIR", str(mirror))
+    monkeypatch.setattr(bd, "LIVE_BACKUP_RETENTION", 2)
+    _make_db(paths["DB_FILE"])
+
+    assert _run_main(monkeypatch, "--live") == 0
+
+    prod = sorted(mirror.glob("production_*.db"))
+    assert len(prod) == 2
+    assert old[2] in prod and not old[0].exists() and not old[1].exists()
+    assert not (mirror / (old[0].name + "-shm")).exists()
+    assert not stale_partial.exists()
+    assert all(p.read_bytes() == b"keep" for p in untouched)
+
+
+def test_cleanup_also_cleans_mirror(env, monkeypatch, tmp_path):
+    _paths, backup_dir = env
+    mirror = tmp_path / "mirror"
+    old, stale_partial, untouched = _seed_mirror(mirror)
+    monkeypatch.setattr(bd, "BACKUP_MIRROR_DIR", str(mirror))
+    monkeypatch.setattr(bd, "LIVE_BACKUP_RETENTION", 1)
+
+    assert _run_main(monkeypatch, "--cleanup") == 0
+
+    assert sorted(mirror.glob("production_*.db")) == [old[2]]
+    assert not stale_partial.exists()
+    assert all(p.read_bytes() == b"keep" for p in untouched)
+
+
+def test_mirror_dir_option_overrides_setting(env, monkeypatch, tmp_path):
+    paths, _backup_dir = env
+    from_setting = tmp_path / "from_setting"
+    from_cli = tmp_path / "from_cli"
+    monkeypatch.setattr(bd, "BACKUP_MIRROR_DIR", str(from_setting))
+    _make_db(paths["DB_FILE"])
+
+    assert _run_main(monkeypatch, "--live", "--mirror-dir", str(from_cli)) == 0
+    assert len(list(from_cli.glob("production_*.db"))) == 1
+    assert not from_setting.exists()
+
+    # An explicit empty value turns the mirror off for this run.
+    assert _run_main(monkeypatch, "--live", "--mirror-dir", "") == 0
+    assert not from_setting.exists()
+    assert len(list(from_cli.glob("production_*.db"))) == 1

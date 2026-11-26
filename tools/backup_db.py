@@ -9,12 +9,17 @@ Features (Section 6.2):
 - Retention policy: 30 daily backups for Live DB, 12 weekly for Archive DB,
   30 for each app DB (materials, notifications, anomaly)
 - App DBs that do not exist on this machine are skipped (not a failure)
+- Optional mirror: BACKUP_MIRROR_DIR (.env) or --mirror-dir copies each
+  verified backup into a second directory (e.g. another disk), verifies the
+  copy and applies the same retention there. A mirror failure keeps the
+  primary backup but makes the exit code 1. Unset/empty = off.
 
 Usage:
     python tools/backup_db.py              # Backup all DBs (Live, Archive, app DBs)
     python tools/backup_db.py --live       # Backup Live DB only
     python tools/backup_db.py --archive    # Backup Archive DB only
     python tools/backup_db.py --cleanup    # Only run cleanup (no backup)
+    python tools/backup_db.py --mirror-dir PATH  # Also mirror to PATH
 
 Can be scheduled via Windows Task Scheduler for automated daily backups.
 """
@@ -22,7 +27,9 @@ Can be scheduled via Windows Task Scheduler for automated daily backups.
 from __future__ import annotations
 
 import argparse
+import os
 import re
+import shutil
 import sqlite3
 import sys
 from datetime import datetime
@@ -34,7 +41,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import contextlib
 
 from shared import ARCHIVE_DB_FILE, DATABASE_DIR, DB_FILE, DB_TIMEOUT
-from shared.config import ANOMALY_DB_FILE, MATERIALS_DB_FILE, NOTIFICATIONS_DB_FILE
+from shared.config import (
+    ANOMALY_DB_FILE,
+    BACKUP_MIRROR_DIR,
+    MATERIALS_DB_FILE,
+    NOTIFICATIONS_DB_FILE,
+)
 from shared.db_maintenance import wait_for_stabilization
 
 # ==========================================================
@@ -46,6 +58,9 @@ BACKUP_DIR = DATABASE_DIR / "backups"
 LIVE_BACKUP_RETENTION = 30  # Keep last 30 daily backups
 ARCHIVE_BACKUP_RETENTION = 12  # Keep last 12 weekly backups
 APP_BACKUP_RETENTION = 30  # Keep last 30 backups of each app DB
+
+# Mirror copies are written as ".<name>.partial" first, renamed when verified.
+PARTIAL_SUFFIX = ".partial"
 
 
 # ==========================================================
@@ -190,17 +205,19 @@ def verify_backup(backup_path: Path) -> bool:
         _close_quietly(conn)
 
 
-def cleanup_old_backups(prefix: str, retention: int):
+def cleanup_old_backups(prefix: str, retention: int, directory: Path | None = None):
     """
     Remove old backups exceeding retention policy.
     Keeps the most recent 'retention' number of backups matching the prefix.
+    `directory` defaults to BACKUP_DIR (the mirror directory passes its own).
     """
-    if not BACKUP_DIR.exists():
+    directory = BACKUP_DIR if directory is None else directory
+    if not directory.exists():
         return
 
     # Find all backups matching prefix
     backups = sorted(
-        BACKUP_DIR.glob(f"{prefix}_*.db"),
+        directory.glob(f"{prefix}_*.db"),
         key=lambda p: p.stat().st_mtime,
         reverse=True  # Newest first
     )
@@ -225,7 +242,7 @@ def cleanup_old_backups(prefix: str, retention: int):
 
         log("INFO", f"Cleanup complete: removed {len(to_remove)} old backups")
 
-    _cleanup_stale_sidecars(prefix)
+    _cleanup_stale_sidecars(prefix, directory)
 
 
 def _remove_sidecar(path: Path) -> None:
@@ -238,18 +255,30 @@ def _remove_sidecar(path: Path) -> None:
         log("WARN", f"Failed to remove {path.name}: {e}")
 
 
-def _cleanup_stale_sidecars(prefix: str) -> None:
+def _cleanup_stale_sidecars(prefix: str, directory: Path | None = None) -> None:
     """Remove -wal/-shm files left beside this prefix's backups by earlier runs.
 
     Only names of the form <prefix>_YYYYMMDD_HHMMSS.db-wal|-shm directly in
-    BACKUP_DIR are considered. The .db files are never touched here.
+    `directory` (default BACKUP_DIR) are considered. The .db files are never
+    touched here.
     - Orphan (its .db is gone): removed.
     - Beside an existing backup: -shm is removed (it is only an index);
       -wal is removed only if it is empty. A non-empty -wal could hold data
       of that backup, so it is kept and reported instead.
+    Leftover mirror temp files (.<prefix>_YYYYMMDD_HHMMSS.db.partial, e.g.
+    from a killed run) are removed too.
     """
+    directory = BACKUP_DIR if directory is None else directory
     pattern = re.compile(rf"^{re.escape(prefix)}_\d{{8}}_\d{{6}}\.db(-wal|-shm)$")
-    for side in sorted(BACKUP_DIR.iterdir()):
+    partial = re.compile(rf"^\.{re.escape(prefix)}_\d{{8}}_\d{{6}}\.db{re.escape(PARTIAL_SUFFIX)}$")
+    for side in sorted(directory.iterdir()):
+        if partial.match(side.name) and side.is_file():
+            try:
+                side.unlink()
+                log("INFO", f"Removed stale temp file: {side.name}")
+            except OSError as e:
+                log("WARN", f"Failed to remove {side.name}: {e}")
+            continue
         m = pattern.match(side.name)
         if not m or not side.is_file():
             continue
@@ -269,14 +298,19 @@ def run_backup(db_path: Path, prefix: str, retention: int) -> bool:
     """
     Complete backup workflow for a single database.
     """
+    return _run_backup_to_path(db_path, prefix, retention) is not None
+
+
+def _run_backup_to_path(db_path: Path, prefix: str, retention: int) -> Path | None:
+    """run_backup() that returns the verified backup's path (None on failure)."""
     if not db_path.exists():
         log("WARN", f"Skipping backup - file not found: {db_path}")
-        return False
+        return None
 
     # 1. Wait for stabilization
     if not wait_for_stabilization(db_path):
         log("ERROR", f"Failed to stabilize {db_path.name}. Aborting backup.")
-        return False
+        return None
 
     # 2. Generate backup filename with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -285,19 +319,80 @@ def run_backup(db_path: Path, prefix: str, retention: int) -> bool:
 
     # 3. Perform backup
     if not backup_database(db_path, backup_path):
-        return False
+        return None
 
     # 4. Verify backup
     if not verify_backup(backup_path):
         log("ERROR", "Backup verification failed. Removing corrupted backup.")
         _remove_backup_files(backup_path)
-        return False
+        return None
 
     # 5. Cleanup old backups
     cleanup_old_backups(prefix, retention)
 
     log("INFO", f"Backup successful: {backup_name}")
+    return backup_path
+
+
+# ==========================================================
+# Mirror copy (optional second directory, e.g. another disk)
+# ==========================================================
+def _resolve_mirror_dir(cli_value: str | None) -> Path | None:
+    """--mirror-dir overrides BACKUP_MIRROR_DIR; empty/unset = mirror off."""
+    raw = cli_value if cli_value is not None else BACKUP_MIRROR_DIR
+    raw = (raw or "").strip()
+    return Path(raw) if raw else None
+
+
+def mirror_backup(backup_path: Path, prefix: str, retention: int, mirror_dir: Path) -> bool:
+    """Copy a verified backup into mirror_dir under the same name.
+
+    Only the backup .db file is read (never the source DB, never sidecars).
+    The copy is written to a hidden temp name, verified like the primary
+    backup, checked for sidecars and only then renamed to its final name.
+    On failure the temp file (and anything beside it) is removed and False
+    is returned; the primary backup is never touched.
+    """
+    final = mirror_dir / backup_path.name
+    tmp = mirror_dir / f".{backup_path.name}{PARTIAL_SUFFIX}"
+    try:
+        if mirror_dir.resolve() == backup_path.parent.resolve():
+            log("ERROR", f"Mirror directory is the backup directory itself: {mirror_dir}")
+            return False
+        mirror_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(backup_path, tmp)
+        if not verify_backup(tmp):
+            raise OSError("mirror copy failed verification")
+        left = [p.name for p in _sidecars(tmp) if p.exists()]
+        if left:
+            raise OSError(f"sidecar files beside mirror copy: {left}")
+        os.replace(tmp, final)
+        left = [p.name for p in _sidecars(final) if p.exists()]
+        if left:
+            # Cannot happen for a verified rollback-mode file; fail loudly.
+            _remove_backup_files(final)
+            raise OSError(f"sidecar files beside mirror copy: {left}")
+    except OSError as e:
+        log("ERROR", f"Mirror copy failed for {backup_path.name} -> {mirror_dir}: {e}")
+        _remove_backup_files(tmp)
+        return False
+
+    log("INFO", f"Mirror copy verified: {final}")
+    cleanup_old_backups(prefix, retention, directory=mirror_dir)
     return True
+
+
+def _backup_target(
+    db_path: Path, prefix: str, retention: int, mirror_dir: Path | None
+) -> tuple[bool, bool]:
+    """Back up one DB (and mirror it when enabled).
+    Returns (primary_ok, mirror_failed)."""
+    if mirror_dir is None:
+        return run_backup(db_path, prefix, retention), False
+    backup_path = _run_backup_to_path(db_path, prefix, retention)
+    if backup_path is None:
+        return False, False
+    return True, not mirror_backup(backup_path, prefix, retention, mirror_dir)
 
 
 def _app_db_targets() -> list[tuple[str, Path, str, int]]:
@@ -310,21 +405,40 @@ def _app_db_targets() -> list[tuple[str, Path, str, int]]:
     ]
 
 
-def _run_app_backups() -> tuple[int, int, int]:
+def _run_app_backups(mirror_dir: Path | None = None) -> tuple[int, int, int, int]:
     """Back up every app DB. A missing file is skipped, not counted as failed.
-    Returns (success, failed, skipped)."""
-    success = fail = skipped = 0
+    Returns (success, failed, skipped, mirror_failed)."""
+    success = fail = skipped = mirror_fail = 0
     for label, db_path, prefix, retention in _app_db_targets():
         log("INFO", "-" * 30)
         log("INFO", f"Backing up {label}...")
         if not db_path.exists():
             log("INFO", f"Skipping {label} - not present on this machine: {db_path}")
             skipped += 1
-        elif run_backup(db_path, prefix, retention):
+            continue
+        ok, m_fail = _backup_target(db_path, prefix, retention, mirror_dir)
+        if ok:
             success += 1
         else:
             fail += 1
-    return success, fail, skipped
+        mirror_fail += int(m_fail)
+    return success, fail, skipped, mirror_fail
+
+
+def _run_cleanup_only(mirror_dir: Path | None) -> None:
+    log("INFO", "Running cleanup only...")
+    targets = [
+        ("production", LIVE_BACKUP_RETENTION),
+        ("archive_2025", ARCHIVE_BACKUP_RETENTION),
+        *((prefix, retention) for _l, _p, prefix, retention in _app_db_targets()),
+    ]
+    for prefix, retention in targets:
+        cleanup_old_backups(prefix, retention)
+    if mirror_dir is not None:
+        log("INFO", "Running mirror cleanup...")
+        for prefix, retention in targets:
+            cleanup_old_backups(prefix, retention, directory=mirror_dir)
+    log("INFO", "Cleanup complete.")
 
 
 # ==========================================================
@@ -335,7 +449,14 @@ def main():
     parser.add_argument("--live", action="store_true", help="Backup Live DB only")
     parser.add_argument("--archive", action="store_true", help="Backup Archive DB only")
     parser.add_argument("--cleanup", action="store_true", help="Only run cleanup, no backup")
+    parser.add_argument(
+        "--mirror-dir",
+        default=None,
+        metavar="PATH",
+        help="Also copy each verified backup here (overrides BACKUP_MIRROR_DIR; empty = off)",
+    )
     args = parser.parse_args()
+    mirror_dir = _resolve_mirror_dir(args.mirror_dir)
 
     log("INFO", "=" * 50)
     log("INFO", "Production Data Hub - Database Backup")
@@ -344,53 +465,58 @@ def main():
     # Ensure backup directory exists
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
     log("INFO", f"Backup directory: {BACKUP_DIR}")
+    if mirror_dir is not None:
+        log("INFO", f"Mirror directory: {mirror_dir}")
 
     if args.cleanup:
-        log("INFO", "Running cleanup only...")
-        cleanup_old_backups("production", LIVE_BACKUP_RETENTION)
-        cleanup_old_backups("archive_2025", ARCHIVE_BACKUP_RETENTION)
-        for _label, _path, prefix, retention in _app_db_targets():
-            cleanup_old_backups(prefix, retention)
-        log("INFO", "Cleanup complete.")
+        _run_cleanup_only(mirror_dir)
         return 0
 
     success_count = 0
     fail_count = 0
+    mirror_fail_count = 0
 
     # Backup Live DB
     if not args.archive:  # Default or --live
         log("INFO", "-" * 30)
         log("INFO", "Backing up Live DB...")
-        if run_backup(DB_FILE, "production", LIVE_BACKUP_RETENTION):
+        ok, m_fail = _backup_target(DB_FILE, "production", LIVE_BACKUP_RETENTION, mirror_dir)
+        if ok:
             success_count += 1
         else:
             fail_count += 1
+        mirror_fail_count += int(m_fail)
 
     # Backup Archive DB
     if not args.live:  # Default or --archive
         log("INFO", "-" * 30)
         log("INFO", "Backing up Archive DB...")
-        if run_backup(ARCHIVE_DB_FILE, "archive_2025", ARCHIVE_BACKUP_RETENTION):
+        ok, m_fail = _backup_target(
+            ARCHIVE_DB_FILE, "archive_2025", ARCHIVE_BACKUP_RETENTION, mirror_dir
+        )
+        if ok:
             success_count += 1
         else:
             fail_count += 1
+        mirror_fail_count += int(m_fail)
 
     # Backup app DBs (default run only; --live / --archive keep their old scope)
     skip_count = 0
     if not args.live and not args.archive:
-        app_success, app_fail, skip_count = _run_app_backups()
+        app_success, app_fail, skip_count, app_mirror_fail = _run_app_backups(mirror_dir)
         success_count += app_success
         fail_count += app_fail
+        mirror_fail_count += app_mirror_fail
 
     # Summary
+    summary = f"Backup Summary: {success_count} success, {fail_count} failed, {skip_count} skipped"
+    if mirror_dir is not None:
+        summary += f", {mirror_fail_count} mirror failed"
     log("INFO", "=" * 50)
-    log(
-        "INFO",
-        f"Backup Summary: {success_count} success, {fail_count} failed, {skip_count} skipped",
-    )
+    log("INFO", summary)
     log("INFO", "=" * 50)
 
-    return 0 if fail_count == 0 else 1
+    return 0 if fail_count == 0 and mirror_fail_count == 0 else 1
 
 
 if __name__ == "__main__":
