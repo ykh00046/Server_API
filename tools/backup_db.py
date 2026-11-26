@@ -6,10 +6,12 @@ Features (Section 6.2):
 - Wait for mtime stabilization before backup (prevents corrupted backups)
 - Use sqlite3 backup API for safe copying
 - PRAGMA quick_check validation after backup
-- Retention policy: 30 daily backups for Live DB, 12 weekly for Archive DB
+- Retention policy: 30 daily backups for Live DB, 12 weekly for Archive DB,
+  30 for each app DB (materials, notifications, anomaly)
+- App DBs that do not exist on this machine are skipped (not a failure)
 
 Usage:
-    python tools/backup_db.py              # Backup both DBs
+    python tools/backup_db.py              # Backup all DBs (Live, Archive, app DBs)
     python tools/backup_db.py --live       # Backup Live DB only
     python tools/backup_db.py --archive    # Backup Archive DB only
     python tools/backup_db.py --cleanup    # Only run cleanup (no backup)
@@ -31,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import contextlib
 
 from shared import ARCHIVE_DB_FILE, DATABASE_DIR, DB_FILE, DB_TIMEOUT
+from shared.config import ANOMALY_DB_FILE, MATERIALS_DB_FILE, NOTIFICATIONS_DB_FILE
 from shared.db_maintenance import wait_for_stabilization
 
 # ==========================================================
@@ -41,6 +44,7 @@ BACKUP_DIR = DATABASE_DIR / "backups"
 # Retention policy
 LIVE_BACKUP_RETENTION = 30  # Keep last 30 daily backups
 ARCHIVE_BACKUP_RETENTION = 12  # Keep last 12 weekly backups
+APP_BACKUP_RETENTION = 30  # Keep last 30 backups of each app DB
 
 
 # ==========================================================
@@ -210,6 +214,33 @@ def run_backup(db_path: Path, prefix: str, retention: int) -> bool:
     return True
 
 
+def _app_db_targets() -> list[tuple[str, Path, str, int]]:
+    """App-owned DBs (label, path, prefix, retention). Resolved at call time
+    so tests can monkeypatch the module-level paths."""
+    return [
+        ("Materials DB", MATERIALS_DB_FILE, "materials", APP_BACKUP_RETENTION),
+        ("Notifications DB", NOTIFICATIONS_DB_FILE, "notifications", APP_BACKUP_RETENTION),
+        ("Anomaly DB", ANOMALY_DB_FILE, "anomaly", APP_BACKUP_RETENTION),
+    ]
+
+
+def _run_app_backups() -> tuple[int, int, int]:
+    """Back up every app DB. A missing file is skipped, not counted as failed.
+    Returns (success, failed, skipped)."""
+    success = fail = skipped = 0
+    for label, db_path, prefix, retention in _app_db_targets():
+        log("INFO", "-" * 30)
+        log("INFO", f"Backing up {label}...")
+        if not db_path.exists():
+            log("INFO", f"Skipping {label} - not present on this machine: {db_path}")
+            skipped += 1
+        elif run_backup(db_path, prefix, retention):
+            success += 1
+        else:
+            fail += 1
+    return success, fail, skipped
+
+
 # ==========================================================
 # Main
 # ==========================================================
@@ -232,6 +263,8 @@ def main():
         log("INFO", "Running cleanup only...")
         cleanup_old_backups("production", LIVE_BACKUP_RETENTION)
         cleanup_old_backups("archive_2025", ARCHIVE_BACKUP_RETENTION)
+        for _label, _path, prefix, retention in _app_db_targets():
+            cleanup_old_backups(prefix, retention)
         log("INFO", "Cleanup complete.")
         return 0
 
@@ -256,9 +289,19 @@ def main():
         else:
             fail_count += 1
 
+    # Backup app DBs (default run only; --live / --archive keep their old scope)
+    skip_count = 0
+    if not args.live and not args.archive:
+        app_success, app_fail, skip_count = _run_app_backups()
+        success_count += app_success
+        fail_count += app_fail
+
     # Summary
     log("INFO", "=" * 50)
-    log("INFO", f"Backup Summary: {success_count} success, {fail_count} failed")
+    log(
+        "INFO",
+        f"Backup Summary: {success_count} success, {fail_count} failed, {skip_count} skipped",
+    )
     log("INFO", "=" * 50)
 
     return 0 if fail_count == 0 else 1
