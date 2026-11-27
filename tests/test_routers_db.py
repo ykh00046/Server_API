@@ -176,6 +176,16 @@ class TestRecordsRouter:
         assert r.status_code == 200
         assert len(r.json()) == 3
 
+    def test_record_by_item_code_rejects_out_of_range_limit(self, live_db):
+        """limit=-1 은 SQLite 에서 '제한 없음'이 된다 — 범위 밖 값은 거절한다."""
+        c = TestClient(app)
+        for bad in (-1, 0, 5001):
+            r = c.get("/records/BW0021", params={"limit": bad})
+            assert r.status_code in (400, 422), bad
+        r = c.get("/records/BW0021", params={"limit": 2})
+        assert r.status_code == 200
+        assert len(r.json()) == 2
+
     def test_items_list(self, live_db):
         c = TestClient(app)
         r = c.get("/items")

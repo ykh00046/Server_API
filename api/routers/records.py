@@ -235,7 +235,7 @@ def _get_item_records_cached(item_code: str, limit: int) -> list[dict]:
 
 
 @router.get("/records/{item_code}")
-def get_item_records(item_code: str, limit: int = 5000):
+def get_item_records(item_code: str, limit: int = Query(default=5000, ge=1, le=5000)):
     """Get production records for a specific item code (all time periods)."""
     return _get_item_records_cached(item_code, limit)
 
